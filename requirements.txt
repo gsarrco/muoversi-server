@@ -1,0 +1,4 @@
+python-telegram-bot==20.0
+Babel==2.11.0
+tornado==6.2
+PyYAML==6.0
