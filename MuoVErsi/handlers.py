@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import StopData, split_list, limit, get_time
+from .helpers import StopData, split_list, LIMIT, get_time
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -136,7 +136,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         con = thismodule.nav_db_con
 
-    buttons = [str(i) for i in range(1, limit + 1)]
+    buttons = [str(i) for i in range(1, LIMIT + 1)]
     reply_markup = ReplyKeyboardMarkup(split_list(buttons), resize_keyboard=True)
     await update.message.reply_text('Ecco gli orari', disable_notification=True, reply_markup=reply_markup)
 
