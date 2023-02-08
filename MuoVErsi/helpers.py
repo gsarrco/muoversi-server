@@ -15,28 +15,22 @@ LIMIT = 12
 
 
 class StopData:
-    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, query_data=None):
-        prev_start_time = None
-        prev_end_time = None
+    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, direction='',
+                 query_data=None):
 
         if query_data:
-            stop_id, day_raw, line, start_time_raw, end_time_raw, prev_start_time_raw, prev_end_time_raw = \
+            stop_id, day_raw, line, start_time_raw, end_time_raw, direction = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
             end_time = time.fromisoformat(end_time_raw) if end_time_raw != '' else ''
-            prev_start_time = time.fromisoformat(prev_start_time_raw) if prev_start_time_raw != '' else ''
-            prev_end_time = time.fromisoformat(prev_end_time_raw) if prev_end_time_raw != '' else ''
 
-        prev_start_time = None if start_time == '' else prev_start_time
-        prev_end_time = None if end_time == '' else prev_end_time
         self.stop_id = stop_id
         self.day = day
         self.line = line
         self.start_time = start_time
         self.end_time = end_time
-        self.prev_start_time = prev_start_time
-        self.prev_end_time = prev_end_time
+        self.direction = int(direction) if direction != '' else ''
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -45,7 +39,7 @@ class StopData:
         to_print = {k: to_print[k] for k in sorted(to_print)}
         to_print['day'] = to_print['day'].isoformat()
         return f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
-               f'{to_print["start_time"]}/{to_print["end_time"]}/{self.start_time}/{self.end_time}'
+               f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}'
 
     def title(self):
         text = format_date(self.day, format='full', locale='it')
@@ -146,8 +140,8 @@ class StopData:
         # *FILTER BUTTONS*
         # Days buttons
         days_buttons = [
-            self.inline_button("-1g", day=self.day - timedelta(days=1), start_time='', end_time=''),
-            self.inline_button("+1g", day=self.day + timedelta(days=1), start_time='', end_time='')
+            self.inline_button("-1g", day=self.day - timedelta(days=1), start_time='', end_time='', direction=''),
+            self.inline_button("+1g", day=self.day + timedelta(days=1), start_time='', end_time='', direction='')
         ]
         keyboard = [
             days_buttons
@@ -157,17 +151,26 @@ class StopData:
         if self.line == '':
             lines = list(dict.fromkeys([result[1] for result in results]))
             if len(lines) > 1:
-                keyboard.append([self.inline_button(line, line=line) for line in lines])
+                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines])
         else:
-            keyboard.append([self.inline_button('Tutte le linee', line='')])
+            keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
         # Time buttons
         times = [result[0] for result in results][LIMIT:]
         len_times = len(times)
         times_buttons = []
 
-        if self.prev_start_time is not None and self.prev_end_time is not None:
-            times_buttons.append(self.inline_button("<<", start_time=self.prev_start_time, end_time=self.prev_end_time))
+        if 'times_history' not in context.user_data:
+            context.user_data['times_history'] = [(self.start_time, self.end_time)]
+
+        if self.direction == 1: # I am going down
+            context.user_data['times_history'].append((self.start_time, self.end_time))
+        if self.direction == -1: # I am going up
+            context.user_data['times_history'].pop()
+
+        if len(context.user_data['times_history']) > 1:
+            prev_start_time, prev_end_time = context.user_data['times_history'][-2]
+            times_buttons.append(self.inline_button("<<", start_time=prev_start_time, end_time=prev_end_time, direction=-1))
             group_numbers = 2 if len_times > LIMIT else 1
         else:
             group_numbers = 3
@@ -177,9 +180,8 @@ class StopData:
                 start_time = get_time(time_range[0])
                 end_time = get_time(time_range[1])
                 time_text = f'{start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
-                times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time))
+                times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time, direction=1))
         keyboard = [times_buttons] + keyboard
-
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
 

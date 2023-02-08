@@ -210,6 +210,7 @@ async def ride_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
+    context.user_data.clear()
     logger.info("User %s canceled the conversation.", user.first_name)
     await update.message.reply_text(
         "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi.\n\n"
