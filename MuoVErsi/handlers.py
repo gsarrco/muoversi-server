@@ -38,16 +38,17 @@ SEARCH_STOP, SHOW_STOP, FILTER_TIMES = range(3)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia.\n\n"
-        "Inizia la tua ricerca con /fermata."
+        "Inizia la tua ricerca con /fermata_aut per il servizio automobilistico, o /fermata_nav per quello di navigazione."
     )
 
 
 async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['transport_type'] = 'automobilistico'
+    transport_type = 'automobilistico'
+    context.user_data['transport_type'] = transport_type
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
-        "Inizia digitando il nome della fermata oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
+        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
         "Invia /annulla per interrompere questa conversazione.",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
@@ -58,11 +59,12 @@ async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def fermata_nav(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data['transport_type'] = 'navigazione'
+    transport_type = 'navigazione'
+    context.user_data['transport_type'] = transport_type
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
-        "Inizia digitando il nome della fermata oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
+        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
         "Invia /annulla per interrompere questa conversazione.",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
