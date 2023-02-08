@@ -1,8 +1,6 @@
 import unittest
 from datetime import date, time
 
-import base62
-
 from MuoVErsi.helpers import times_groups, StopData, get_time
 
 
@@ -19,11 +17,11 @@ class StopDataCase(unittest.TestCase):
         self.assertEqual(get_time('21:43:23'), time(21, 43, 23, 0))
 
     def test_str(self):
-        stop_data1 = StopData('6021', date(2023, 1, 31), '', time(0, 0, 0), time(23, 59, 59))
-        self.assertEqual(stop_data1.query_data(line='4'), '6021/2023-01-31/4/00:00:00/23:59:59')
-        stop_data2 = StopData('6021', date(2023, 1, 31), '', time(0, 0, 0), time(23, 59, 59))
+        stop_data1 = StopData('6021', date(2023, 1, 31), '', '', '')
+        self.assertEqual(stop_data1.query_data(line='4'), '6021/2023-01-31/4//')
+        stop_data2 = StopData('6021', date(2023, 1, 31), '', '', '')
         self.assertEqual(stop_data2.query_data(line='4', end_time=time(21, 12, 12)),
-                         '6021/2023-01-31/4/00:00:00/21:12:12')
+                         '6021/2023-01-31/4//21:12:12')
 
 
 if __name__ == '__main__':
