@@ -15,16 +15,18 @@ limit = 10
 
 
 class StopData:
-    def __init__(self, query_data=None):
-        if not query_data:
-            return
+    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, query_data=None):
+        if query_data:
+            stop_id, day_raw, line, start_time_raw, end_time_raw = query_data.split('/')
+            day = datetime.strptime(day_raw, '%Y-%m-%d').date()
+            start_time = time.fromisoformat(start_time_raw)
+            end_time = time.fromisoformat(end_time_raw)
 
-        stop_id, day, line, start_time, end_time = query_data.split('/')
         self.stop_id = stop_id
-        self.day = datetime.strptime(day, '%Y-%m-%d').date()
+        self.day = day
         self.line = line
-        self.start_time = time.fromisoformat(start_time)
-        self.end_time = time.fromisoformat(end_time)
+        self.start_time = start_time
+        self.end_time = end_time
 
     def query_data(self, **new_params):
         original_params = self.__dict__
