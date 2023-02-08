@@ -2,3 +2,6 @@ python-telegram-bot==20.0
 Babel==2.11.0
 tornado==6.2
 PyYAML==6.0
+requests==2.28.2
+beautifulsoup4==4.11.2
+freezegun==1.2.2
