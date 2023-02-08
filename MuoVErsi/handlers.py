@@ -104,13 +104,12 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     for stop in stop_results:
         stop_id, stop_name = stop
-        query_count = ', count(*) OVER() AS full_count' if not message.location else ''
         stoptime_results = cur.execute(
-            f'SELECT DISTINCT stop_headsign {query_count} FROM stop_times WHERE stop_id = ?',
+            'SELECT stop_headsign, count(stop_headsign) as headsign_count FROM stop_times WHERE stop_id = ? '
+            'GROUP BY stop_headsign ORDER BY headsign_count DESC LIMIT 2;',
             (stop_id,)).fetchall()
         if stoptime_results:
-            stoptime_results = stoptime_results[:2]
-            count = stoptime_results[0][1] if not message.location else 0
+            count = sum([stoptime[1] for stoptime in stoptime_results])
             headsigns = '/'.join([stoptime[0] for stoptime in stoptime_results])
         else:
             count, headsigns = 0, '*NO ORARI*'
