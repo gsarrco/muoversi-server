@@ -218,7 +218,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info("User %s canceled the conversation.", user.first_name)
     await update.message.reply_text(
         "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi.\n\n"
-        "Inizia la tua ricerca con /fermata.",
+        "Inizia la tua ricerca con /fermata_aut per il servizio automobilistico, o /fermata_nav per quello di navigazione.",
         reply_markup=ReplyKeyboardRemove()
     )
 
