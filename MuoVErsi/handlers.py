@@ -43,13 +43,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.clear()
     transport_type = 'automobilistico'
     context.user_data['transport_type'] = transport_type
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
-        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
-        "Invia /annulla per interrompere questa conversazione.",
+        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per "
+        f"vedere le fermate più vicine.\n\n",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
         )
@@ -59,13 +60,14 @@ async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def fermata_nav(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.clear()
     transport_type = 'navigazione'
     context.user_data['transport_type'] = transport_type
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
-        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
-        "Invia /annulla per interrompere questa conversazione.",
+        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per "
+        f"vedere le fermate più vicine.\n\n",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
         )
@@ -242,7 +244,8 @@ def main() -> None:
             SHOW_STOP: [MessageHandler(filters.Regex(r'.*\((\d+)\).*'), show_stop)],
             FILTER_TIMES: [CallbackQueryHandler(filter_times), MessageHandler(filters.Regex(r'\/?\d+'), ride_view)]
         },
-        fallbacks=[CommandHandler("annulla", cancel)]
+        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata_aut", fermata_aut),
+                   CommandHandler("fermata_nav", fermata_nav)]
     )
 
     application.add_handler(CommandHandler("start", start))
