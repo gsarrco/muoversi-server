@@ -139,10 +139,14 @@ class StopData:
 
         # *FILTER BUTTONS*
         # Days buttons
-        days_buttons = [
-            self.inline_button("-1g", day=self.day - timedelta(days=1), start_time='', end_time='', direction=''),
-            self.inline_button("+1g", day=self.day + timedelta(days=1), start_time='', end_time='', direction='')
-        ]
+        prev_day = self.day - timedelta(days=1)
+        next_day = self.day + timedelta(days=1)
+
+        days_buttons = [self.inline_button("+1g", day=next_day, start_time='', end_time='', direction='')]
+
+        if prev_day >= date.today():
+            days_buttons.insert(0, self.inline_button("-1g", day=prev_day, start_time='', end_time='', direction=''))
+
         keyboard = [
             days_buttons
         ]
