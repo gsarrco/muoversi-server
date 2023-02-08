@@ -144,12 +144,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     now = datetime.now()
 
-    stopdata = StopData()
-    stopdata.stop_id = stop_id
-    stopdata.day = now.date()
-    stopdata.line = ''
-    stopdata.start_time = time(0, 0, 0)
-    stopdata.end_time = time(23, 59, 59)
+    stopdata = StopData(stop_id, now.date(), '', time(0, 0, 0), time(23, 59, 59))
     results = stopdata.get_times(con)
 
     if not results:
@@ -174,7 +169,7 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     logger.info("Query data %s", query.data)
 
-    stopdata = StopData(query.data)
+    stopdata = StopData(query_data=query.data)
 
     results = stopdata.get_times(con)
     text, reply_markup = stopdata.format_times_text(results, context)
