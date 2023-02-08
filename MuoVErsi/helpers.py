@@ -31,8 +31,6 @@ class StopData:
         prev_start_time = None if start_time == '' else prev_start_time
         prev_end_time = None if end_time == '' else prev_end_time
 
-        logger.info('prev_start_time: %s, prev_end_time: %s', prev_start_time, prev_end_time)
-
         self.stop_id = stop_id
         self.day = day
         self.line = line
