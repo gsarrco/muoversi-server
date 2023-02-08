@@ -180,12 +180,6 @@ class StopData:
                 times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time))
         keyboard = [times_buttons] + keyboard
 
-        # Reset button
-        today = datetime.now().date()
-        if self.start_time != '' or self.end_time != '' or self.line != '' or self.day != today:
-            keyboard.append([self.inline_button("cancella filtri", line='', day=today, start_time='',
-                                                end_time='')])
-
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
 
