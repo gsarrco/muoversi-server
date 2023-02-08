@@ -83,7 +83,12 @@ class StopData:
 
         route = 'AND route_short_name = ?' if line != '' else ''
 
-        start_time = time(0, 0, 0) if start_time == '' else start_time
+        if start_time == '':
+            if day == date.today():
+                start_time = datetime.now().time()
+            else:
+                start_time = time(0, 0, 0)
+
         end_time = time(23, 59, 59) if end_time == '' else end_time
 
         start_time, end_time = format_time(start_time), format_time(end_time)
