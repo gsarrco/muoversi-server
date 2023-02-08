@@ -1,8 +1,10 @@
 import logging
 import os
 import re
-import sqlite3
+import sys
 from datetime import datetime, time
+from sqlite3 import Connection
+
 import yaml
 
 from babel.dates import format_date
@@ -16,6 +18,7 @@ from telegram.ext import (
     filters, CallbackQueryHandler,
 )
 
+from .db import DBFile
 from .helpers import StopData, split_list, limit, get_time
 
 logging.basicConfig(
@@ -25,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
-db_path = os.path.join(parent_dir, 'data.db')
-con = sqlite3.connect(db_path)
-con.set_trace_callback(logger.info)
+thismodule = sys.modules[__name__]
+thismodule.aut_db_con = None
+thismodule.nav_db_con = None
 
 SEARCH_STOP, SHOW_STOP, FILTER_TIMES = range(3)
 
@@ -39,7 +42,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def fermata(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['transport_type'] = 'automobilistico'
+    reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
+
+    await update.message.reply_text(
+        "Inizia digitando il nome della fermata oppure invia la posizione attuale per vedere le fermate più vicine.\n\n"
+        "Invia /annulla per interrompere questa conversazione.",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
+        )
+    )
+
+    return SEARCH_STOP
+
+
+async def fermata_nav(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['transport_type'] = 'navigazione'
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
@@ -56,7 +75,12 @@ async def fermata(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     message = update.message
-    cur = con.cursor()
+
+    if context.user_data['transport_type'] == 'automobilistico':
+        cur = thismodule.aut_db_con.cursor()
+    else:
+        cur = thismodule.nav_db_con.cursor()
+
     if message.location:
         lat = message.location.latitude
         long = message.location.longitude
@@ -66,25 +90,33 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             'ASC LIMIT 5',
             (lat, lat, long, long))
     else:
-        result = cur.execute('SELECT stop_id, stop_name FROM stops where stop_name LIKE ?', ('%' + message.text + '%',))
+        result = cur.execute('SELECT stop_id, stop_name FROM stops where stop_name LIKE ? LIMIT 5',
+                             ('%' + message.text + '%',))
 
-    results = result.fetchall()
-    if not results:
+    stop_results = result.fetchall()
+    if not stop_results:
         await update.message.reply_text('Non abbiamo trovato la fermata che hai inserito. Riprova.')
         return SEARCH_STOP
 
     stops = []
-    for stop in results:
+
+    for stop in stop_results:
         stop_id, stop_name = stop
-        results = cur.execute(
-            'SELECT DISTINCT stop_headsign, count(*) OVER() AS full_count FROM stop_times WHERE stop_id = ?',
-            (stop_id,))
-        results = results.fetchall()[:2]
-        count = results[0][1]
-        headsigns = '/'.join([result[0] for result in results])
+        query_count = ', count(*) OVER() AS full_count' if not message.location else ''
+        stoptime_results = cur.execute(
+            f'SELECT DISTINCT stop_headsign {query_count} FROM stop_times WHERE stop_id = ?',
+            (stop_id,)).fetchall()
+        if stoptime_results:
+            stoptime_results = stoptime_results[:2]
+            count = stoptime_results[0][1] if not message.location else 0
+            headsigns = '/'.join([stoptime[0] for stoptime in stoptime_results])
+        else:
+            count, headsigns = 0, '*NO ORARI*'
+
         stops.append((stop_id, stop_name, headsigns, count))
 
-    stops.sort(key=lambda x: -x[3])
+    if not message.location:
+        stops.sort(key=lambda x: -x[3])
     buttons = [[f'{stop_name} ({stop_id}) - {headsigns}'] for stop_id, stop_name, headsigns, count in stops]
 
     await update.message.reply_text(
@@ -98,6 +130,11 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'automobilistico':
+        con = thismodule.aut_db_con
+    else:
+        con = thismodule.nav_db_con
+
     buttons = [str(i) for i in range(1, limit + 1)]
     reply_markup = ReplyKeyboardMarkup(split_list(buttons), resize_keyboard=True)
     await update.message.reply_text('Ecco gli orari', disable_notification=True, reply_markup=reply_markup)
@@ -127,6 +164,11 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.user_data['transport_type'] == 'automobilistico':
+        con = thismodule.aut_db_con
+    else:
+        con = thismodule.nav_db_con
+
     query = update.callback_query
 
     logger.info("Query data %s", query.data)
@@ -145,6 +187,11 @@ async def ride_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     times_number = int(update.message.text.replace('/', '')) - 1
     trip_id, stop_id, day, stop_sequence, line = context.user_data[times_number]
 
+    if context.user_data['transport_type'] == 'automobilistico':
+        cur = thismodule.aut_db_con.cursor()
+    else:
+        cur = thismodule.nav_db_con.cursor()
+
     query = """SELECT departure_time, stop_name
                         FROM stop_times
                                  INNER JOIN stops ON stop_times.stop_id = stops.stop_id
@@ -152,7 +199,7 @@ async def ride_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                         AND stop_sequence >= ?
                         ORDER BY stop_sequence"""
 
-    results = con.execute(query, (trip_id, stop_sequence)).fetchall()
+    results = cur.execute(query, (trip_id, stop_sequence)).fetchall()
 
     text = format_date(day, format='full', locale='it') + ' - linea ' + line + '\n'
 
@@ -186,10 +233,13 @@ def main() -> None:
         except yaml.YAMLError as err:
             logger.error(err)
 
+    thismodule.aut_db_con = DBFile('automobilistico').connect_to_database()
+    thismodule.nav_db_con = DBFile('navigazione').connect_to_database()
+
     application = Application.builder().token(config['TOKEN']).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("fermata", fermata)],
+        entry_points=[CommandHandler("fermata_aut", fermata_aut), CommandHandler("fermata_nav", fermata_nav)],
         states={
             SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION) & (~ filters.COMMAND), search_stop)],
             SHOW_STOP: [MessageHandler(filters.Regex(r'.*\((\d+)\).*'), show_stop)],
@@ -201,7 +251,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
 
-    if os.environ.get('ENV') == 'dev':
+    if config.get('DEV', False):
         application.run_polling()
     else:
         application.run_webhook(listen='0.0.0.0', port=443, secret_token=config['SECRET_TOKEN'],
