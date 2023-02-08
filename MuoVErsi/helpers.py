@@ -19,8 +19,8 @@ class StopData:
         if query_data:
             stop_id, day_raw, line, start_time_raw, end_time_raw = query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
-            start_time = time.fromisoformat(start_time_raw)
-            end_time = time.fromisoformat(end_time_raw)
+            start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
+            end_time = time.fromisoformat(end_time_raw) if end_time_raw != '' else ''
 
         self.stop_id = stop_id
         self.day = day
@@ -39,7 +39,11 @@ class StopData:
 
     def title(self):
         text = format_date(self.day, format='full', locale='it')
-        if self.start_time != time(0, 0, 0) or self.end_time != time(23, 59, 59):
+
+        start_time = time(0, 0, 0) if self.start_time == '' else self.start_time
+        end_time = time(23, 59, 59) if self.end_time == '' else self.end_time
+
+        if start_time != time(0, 0, 0) or end_time != time(23, 59, 59):
             text += f' - {self.start_time.strftime("%H:%M")}-{self.end_time.strftime("%H:%M")}'
         if self.line != '':
             text += f' - linea {self.line}'
@@ -78,6 +82,9 @@ class StopData:
         service_ids = tuple(service_ids)
 
         route = 'AND route_short_name = ?' if line != '' else ''
+
+        start_time = time(0, 0, 0) if start_time == '' else start_time
+        end_time = time(23, 59, 59) if end_time == '' else end_time
 
         start_time, end_time = format_time(start_time), format_time(end_time)
 
@@ -122,8 +129,8 @@ class StopData:
             text += f'\n\n... e altri {full_count - limit} orari.'
 
         days_buttons = [
-            self.inline_button("-1g", day=self.day - timedelta(days=1), start_time=time(0, 0, 0), end_time=time(23, 59, 59)),
-            self.inline_button("+1g", day=self.day + timedelta(days=1), start_time=time(0, 0, 0), end_time=time(23, 59, 59))
+            self.inline_button("-1g", day=self.day - timedelta(days=1), start_time='', end_time=''),
+            self.inline_button("+1g", day=self.day + timedelta(days=1), start_time='', end_time='')
         ]
 
         keyboard = [
@@ -146,8 +153,8 @@ class StopData:
 
         today = datetime.now().date()
         if self.start_time != time(0, 0, 0) or self.end_time != time(23, 59, 59) or self.line != '' or self.day != today:
-            keyboard.append([self.inline_button("cancella filtri", line='', day=today, start_time=time(0, 0, 0),
-                                                end_time=time(23, 59, 59))])
+            keyboard.append([self.inline_button("cancella filtri", line='', day=today, start_time='',
+                                                end_time='')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup

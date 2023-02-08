@@ -144,7 +144,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     now = datetime.now()
 
-    stopdata = StopData(stop_id, now.date(), '', time(0, 0, 0), time(23, 59, 59))
+    stopdata = StopData(stop_id, now.date(), '', '', '')
     results = stopdata.get_times(con)
 
     if not results:
