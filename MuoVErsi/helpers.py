@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-limit = 10
+LIMIT = 12
 
 
 class StopData:
@@ -30,7 +30,6 @@ class StopData:
 
         prev_start_time = None if start_time == '' else prev_start_time
         prev_end_time = None if end_time == '' else prev_end_time
-
         self.stop_id = stop_id
         self.day = day
         self.line = line
@@ -135,14 +134,14 @@ class StopData:
 
         text += '\n'
 
-        for i, result in enumerate(results[:limit]):
+        for i, result in enumerate(results[:LIMIT]):
             time_raw, line, headsign, trip_id, stop_sequence = result
             time_format = get_time(time_raw).isoformat(timespec="minutes")
             text += f'\n/{i+1} {time_format} {line} {headsign}'
             context.user_data[i] = [trip_id, self.stop_id, self.day, stop_sequence, line]
 
-        if full_count > limit:
-            text += f'\n\n... e altri {full_count - limit} orari.'
+        if full_count > LIMIT:
+            text += f'\n\n... e altri {full_count - LIMIT} orari.'
 
         # *FILTER BUTTONS*
         # Days buttons
@@ -163,13 +162,13 @@ class StopData:
             keyboard.append([self.inline_button('Tutte le linee', line='')])
 
         # Time buttons
-        times = [result[0] for result in results][limit:]
+        times = [result[0] for result in results][LIMIT:]
         len_times = len(times)
         times_buttons = []
 
         if self.prev_start_time is not None and self.prev_end_time is not None:
             times_buttons.append(self.inline_button("<<", start_time=self.prev_start_time, end_time=self.prev_end_time))
-            group_numbers = 2 if len_times > limit else 1
+            group_numbers = 2 if len_times > LIMIT else 1
         else:
             group_numbers = 3
 
