@@ -16,17 +16,30 @@ limit = 10
 
 class StopData:
     def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, query_data=None):
+        prev_start_time = None
+        prev_end_time = None
+
         if query_data:
-            stop_id, day_raw, line, start_time_raw, end_time_raw = query_data.split('/')
+            stop_id, day_raw, line, start_time_raw, end_time_raw, prev_start_time_raw, prev_end_time_raw = \
+                query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
             end_time = time.fromisoformat(end_time_raw) if end_time_raw != '' else ''
+            prev_start_time = time.fromisoformat(prev_start_time_raw) if prev_start_time_raw != '' else ''
+            prev_end_time = time.fromisoformat(prev_end_time_raw) if prev_end_time_raw != '' else ''
+
+        prev_start_time = None if start_time == '' else prev_start_time
+        prev_end_time = None if end_time == '' else prev_end_time
+
+        logger.info('prev_start_time: %s, prev_end_time: %s', prev_start_time, prev_end_time)
 
         self.stop_id = stop_id
         self.day = day
         self.line = line
         self.start_time = start_time
         self.end_time = end_time
+        self.prev_start_time = prev_start_time
+        self.prev_end_time = prev_end_time
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -35,7 +48,7 @@ class StopData:
         to_print = {k: to_print[k] for k in sorted(to_print)}
         to_print['day'] = to_print['day'].isoformat()
         return f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
-               f'{to_print["start_time"]}/{to_print["end_time"]}'
+               f'{to_print["start_time"]}/{to_print["end_time"]}/{self.start_time}/{self.end_time}'
 
     def title(self):
         text = format_date(self.day, format='full', locale='it')
@@ -147,14 +160,21 @@ class StopData:
             keyboard.append([self.inline_button(line, line=line) for line in lines])
 
         times = list(set([result[0] for result in results]))
+        times_buttons = []
+
+        if self.prev_start_time is not None and self.prev_end_time is not None:
+            times_buttons.append(self.inline_button("<<", start_time=self.prev_start_time, end_time=self.prev_end_time))
+            group_numbers = 2
+        else:
+            group_numbers = 3
+
         if len(times) > limit:
-            times_buttons = []
-            for time_range in times_groups(times, 3):
+            for time_range in times_groups(times, group_numbers):
                 start_time = get_time(time_range[0])
                 end_time = get_time(time_range[1])
                 time_text = f'{start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
                 times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time))
-            keyboard = [times_buttons] + keyboard
+        keyboard = [times_buttons] + keyboard
 
         today = datetime.now().date()
         if self.start_time != '' or self.end_time != '' or self.line != '' or self.day != today:
