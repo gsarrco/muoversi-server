@@ -144,19 +144,25 @@ class StopData:
         if full_count > limit:
             text += f'\n\n... e altri {full_count - limit} orari.'
 
+        # *FILTER BUTTONS*
+        # Days buttons
         days_buttons = [
             self.inline_button("-1g", day=self.day - timedelta(days=1), start_time='', end_time=''),
             self.inline_button("+1g", day=self.day + timedelta(days=1), start_time='', end_time='')
         ]
-
         keyboard = [
             days_buttons
         ]
 
+        # Lines buttons
         if self.line == '':
             lines = set([result[1] for result in results])
-            keyboard.append([self.inline_button(line, line=line) for line in lines])
+            if len(lines) > 1:
+                keyboard.append([self.inline_button(line, line=line) for line in lines])
+        else:
+            keyboard.append([self.inline_button('Tutte le linee', line='')])
 
+        # Time buttons
         times = list(set([result[0] for result in results]))
         times_buttons = []
 
@@ -174,6 +180,7 @@ class StopData:
                 times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time))
         keyboard = [times_buttons] + keyboard
 
+        # Reset button
         today = datetime.now().date()
         if self.start_time != '' or self.end_time != '' or self.line != '' or self.day != today:
             keyboard.append([self.inline_button("cancella filtri", line='', day=today, start_time='',
