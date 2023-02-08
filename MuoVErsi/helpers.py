@@ -156,23 +156,24 @@ class StopData:
 
         # Lines buttons
         if self.line == '':
-            lines = set([result[1] for result in results])
+            lines = list(dict.fromkeys([result[1] for result in results]))
             if len(lines) > 1:
                 keyboard.append([self.inline_button(line, line=line) for line in lines])
         else:
             keyboard.append([self.inline_button('Tutte le linee', line='')])
 
         # Time buttons
-        times = list(set([result[0] for result in results]))
+        times = [result[0] for result in results][limit:]
+        len_times = len(times)
         times_buttons = []
 
         if self.prev_start_time is not None and self.prev_end_time is not None:
             times_buttons.append(self.inline_button("<<", start_time=self.prev_start_time, end_time=self.prev_end_time))
-            group_numbers = 2
+            group_numbers = 2 if len_times > limit else 1
         else:
             group_numbers = 3
 
-        if len(times) > limit:
+        if len_times > 0:
             for time_range in times_groups(times, group_numbers):
                 start_time = get_time(time_range[0])
                 end_time = get_time(time_range[1])
@@ -202,7 +203,6 @@ def times_groups(times, n):
         groups = [people[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
         return groups
 
-    times.sort()
     result = []
     grouped = split_into_groups(times, n)
     for group in grouped:
