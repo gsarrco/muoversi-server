@@ -41,6 +41,9 @@ class StopData:
         return f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
                f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}'
 
+    def save_query_data(self, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data['query_data'] = self.query_data()
+
     def title(self):
         text = format_date(self.day, format='full', locale='it')
 
@@ -54,7 +57,7 @@ class StopData:
         return text
 
     def inline_button(self, text: str, **new_params):
-        return InlineKeyboardButton(text, callback_data= self.query_data(**new_params))
+        return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
     def get_days_buttons(self, context: ContextTypes.DEFAULT_TYPE) -> ReplyKeyboardMarkup:
         prev_day = self.day - timedelta(days=1)
@@ -132,14 +135,18 @@ class StopData:
         text = self.title()
 
         full_count = len(results)
+        results_to_display = results[:LIMIT]
 
         text += '\n'
 
-        for i, result in enumerate(results[:LIMIT]):
+        choice_buttons = []
+        for i, result in enumerate(results_to_display):
             time_raw, line, headsign, trip_id, stop_sequence = result
             time_format = get_time(time_raw).isoformat(timespec="minutes")
-            text += f'\n/{i+1} {time_format} {line} {headsign}'
-            context.user_data[i] = [trip_id, self.stop_id, self.day, stop_sequence, line]
+            text += f'\n{i+1}. {time_format} {line} {headsign}'
+            callback_data = f'R{trip_id}/{self.stop_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
+            choice_buttons.append(InlineKeyboardButton(f'{i+1}.', callback_data=callback_data))
+        choice_buttons = split_list(choice_buttons)
 
         if full_count > LIMIT:
             text += f'\n\n... e altri {full_count - LIMIT} orari.'
@@ -150,7 +157,7 @@ class StopData:
         if self.line == '':
             lines = list(dict.fromkeys([result[1] for result in results]))
             if len(lines) > 1:
-                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines])
+                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines[:6]])
         else:
             keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
@@ -180,7 +187,8 @@ class StopData:
                 end_time = get_time(time_range[1])
                 time_text = f'{start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
                 times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time, direction=1))
-        keyboard = [times_buttons] + keyboard
+        keyboard = [times_buttons] + keyboard + choice_buttons
+
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
 
