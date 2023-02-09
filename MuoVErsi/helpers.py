@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, time, date
 from sqlite3 import Connection
 
 from babel.dates import format_date
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 logging.basicConfig(
@@ -54,9 +54,16 @@ class StopData:
         return text
 
     def inline_button(self, text: str, **new_params):
-        return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
+        return InlineKeyboardButton(text, callback_data= self.query_data(**new_params))
 
-    def get_times(self, con: Connection):
+    def get_days_buttons(self, context: ContextTypes.DEFAULT_TYPE) -> ReplyKeyboardMarkup:
+        prev_day = self.day - timedelta(days=1)
+        context.user_data['-1g'] = self.query_data(day=prev_day, start_time='', end_time='', direction='')
+        next_day = self.day + timedelta(days=1)
+        context.user_data['+1g'] = self.query_data(day=next_day, start_time='', end_time='', direction='')
+        return ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True)
+
+    def get_times(self, con: Connection, context: ContextTypes.DEFAULT_TYPE):
         day, stop_id, line, start_time, end_time = self.day, self.stop_id, self.line, \
             self.start_time, self.end_time
 
@@ -137,19 +144,7 @@ class StopData:
         if full_count > LIMIT:
             text += f'\n\n... e altri {full_count - LIMIT} orari.'
 
-        # *FILTER BUTTONS*
-        # Days buttons
-        prev_day = self.day - timedelta(days=1)
-        next_day = self.day + timedelta(days=1)
-
-        days_buttons = [self.inline_button("+1g", day=next_day, start_time='', end_time='', direction='')]
-
-        if prev_day >= date.today():
-            days_buttons.insert(0, self.inline_button("-1g", day=prev_day, start_time='', end_time='', direction=''))
-
-        keyboard = [
-            days_buttons
-        ]
+        keyboard = []
 
         # Lines buttons
         if self.line == '':
