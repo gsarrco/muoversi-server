@@ -2,11 +2,9 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime, time, date
-from sqlite3 import Connection
+from datetime import datetime
 
 import yaml
-
 from babel.dates import format_date
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
     InlineKeyboardButton
@@ -20,7 +18,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import StopData, split_list, LIMIT, get_time
+from .helpers import StopData, get_time
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -222,10 +220,6 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     return FILTER_TIMES
 
 
-async def ride_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return FILTER_TIMES
-
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     context.user_data.clear()
@@ -261,7 +255,6 @@ def main() -> None:
             SHOW_STOP: [MessageHandler(filters.Regex(r'.*\((\d+)\).*'), show_stop)],
             FILTER_TIMES: [
                 CallbackQueryHandler(filter_times),
-                MessageHandler(filters.Regex(r'^\/?\d+$'), ride_view),
                 MessageHandler(filters.Regex(r'^\-|\+1g$'), filter_times)
             ]
         },
