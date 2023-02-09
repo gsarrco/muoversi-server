@@ -32,7 +32,7 @@ thismodule = sys.modules[__name__]
 thismodule.aut_db_con = None
 thismodule.nav_db_con = None
 
-SEARCH_STOP, SHOW_STOP, FILTER_TIMES = range(3)
+SPECIFY_STOP, SEARCH_STOP, SHOW_STOP, FILTER_TIMES = range(4)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -42,34 +42,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def fermata_aut(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    transport_type = 'automobilistico'
-    context.user_data['transport_type'] = transport_type
-    reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
-
+    reply_keyboard = [['Automobilistico', 'Navigazione']]
     await update.message.reply_text(
-        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per "
-        f"vedere le fermate più vicine.\n\n",
+        "Quale servizio ti interessa?",
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Servizio"
         )
     )
 
-    return SEARCH_STOP
+    return SPECIFY_STOP
 
 
-async def fermata_nav(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data.clear()
-    transport_type = 'navigazione'
-    context.user_data['transport_type'] = transport_type
+async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    message_lower = update.message.text.lower()
+    if message_lower == 'automobilistico':
+        context.user_data['transport_type'] = 'automobilistico'
+    elif message_lower == 'navigazione':
+        context.user_data['transport_type'] = 'navigazione'
+    else:
+        await update.message.reply_text("Servizio non valido. Riprova.")
+        return ConversationHandler.END
+
+    context.user_data['transport_type'] = message_lower
     reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
     await update.message.reply_text(
-        f"Inizia digitando il nome della fermata del servizio {transport_type} oppure invia la posizione attuale per "
+        f"Inizia digitando il nome della fermata del servizio {message_lower} oppure invia la posizione attuale per "
         f"vedere le fermate più vicine.\n\n",
         reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="Posizione attuale"
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Posizione attuale"
         )
     )
 
@@ -138,16 +141,15 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         con = thismodule.nav_db_con
 
-    buttons = [str(i) for i in range(1, LIMIT + 1)]
-    reply_markup = ReplyKeyboardMarkup(split_list(buttons), resize_keyboard=True)
-    await update.message.reply_text('Ecco gli orari', disable_notification=True, reply_markup=reply_markup)
-
     stop_id = re.search(r'.*\((\d+)\).*', update.message.text).group(1)
 
     now = datetime.now()
 
     stopdata = StopData(stop_id, now.date(), '', '', '')
-    results = stopdata.get_times(con)
+    await update.message.reply_text('Ecco gli orari', disable_notification=True,
+                                    reply_markup=stopdata.get_days_buttons(context))
+
+    results = stopdata.get_times(con, context)
 
     if not results:
         await update.message.reply_text(
@@ -167,17 +169,20 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         con = thismodule.nav_db_con
 
-    query = update.callback_query
-
-    logger.info("Query data %s", query.data)
-
-    stopdata = StopData(query_data=query.data)
-
-    results = stopdata.get_times(con)
+    if update.callback_query:
+        query = update.callback_query
+        logger.info("Query data %s", query.data)
+        stopdata = StopData(query_data=query.data)
+    else:
+        stopdata = StopData(query_data=context.user_data[update.message.text])
+    results = stopdata.get_times(con, context)
     text, reply_markup = stopdata.format_times_text(results, context)
 
-    await query.answer(stopdata.title())
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
+    if update.callback_query:
+        await query.answer(stopdata.title())
+        await query.edit_message_text(text=text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text=text, reply_markup=reply_markup)
     return FILTER_TIMES
 
 
@@ -238,14 +243,18 @@ def main() -> None:
     application = Application.builder().token(config['TOKEN']).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("fermata_aut", fermata_aut), CommandHandler("fermata_nav", fermata_nav)],
+        entry_points=[CommandHandler("fermata", choose_service)],
         states={
+            SPECIFY_STOP: [MessageHandler(filters.TEXT, specify_stop)],
             SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION) & (~ filters.COMMAND), search_stop)],
             SHOW_STOP: [MessageHandler(filters.Regex(r'.*\((\d+)\).*'), show_stop)],
-            FILTER_TIMES: [CallbackQueryHandler(filter_times), MessageHandler(filters.Regex(r'\/?\d+'), ride_view)]
+            FILTER_TIMES: [
+                CallbackQueryHandler(filter_times),
+                MessageHandler(filters.Regex(r'^\/?\d+$'), ride_view),
+                MessageHandler(filters.Regex(r'^\-|\+1g$'), filter_times)
+            ]
         },
-        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata_aut", fermata_aut),
-                   CommandHandler("fermata_nav", fermata_nav)]
+        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service)]
     )
 
     application.add_handler(CommandHandler("start", start))
