@@ -2,13 +2,14 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime, time
+from datetime import datetime, time, date
 from sqlite3 import Connection
 
 import yaml
 
 from babel.dates import format_date
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
+    InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -146,6 +147,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     now = datetime.now()
 
     stopdata = StopData(stop_id, now.date(), '', '', '')
+    stopdata.save_query_data(context)
     await update.message.reply_text('Ecco gli orari', disable_notification=True,
                                     reply_markup=stopdata.get_days_buttons(context))
 
@@ -171,10 +173,44 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     if update.callback_query:
         query = update.callback_query
+
+        if query.data[0] == 'R':
+            trip_id, stop_id, day_raw, stop_sequence, line = query.data[1:].split('/')
+            day = datetime.strptime(day_raw, '%Y%m%d').date()
+
+            if context.user_data['transport_type'] == 'automobilistico':
+                cur = thismodule.aut_db_con.cursor()
+            else:
+                cur = thismodule.nav_db_con.cursor()
+
+            sql_query = """SELECT departure_time, stop_name
+                                    FROM stop_times
+                                             INNER JOIN stops ON stop_times.stop_id = stops.stop_id
+                                    WHERE stop_times.trip_id = ?
+                                    AND stop_sequence >= ?
+                                    ORDER BY stop_sequence"""
+
+            results = cur.execute(sql_query, (trip_id, stop_sequence)).fetchall()
+
+            text = format_date(day, format='full', locale='it') + ' - linea ' + line + '\n'
+
+            for result in results:
+                time_raw, stop_name = result
+                time_format = get_time(time_raw).isoformat(timespec="minutes")
+                text += f'\n{time_format} {stop_name}'
+
+            await query.answer('')
+            reply_markup = InlineKeyboardMarkup(
+                [[InlineKeyboardButton('Indietro', callback_data=context.user_data['query_data'])]])
+            await query.edit_message_text(text=text, reply_markup=reply_markup)
+            return FILTER_TIMES
+
         logger.info("Query data %s", query.data)
         stopdata = StopData(query_data=query.data)
+        stopdata.save_query_data(context)
     else:
         stopdata = StopData(query_data=context.user_data[update.message.text])
+        stopdata.save_query_data(context)
     results = stopdata.get_times(con, context)
     text, reply_markup = stopdata.format_times_text(results, context)
 
@@ -187,31 +223,6 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def ride_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    times_number = int(update.message.text.replace('/', '')) - 1
-    trip_id, stop_id, day, stop_sequence, line = context.user_data[times_number]
-
-    if context.user_data['transport_type'] == 'automobilistico':
-        cur = thismodule.aut_db_con.cursor()
-    else:
-        cur = thismodule.nav_db_con.cursor()
-
-    query = """SELECT departure_time, stop_name
-                        FROM stop_times
-                                 INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                        WHERE stop_times.trip_id = ?
-                        AND stop_sequence >= ?
-                        ORDER BY stop_sequence"""
-
-    results = cur.execute(query, (trip_id, stop_sequence)).fetchall()
-
-    text = format_date(day, format='full', locale='it') + ' - linea ' + line + '\n'
-
-    for result in results:
-        time_raw, stop_name = result
-        time_format = get_time(time_raw).isoformat(timespec="minutes")
-        text += f'\n{time_format} {stop_name}'
-
-    await update.message.reply_text(text)
     return FILTER_TIMES
 
 
