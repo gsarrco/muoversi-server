@@ -151,15 +151,7 @@ class StopData:
         if full_count > LIMIT:
             text += f'\n\n... e altri {full_count - LIMIT} orari.'
 
-        keyboard = []
-
-        # Lines buttons
-        if self.line == '':
-            lines = list(dict.fromkeys([result[1] for result in results]))
-            if len(lines) > 1:
-                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines[:6]])
-        else:
-            keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
+        keyboard = choice_buttons
 
         # Time buttons
         times = [result[0] for result in results][LIMIT:]
@@ -169,14 +161,15 @@ class StopData:
         if 'times_history' not in context.user_data:
             context.user_data['times_history'] = [(self.start_time, self.end_time)]
 
-        if self.direction == 1: # I am going down
+        if self.direction == 1:  # I am going down
             context.user_data['times_history'].append((self.start_time, self.end_time))
-        if self.direction == -1: # I am going up
+        if self.direction == -1:  # I am going up
             context.user_data['times_history'].pop()
 
         if len(context.user_data['times_history']) > 1:
             prev_start_time, prev_end_time = context.user_data['times_history'][-2]
-            times_buttons.append(self.inline_button("<<", start_time=prev_start_time, end_time=prev_end_time, direction=-1))
+            times_buttons.append(
+                self.inline_button("<<", start_time=prev_start_time, end_time=prev_end_time, direction=-1))
             group_numbers = 2 if len_times > LIMIT else 1
         else:
             group_numbers = 3
@@ -186,8 +179,17 @@ class StopData:
                 start_time = get_time(time_range[0])
                 end_time = get_time(time_range[1])
                 time_text = f'{start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
-                times_buttons.append(self.inline_button(time_text, start_time=start_time, end_time=end_time, direction=1))
-        keyboard = [times_buttons] + keyboard + choice_buttons
+                times_buttons.append(
+                    self.inline_button(time_text, start_time=start_time, end_time=end_time, direction=1))
+        keyboard = [times_buttons] + keyboard
+
+        # Lines buttons
+        if self.line == '':
+            lines = list(dict.fromkeys([result[1] for result in results]))
+            if len(lines) > 1:
+                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines[:6]])
+        else:
+            keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
