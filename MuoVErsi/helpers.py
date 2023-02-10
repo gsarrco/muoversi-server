@@ -145,7 +145,7 @@ class StopData:
             time_format = get_time(time_raw).isoformat(timespec="minutes")
             text += f'\n{i+1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.stop_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
-            choice_buttons.append(InlineKeyboardButton(f'{i+1}.', callback_data=callback_data))
+            choice_buttons.append(InlineKeyboardButton(f'{i+1}', callback_data=callback_data))
         choice_buttons = split_list(choice_buttons)
 
         if full_count > LIMIT:
@@ -181,7 +181,7 @@ class StopData:
                 time_text = f'{start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
                 times_buttons.append(
                     self.inline_button(time_text, start_time=start_time, end_time=end_time, direction=1))
-        keyboard = [times_buttons] + keyboard
+        keyboard.append(times_buttons)
 
         # Lines buttons
         if self.line == '':
