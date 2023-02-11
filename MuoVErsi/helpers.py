@@ -95,6 +95,7 @@ class StopData:
                              INNER JOIN routes ON trips.route_id = routes.route_id
                     WHERE stop_times.stop_id = ?
                       AND trips.service_id in ({seq})
+                      AND pickup_type = 0
                       AND departure_time >= ?
                       {end_time_statement}
                       {route}
