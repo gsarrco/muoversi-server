@@ -149,15 +149,10 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text('Ecco gli orari', disable_notification=True,
                                     reply_markup=stopdata.get_days_buttons(context))
 
-    results = stopdata.get_times(con, context)
+    results = stopdata.get_times(con)
 
-    if not results:
-        await update.message.reply_text(
-            "Non riusciamo a recuperare gli orari per questa giornata.", reply_markup=ReplyKeyboardRemove()
-        )
-        return ConversationHandler.END
-
-    text, reply_markup = stopdata.format_times_text(results, context)
+    text, reply_markup, times_history = stopdata.format_times_text(results, context.user_data.get('times_history', []))
+    context.user_data['times_history'] = times_history
     await update.message.reply_text(text, reply_markup=reply_markup)
 
     return FILTER_TIMES
@@ -209,11 +204,12 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         stopdata = StopData(query_data=context.user_data[update.message.text])
         stopdata.save_query_data(context)
-    results = stopdata.get_times(con, context)
-    text, reply_markup = stopdata.format_times_text(results, context)
+    results = stopdata.get_times(con)
+    text, reply_markup, times_history = stopdata.format_times_text(results, context.user_data.get('times_history', []))
+    context.user_data['times_history'] = times_history
 
     if update.callback_query:
-        await query.answer(stopdata.title())
+        await query.answer('')
         await query.edit_message_text(text=text, reply_markup=reply_markup)
     else:
         await update.message.reply_text(text=text, reply_markup=reply_markup)
