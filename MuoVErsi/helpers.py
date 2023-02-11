@@ -47,11 +47,15 @@ class StopData:
     def title(self):
         text = format_date(self.day, format='full', locale='it')
 
-        start_time = time(0, 0, 0) if self.start_time == '' else self.start_time
-        end_time = time(23, 59, 59) if self.end_time == '' else self.end_time
+        start_time, end_time = self.start_time, self.end_time
 
-        if start_time != time(0, 0, 0) or end_time != time(23, 59, 59):
-            text += f' - {self.start_time.strftime("%H:%M")}-{self.end_time.strftime("%H:%M")}'
+        if start_time != '' and end_time == '':
+            text += ' - dalle ' + start_time.strftime("%H:%M")
+        if start_time == '' and end_time != '':
+            text += ' - alle ' + end_time.strftime("%H:%M")
+        if start_time != '' and end_time != '':
+            text += f' - {start_time.strftime("%H:%M")}-{end_time.strftime("%H:%M")}'
+
         if self.line != '':
             text += f' - linea {self.line}'
         return text
@@ -66,7 +70,7 @@ class StopData:
         context.user_data['+1g'] = self.query_data(day=next_day, start_time='', end_time='', direction='')
         return ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True)
 
-    def get_times(self, con: Connection, context: ContextTypes.DEFAULT_TYPE):
+    def get_times(self, con: Connection):
         day, stop_id, line, start_time, end_time = self.day, self.stop_id, self.line, \
             self.start_time, self.end_time
 
@@ -131,13 +135,19 @@ class StopData:
         results = cur.execute(query, params)
         return results.fetchall()
 
-    def format_times_text(self, results, context: ContextTypes.DEFAULT_TYPE):
-        text = self.title()
+    def format_times_text(self, results, times_history):
+        if times_history is None:
+            times_history = []
+        text = self.title() + '\n'
 
         full_count = len(results)
-        results_to_display = results[:LIMIT]
 
-        text += '\n'
+        if full_count == 0:
+            text += '\nNessun orario trovato per questa giornata.' \
+                    '\nCambia giorno con i pulsanti -1g e +1g, oppure cambia fermata.'
+            return text, None, times_history
+
+        results_to_display = results[:LIMIT]
 
         choice_buttons = []
         for i, result in enumerate(results_to_display):
@@ -158,16 +168,16 @@ class StopData:
         len_times = len(times)
         times_buttons = []
 
-        if 'times_history' not in context.user_data:
-            context.user_data['times_history'] = [(self.start_time, self.end_time)]
+        if not times_history:
+            times_history = [(self.start_time, self.end_time)]
 
         if self.direction == 1:  # I am going down
-            context.user_data['times_history'].append((self.start_time, self.end_time))
+            times_history.append((self.start_time, self.end_time))
         if self.direction == -1:  # I am going up
-            context.user_data['times_history'].pop()
+            times_history.pop()
 
-        if len(context.user_data['times_history']) > 1:
-            prev_start_time, prev_end_time = context.user_data['times_history'][-2]
+        if len(times_history) > 1:
+            prev_start_time, prev_end_time = times_history[-2]
             times_buttons.append(
                 self.inline_button("<<", start_time=prev_start_time, end_time=prev_end_time, direction=-1))
             group_numbers = 2 if len_times > LIMIT else 1
@@ -192,7 +202,7 @@ class StopData:
             keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        return text, reply_markup
+        return text, reply_markup, times_history
 
 
 def get_time(time_string):
