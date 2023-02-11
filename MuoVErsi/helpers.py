@@ -118,6 +118,10 @@ class StopData:
 
         full_count = len(results)
 
+        if self.day < date.today():
+            text += f'\nNon possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura.'
+            return text, None, times_history
+
         if full_count == 0:
             text += '\nNessun orario trovato per questa giornata.' \
                     '\nCambia giorno con i pulsanti -1g e +1g, oppure cambia fermata.'
