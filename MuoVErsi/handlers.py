@@ -31,9 +31,7 @@ thismodule = sys.modules[__name__]
 thismodule.aut_db_con = None
 thismodule.nav_db_con = None
 
-SPECIFY_STOP, SEARCH_STOP = range(2)
-SPECIFY_LINE, SEARCH_LINE, SHOW_LINE = range(3)
-FILTER_TIMES, = range(1)
+SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP, FILTER_TIMES = range(7)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -43,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def choose_service_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     reply_keyboard = [['Automobilistico', 'Navigazione']]
     await update.message.reply_text(
@@ -53,7 +51,20 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     )
 
-    return 0
+    return SPECIFY_STOP
+
+
+async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.clear()
+    reply_keyboard = [['Automobilistico', 'Navigazione']]
+    await update.message.reply_text(
+        "Quale servizio ti interessa?",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Servizio"
+        )
+    )
+
+    return SPECIFY_LINE
 
 
 async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -132,7 +143,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
     )
 
-    return ConversationHandler.END
+    return SHOW_STOP
 
 
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -148,7 +159,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     stopdata = StopData(stop_id, now.date(), '', '', '')
     stopdata.save_query_data(context)
     await update.message.reply_text('Ecco gli orari', disable_notification=True,
-                                    reply_markup=stopdata.get_days_buttons(context))
+                                    reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
     results = stopdata.get_times(con)
 
@@ -172,10 +183,7 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             trip_id, stop_id, day_raw, stop_sequence, line = query.data[1:].split('/')
             day = datetime.strptime(day_raw, '%Y%m%d').date()
 
-            if context.user_data['transport_type'] == 'automobilistico':
-                cur = thismodule.aut_db_con.cursor()
-            else:
-                cur = thismodule.nav_db_con.cursor()
+            cur = con.cursor()
 
             sql_query = """SELECT departure_time, stop_name
                                     FROM stop_times
@@ -205,6 +213,7 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     else:
         stopdata = StopData(query_data=context.user_data[update.message.text])
         stopdata.save_query_data(context)
+
     results = stopdata.get_times(con)
     text, reply_markup, times_history = stopdata.format_times_text(results, context.user_data.get('times_history', []))
     context.user_data['times_history'] = times_history
@@ -277,7 +286,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer('')
     await query.edit_message_text(text=text)
 
-    return ConversationHandler.END
+    return SHOW_STOP
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -307,28 +316,15 @@ def main() -> None:
 
     application = Application.builder().token(config['TOKEN']).build()
 
-    stop_handler = ConversationHandler(
-        entry_points=[CommandHandler("fermata", choose_service)],
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("fermata", choose_service_stop), CommandHandler("linea", choose_service_line)],
         states={
             SPECIFY_STOP: [MessageHandler(filters.TEXT, specify_stop)],
-            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION), search_stop)]
-        },
-        fallbacks=[CommandHandler("annulla", cancel)]
-    )
-
-    line_handler = ConversationHandler(
-        entry_points=[CommandHandler("linea", choose_service)],
-        states={
+            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION), search_stop)],
             SPECIFY_LINE: [MessageHandler(filters.TEXT, specify_line)],
             SEARCH_LINE: [MessageHandler(filters.TEXT, search_line)],
-            SHOW_LINE: [CallbackQueryHandler(show_line)]
-        },
-        fallbacks=[CommandHandler("annulla", cancel)]
-    )
-
-    timetable_from_stop_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop)],
-        states={
+            SHOW_LINE: [CallbackQueryHandler(show_line)],
+            SHOW_STOP: [MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop)],
             FILTER_TIMES: [
                 CallbackQueryHandler(filter_times),
                 MessageHandler(filters.Regex(r'^\-|\+1g$'), filter_times)
@@ -338,9 +334,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(stop_handler)
-    application.add_handler(line_handler)
-    application.add_handler(timetable_from_stop_handler)
+    application.add_handler(conv_handler)
 
     if config.get('DEV', False):
         application.run_polling()

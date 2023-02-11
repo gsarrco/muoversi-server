@@ -43,6 +43,10 @@ class StopData:
 
     def save_query_data(self, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['query_data'] = self.query_data()
+        prev_day = self.day - timedelta(days=1)
+        context.user_data['-1g'] = self.query_data(day=prev_day, start_time='', end_time='', direction='')
+        next_day = self.day + timedelta(days=1)
+        context.user_data['+1g'] = self.query_data(day=next_day, start_time='', end_time='', direction='')
 
     def title(self):
         text = format_date(self.day, format='full', locale='it')
@@ -62,13 +66,6 @@ class StopData:
 
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
-
-    def get_days_buttons(self, context: ContextTypes.DEFAULT_TYPE) -> ReplyKeyboardMarkup:
-        prev_day = self.day - timedelta(days=1)
-        context.user_data['-1g'] = self.query_data(day=prev_day, start_time='', end_time='', direction='')
-        next_day = self.day + timedelta(days=1)
-        context.user_data['+1g'] = self.query_data(day=next_day, start_time='', end_time='', direction='')
-        return ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True)
 
     def get_times(self, con: Connection):
         day, stop_id, line, start_time, end_time = self.day, self.stop_id, self.line, \
