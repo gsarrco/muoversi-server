@@ -18,7 +18,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import StopData, get_time
+from .helpers import StopData, get_time, get_active_service_ids, search_lines, get_stops_from_trip_id
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -31,7 +31,9 @@ thismodule = sys.modules[__name__]
 thismodule.aut_db_con = None
 thismodule.nav_db_con = None
 
-SPECIFY_STOP, SEARCH_STOP, SHOW_STOP, FILTER_TIMES = range(4)
+SPECIFY_STOP, SEARCH_STOP = range(2)
+SPECIFY_LINE, SEARCH_LINE, SHOW_LINE = range(3)
+FILTER_TIMES, = range(1)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -51,7 +53,7 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     )
 
-    return SPECIFY_STOP
+    return 0
 
 
 async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -79,7 +81,6 @@ async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.message.from_user
     message = update.message
 
     if context.user_data['transport_type'] == 'automobilistico':
@@ -131,7 +132,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         )
     )
 
-    return SHOW_STOP
+    return ConversationHandler.END
 
 
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -140,7 +141,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         con = thismodule.nav_db_con
 
-    stop_id = re.search(r'.*\((\d+)\).*', update.message.text).group(1)
+    stop_id = re.search(r'\d+', update.message.text).group(0)
 
     now = datetime.now()
 
@@ -216,6 +217,69 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     return FILTER_TIMES
 
 
+async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    message_lower = update.message.text.lower()
+    if message_lower == 'automobilistico':
+        context.user_data['transport_type'] = 'automobilistico'
+    elif message_lower == 'navigazione':
+        context.user_data['transport_type'] = 'navigazione'
+    else:
+        await update.message.reply_text("Servizio non valido. Riprova.")
+        return ConversationHandler.END
+
+    context.user_data['transport_type'] = message_lower
+    reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
+
+    await update.message.reply_text(
+        f"Digita il numero della linea del servizio {message_lower} interessata.", reply_markup=ReplyKeyboardRemove()
+    )
+
+    return SEARCH_LINE
+
+
+async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'automobilistico':
+        con = thismodule.aut_db_con
+    else:
+        con = thismodule.nav_db_con
+
+    today = datetime.now().date()
+    service_ids = get_active_service_ids(today, con)
+
+    lines = search_lines(update.message.text, service_ids, con)
+
+    inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
+
+    await update.message.reply_text(
+        "Quale linea cerchi?", reply_markup=inline_markup
+    )
+
+    return SHOW_LINE
+
+
+async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'automobilistico':
+        con = thismodule.aut_db_con
+    else:
+        con = thismodule.nav_db_con
+
+    query = update.callback_query
+
+    trip_id = query.data
+
+    stops = get_stops_from_trip_id(trip_id, con)
+
+    text = 'Fermate:\n'
+
+    for stop in stops:
+        text += f'\n/{stop[0]} {stop[1]}'
+
+    await query.answer('')
+    await query.edit_message_text(text=text)
+
+    return ConversationHandler.END
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     context.user_data.clear()
@@ -243,22 +307,40 @@ def main() -> None:
 
     application = Application.builder().token(config['TOKEN']).build()
 
-    conv_handler = ConversationHandler(
+    stop_handler = ConversationHandler(
         entry_points=[CommandHandler("fermata", choose_service)],
         states={
             SPECIFY_STOP: [MessageHandler(filters.TEXT, specify_stop)],
-            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION) & (~ filters.COMMAND), search_stop)],
-            SHOW_STOP: [MessageHandler(filters.Regex(r'.*\((\d+)\).*'), show_stop)],
+            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION), search_stop)]
+        },
+        fallbacks=[CommandHandler("annulla", cancel)]
+    )
+
+    line_handler = ConversationHandler(
+        entry_points=[CommandHandler("linea", choose_service)],
+        states={
+            SPECIFY_LINE: [MessageHandler(filters.TEXT, specify_line)],
+            SEARCH_LINE: [MessageHandler(filters.TEXT, search_line)],
+            SHOW_LINE: [CallbackQueryHandler(show_line)]
+        },
+        fallbacks=[CommandHandler("annulla", cancel)]
+    )
+
+    timetable_from_stop_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop)],
+        states={
             FILTER_TIMES: [
                 CallbackQueryHandler(filter_times),
                 MessageHandler(filters.Regex(r'^\-|\+1g$'), filter_times)
             ]
         },
-        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service)]
+        fallbacks=[CommandHandler("annulla", cancel)]
     )
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(conv_handler)
+    application.add_handler(stop_handler)
+    application.add_handler(line_handler)
+    application.add_handler(timetable_from_stop_handler)
 
     if config.get('DEV', False):
         application.run_polling()
