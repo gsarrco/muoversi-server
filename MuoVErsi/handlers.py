@@ -183,21 +183,12 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             trip_id, stop_id, day_raw, stop_sequence, line = query.data[1:].split('/')
             day = datetime.strptime(day_raw, '%Y%m%d').date()
 
-            cur = con.cursor()
-
-            sql_query = """SELECT departure_time, stop_name
-                                    FROM stop_times
-                                             INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                                    WHERE stop_times.trip_id = ?
-                                    AND stop_sequence >= ?
-                                    ORDER BY stop_sequence"""
-
-            results = cur.execute(sql_query, (trip_id, stop_sequence)).fetchall()
+            results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
             text = format_date(day, format='full', locale='it') + ' - linea ' + line + '\n'
 
             for result in results:
-                time_raw, stop_name = result
+                _, stop_name, time_raw = result
                 time_format = get_time(time_raw).isoformat(timespec="minutes")
                 text += f'\n{time_format} {stop_name}'
 
