@@ -31,7 +31,7 @@ thismodule = sys.modules[__name__]
 thismodule.aut_db_con = None
 thismodule.nav_db_con = None
 
-SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP, FILTER_TIMES = range(7)
+SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -152,30 +152,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         con = thismodule.nav_db_con
 
-    stop_id = re.search(r'\d+', update.message.text).group(0)
-
-    now = datetime.now()
-
-    stopdata = StopData(stop_id, now.date(), '', '', '')
-    stopdata.save_query_data(context)
-    await update.message.reply_text('Ecco gli orari', disable_notification=True,
-                                    reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
-
-    results = stopdata.get_times(con)
-
-    text, reply_markup, times_history = stopdata.format_times_text(results, context.user_data.get('times_history', []))
-    context.user_data['times_history'] = times_history
-    await update.message.reply_text(text, reply_markup=reply_markup)
-
-    return FILTER_TIMES
-
-
-async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if context.user_data['transport_type'] == 'automobilistico':
-        con = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con
-
+    first_message = False
     if update.callback_query:
         query = update.callback_query
 
@@ -196,16 +173,27 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup = InlineKeyboardMarkup(
                 [[InlineKeyboardButton('Indietro', callback_data=context.user_data['query_data'])]])
             await query.edit_message_text(text=text, reply_markup=reply_markup)
-            return FILTER_TIMES
+            return SHOW_STOP
 
         logger.info("Query data %s", query.data)
         stopdata = StopData(query_data=query.data)
-        stopdata.save_query_data(context)
     else:
-        stopdata = StopData(query_data=context.user_data[update.message.text])
-        stopdata.save_query_data(context)
+        if update.message.text == '-1g' or update.message.text == '+1g':
+            stopdata = StopData(query_data=context.user_data[update.message.text])
+        else:
+            stop_id = re.search(r'\d+', update.message.text).group(0)
+            now = datetime.now()
+            stopdata = StopData(stop_id, now.date(), '', '', '')
+            first_message = True
+
+    stopdata.save_query_data(context)
+
+    if first_message:
+        await update.message.reply_text('Ecco gli orari', disable_notification=True,
+                                        reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
     results = stopdata.get_times(con)
+
     text, reply_markup, times_history = stopdata.format_times_text(results, context.user_data.get('times_history', []))
     context.user_data['times_history'] = times_history
 
@@ -214,7 +202,7 @@ async def filter_times(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text(text=text, reply_markup=reply_markup)
     else:
         await update.message.reply_text(text=text, reply_markup=reply_markup)
-    return FILTER_TIMES
+    return SHOW_STOP
 
 
 async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -315,10 +303,10 @@ def main() -> None:
             SPECIFY_LINE: [MessageHandler(filters.TEXT, specify_line)],
             SEARCH_LINE: [MessageHandler(filters.TEXT, search_line)],
             SHOW_LINE: [CallbackQueryHandler(show_line)],
-            SHOW_STOP: [MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop)],
-            FILTER_TIMES: [
-                CallbackQueryHandler(filter_times),
-                MessageHandler(filters.Regex(r'^\-|\+1g$'), filter_times)
+            SHOW_STOP: [
+                MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop),
+                CallbackQueryHandler(show_stop),
+                MessageHandler(filters.Regex(r'^\-|\+1g$'), show_stop)
             ]
         },
         fallbacks=[CommandHandler("annulla", cancel)]
