@@ -157,7 +157,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         query = update.callback_query
 
         if query.data[0] == 'R':
-            trip_id, stop_id, day_raw, stop_sequence, line = query.data[1:].split('/')
+            trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
             day = datetime.strptime(day_raw, '%Y%m%d').date()
 
             results = get_stops_from_trip_id(trip_id, con, stop_sequence)

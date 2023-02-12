@@ -134,7 +134,7 @@ class StopData:
             time_raw, line, headsign, trip_id, stop_sequence = result
             time_format = get_time(time_raw).isoformat(timespec="minutes")
             text += f'\n{i+1}. {time_format} {line} {headsign}'
-            callback_data = f'R{trip_id}/{self.stop_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
+            callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
             choice_buttons.append(InlineKeyboardButton(f'{i+1}', callback_data=callback_data))
         choice_buttons = split_list(choice_buttons)
 
