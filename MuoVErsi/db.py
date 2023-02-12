@@ -12,11 +12,11 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.request
 
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
 
 def get_latest_gtfs_version(transport_type):
     url = f"https://actv.avmspa.it/sites/default/files/attachments/opendata/{transport_type}/"
@@ -35,7 +35,7 @@ def get_latest_gtfs_version(transport_type):
 
 
 class DBFile:
-    def __init__(self, transport_type, gtfs_version=None):
+    def __init__(self, transport_type, gtfs_version=None, day=datetime.today().date()):
         self.transport_type = transport_type
 
         if not gtfs_version:
@@ -44,7 +44,7 @@ class DBFile:
         for try_version in range(gtfs_version, 0, -1):
             self.gtfs_version = try_version
             self.download_and_convert_file()
-            if self.get_calendar_services():
+            if self.get_calendar_services(day):
                 break
 
     def file_path(self, ext):
@@ -65,9 +65,9 @@ class DBFile:
         if not os.path.isfile(self.file_path('db')) or force:
             subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
-    def get_calendar_services(self) -> list[str]:
-        today_ymd = datetime.today().strftime('%Y%m%d')
-        weekday = datetime.today().strftime('%A').lower()
+    def get_calendar_services(self, day) -> list[str]:
+        today_ymd = day.strftime('%Y%m%d')
+        weekday = day.strftime('%A').lower()
         with sqlite3.connect(self.file_path('db')) as con:
             cur = con.cursor()
 
