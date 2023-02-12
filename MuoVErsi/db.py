@@ -35,16 +35,20 @@ def get_latest_gtfs_version(transport_type):
 
 
 class DBFile:
-    def __init__(self, transport_type, gtfs_version=None, day=datetime.today().date()):
+    def __init__(self, transport_type, gtfs_version=None):
         self.transport_type = transport_type
 
-        if not gtfs_version:
-            gtfs_version = get_latest_gtfs_version(transport_type)
+        if gtfs_version:
+            self.gtfs_version = gtfs_version
+            self.download_and_convert_file()
+            return
+
+        gtfs_version = get_latest_gtfs_version(transport_type)
 
         for try_version in range(gtfs_version, 0, -1):
             self.gtfs_version = try_version
             self.download_and_convert_file()
-            if self.get_calendar_services(day):
+            if self.get_calendar_services():
                 break
 
     def file_path(self, ext):
@@ -65,9 +69,9 @@ class DBFile:
         if not os.path.isfile(self.file_path('db')) or force:
             subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
-    def get_calendar_services(self, day) -> list[str]:
-        today_ymd = day.strftime('%Y%m%d')
-        weekday = day.strftime('%A').lower()
+    def get_calendar_services(self) -> list[str]:
+        today_ymd = datetime.today().strftime('%Y%m%d')
+        weekday = datetime.today().strftime('%A').lower()
         with sqlite3.connect(self.file_path('db')) as con:
             cur = con.cursor()
 
