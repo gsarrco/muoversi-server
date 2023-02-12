@@ -270,8 +270,9 @@ def search_lines(line_name, service_ids, con: Connection):
     return results
 
 
-def get_stops_from_trip_id(trip_id, con: Connection):
+def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
     cur = con.cursor()
-    results = cur.execute('SELECT stops.stop_id, stops.stop_name FROM stop_times INNER JOIN stops ON stops.stop_id '
-                          '= stop_times.stop_id WHERE trip_id = ? ORDER BY stop_sequence', (trip_id,)).fetchall()
+    results = cur.execute('SELECT stops.stop_id, stops.stop_name, departure_time FROM stop_times INNER JOIN stops '
+                          'ON stops.stop_id = stop_times.stop_id WHERE trip_id = ? AND stop_sequence >= ? '
+                          'ORDER BY stop_sequence', (trip_id, stop_sequence)).fetchall()
     return results
