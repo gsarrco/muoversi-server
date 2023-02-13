@@ -15,15 +15,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LIMIT = 12
+LIMIT = 10
 
 
 class StopData:
-    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, direction='',
+    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, direction='', line_direction=0,
                  query_data=None):
 
         if query_data:
-            day_raw, line, start_time_raw, end_time_raw, direction = \
+            day_raw, line, start_time_raw, end_time_raw, direction, line_direction = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
@@ -35,6 +35,7 @@ class StopData:
         self.start_time = start_time
         self.end_time = end_time
         self.direction = int(direction) if direction != '' else ''
+        self.line_direction = int(line_direction)
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -42,8 +43,11 @@ class StopData:
         # order dict by key
         to_print = {k: to_print[k] for k in sorted(to_print)}
         to_print['day'] = to_print['day'].isoformat()
+        if to_print['line_direction'] == 'switch':
+            to_print['line_direction'] = 1 - self.line_direction
+
         result = f'{to_print["day"]}/{to_print["line"]}/' \
-               f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}'
+               f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}/{to_print["line_direction"]}'
         logger.info(result)
         return result
 
@@ -102,12 +106,13 @@ class StopData:
                       AND trips.service_id in ({seq})
                       AND pickup_type = 0
                       AND departure_time >= ?
+                      AND direction_id = ?
                       {end_time_statement}
                       {route}
                     ORDER BY departure_time, route_short_name, trip_headsign""".format(
             seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)), route=route, end_time_statement=end_time_statement)
 
-        params = (*stop_ids, *service_ids, start_time)
+        params = (*stop_ids, *service_ids, start_time, self.line_direction)
 
         if end_time != '23:59:59':
             params += (end_time,)
@@ -130,10 +135,7 @@ class StopData:
             text += f'\nNon possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura.'
             return text, None, times_history
 
-        if full_count == 0:
-            text += '\nNessun orario trovato per questa giornata.' \
-                    '\nCambia giorno con i pulsanti -1g e +1g, oppure cambia fermata.'
-            return text, None, times_history
+        text += '\nNessun orario trovato per questi filtri.'
 
         results_to_display = results[:LIMIT]
 
@@ -188,6 +190,8 @@ class StopData:
                 keyboard.append([self.inline_button(line, line=line, direction='') for line in lines[:6]])
         else:
             keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
+
+        keyboard.append([self.inline_button('cambia direzione', line_direction='switch')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup, times_history
