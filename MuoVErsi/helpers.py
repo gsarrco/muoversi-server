@@ -16,6 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 LIMIT = 10
+MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
 class StopData:
@@ -127,7 +128,7 @@ class StopData:
     def format_times_text(self, results, times_history):
         if times_history is None:
             times_history = []
-        text = self.title() + '\n'
+        text = f'<b>{self.title()}</b>'
 
         full_count = len(results)
 
@@ -135,7 +136,8 @@ class StopData:
             text += f'\nNon possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura.'
             return text, None, times_history
 
-        text += '\nNessun orario trovato per questi filtri.'
+        if full_count == 0:
+            text += '\nNessun orario trovato per questi filtri.'
 
         results_to_display = results[:LIMIT]
 
@@ -146,12 +148,16 @@ class StopData:
             text += f'\n{i + 1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
             choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
-        choice_buttons = split_list(choice_buttons)
+
+        keyboard = []
+        len_choice_buttons = len(choice_buttons)
+        if len_choice_buttons > MAX_CHOICE_BUTTONS_PER_ROW:
+            keyboard = split_list(choice_buttons)
+        elif len_choice_buttons > 0:
+            keyboard.append([button for button in choice_buttons])
 
         if full_count > LIMIT:
-            text += f'\n\n... e altri {full_count - LIMIT} orari.'
-
-        keyboard = choice_buttons
+            text += f'\n<i>... e altri {full_count - LIMIT} orari</i>'
 
         # Time buttons
         times = [result[0] for result in results][LIMIT:]
@@ -186,8 +192,12 @@ class StopData:
         # Lines buttons
         if self.line == '':
             lines = list(dict.fromkeys([result[1] for result in results]))
-            if len(lines) > 1:
-                keyboard.append([self.inline_button(line, line=line, direction='') for line in lines[:6]])
+            line_buttons = [self.inline_button(line, line=line, direction='') for line in lines[:12]]
+            len_line_buttons = len(line_buttons)
+            if len_line_buttons > 6:
+                keyboard += split_list(line_buttons)
+            elif len_line_buttons > 1:
+                keyboard.append([button for button in line_buttons])
         else:
             keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
