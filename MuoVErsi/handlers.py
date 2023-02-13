@@ -41,54 +41,66 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-async def choose_service_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
     context.user_data.clear()
-    reply_keyboard = [['Automobilistico', 'Navigazione']]
+    inline_keyboard = [[InlineKeyboardButton("Automobilistico", callback_data="automobilistico"),
+                        InlineKeyboardButton("Navigazione", callback_data="navigazione")]]
     await update.message.reply_text(
-        "Quale servizio ti interessa?",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Servizio"
-        )
+        "Quale servizio ti interessa?\n\nDigita /annulla per tornare indietro.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard)
     )
 
-    return SPECIFY_STOP
-
-
-async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data.clear()
-    reply_keyboard = [['Automobilistico', 'Navigazione']]
-    await update.message.reply_text(
-        "Quale servizio ti interessa?",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Servizio"
-        )
-    )
+    if command == 'stop':
+        return SPECIFY_STOP
 
     return SPECIFY_LINE
 
 
-async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    message_lower = update.message.text.lower()
-    if message_lower == 'automobilistico':
-        context.user_data['transport_type'] = 'automobilistico'
-    elif message_lower == 'navigazione':
-        context.user_data['transport_type'] = 'navigazione'
-    else:
-        await update.message.reply_text("Servizio non valido. Riprova.")
-        return ConversationHandler.END
+async def choose_service_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return await choose_service(update, context, 'stop')
 
-    context.user_data['transport_type'] = message_lower
-    reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
 
-    await update.message.reply_text(
-        f"Inizia digitando il nome della fermata del servizio {message_lower} oppure invia la posizione attuale per "
-        f"vedere le fermate più vicine.\n\n",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, resize_keyboard=True, input_field_placeholder="Posizione attuale"
+async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return await choose_service(update, context, 'line')
+
+
+async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    transport_type = query.data
+
+    context.user_data['transport_type'] = transport_type
+
+    if command == 'stop':
+        reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
+        reply_keyboard_markup = ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, resize_keyboard=True,
+            input_field_placeholder="Posizione attuale"
         )
+    else:
+        reply_keyboard_markup = ReplyKeyboardRemove()
+
+    await query.answer('')
+
+    if command == 'stop':
+        text = "Inizia digitando il nome della fermata oppure invia la posizione tua attuale o di un altro luogo per " \
+               "vedere le fermate più vicine."
+    else:
+        text = 'Digita il numero della linea interessata.'
+
+    await query.get_bot().send_message(chat_id,
+       f"Hai selezionato il servizio {transport_type}.\n\n{text}",
+       reply_markup=reply_keyboard_markup
     )
 
-    return SEARCH_STOP
+    if command == 'stop':
+        return SEARCH_STOP
+
+    return SEARCH_LINE
+
+
+async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return await specify(update, context, 'stop')
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -206,23 +218,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    message_lower = update.message.text.lower()
-    if message_lower == 'automobilistico':
-        context.user_data['transport_type'] = 'automobilistico'
-    elif message_lower == 'navigazione':
-        context.user_data['transport_type'] = 'navigazione'
-    else:
-        await update.message.reply_text("Servizio non valido. Riprova.")
-        return ConversationHandler.END
-
-    context.user_data['transport_type'] = message_lower
-    reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
-
-    await update.message.reply_text(
-        f"Digita il numero della linea del servizio {message_lower} interessata.", reply_markup=ReplyKeyboardRemove()
-    )
-
-    return SEARCH_LINE
+    return await specify(update, context, 'line')
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -305,10 +301,10 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("fermata", choose_service_stop), CommandHandler("linea", choose_service_line)],
         states={
-            SPECIFY_STOP: [MessageHandler(filters.TEXT, specify_stop)],
-            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION), search_stop)],
-            SPECIFY_LINE: [MessageHandler(filters.TEXT, specify_line)],
-            SEARCH_LINE: [MessageHandler(filters.TEXT, search_line)],
+            SPECIFY_STOP: [CallbackQueryHandler(specify_stop)],
+            SEARCH_STOP: [MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)],
+            SPECIFY_LINE: [CallbackQueryHandler(specify_line)],
+            SEARCH_LINE: [MessageHandler(filters.TEXT & (~filters.COMMAND), search_line)],
             SHOW_LINE: [CallbackQueryHandler(show_line)],
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop),
