@@ -2,7 +2,7 @@ import unittest
 from datetime import date, time
 
 from MuoVErsi.db import DBFile
-from MuoVErsi.helpers import times_groups, StopData, get_time
+from MuoVErsi.helpers import times_groups, StopData, get_time, search_stops
 
 
 class FunctionsCase(unittest.TestCase):
@@ -32,6 +32,18 @@ class StopDataCase(unittest.TestCase):
                       "\nCambia giorno con i pulsanti -1g e +1g, oppure cambia fermata."
         self.assertEqual(text, actual_text)
         self.assertEqual(reply_markup, None)
+
+    def test_search_stops_by_name(self):
+        con = DBFile('automobilistico', 640).connect_to_database()
+        con.set_trace_callback(print)
+        results = search_stops(con, "mestre centro")
+
+        if isinstance(results, list):
+            is_valid = all(isinstance(elem, tuple) and len(elem) == 2 for elem in results)
+        else:
+            is_valid = False
+
+        self.assertEqual(is_valid, True)
 
 
 if __name__ == '__main__':

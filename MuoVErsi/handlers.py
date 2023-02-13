@@ -3,11 +3,13 @@ import os
 import re
 import sys
 from datetime import datetime
+from sqlite3 import Connection
 
+import base62
 import yaml
 from babel.dates import format_date
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
-    InlineKeyboardButton
+    InlineKeyboardButton, Message
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -18,7 +20,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import StopData, get_time, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import StopData, get_time, get_active_service_ids, search_lines, get_stops_from_trip_id, search_stops
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -108,51 +110,28 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     message = update.message
 
     if context.user_data['transport_type'] == 'automobilistico':
-        cur = thismodule.aut_db_con.cursor()
+        con: Connection = thismodule.aut_db_con
     else:
-        cur = thismodule.nav_db_con.cursor()
+        con: Connection = thismodule.nav_db_con
 
     if message.location:
         lat = message.location.latitude
-        long = message.location.longitude
-
-        result = cur.execute(
-            'SELECT stop_id, stop_name FROM stops ORDER BY ((stop_lat-?)*(stop_lat-?)) + ((stop_lon-?)*(stop_lon-?)) '
-            'ASC LIMIT 5',
-            (lat, lat, long, long))
+        lon = message.location.longitude
+        stops = search_stops(con, lat=lat, lon=lon)
     else:
-        result = cur.execute('SELECT stop_id, stop_name FROM stops where stop_name LIKE ? LIMIT 5',
-                             ('%' + message.text + '%',))
+        stops = search_stops(con, name=message.text)
 
-    stop_results = result.fetchall()
-    if not stop_results:
+    if not stops:
         await update.message.reply_text('Non abbiamo trovato la fermata che hai inserito. Riprova.')
         return SEARCH_STOP
 
-    stops = []
-
-    for stop in stop_results:
-        stop_id, stop_name = stop
-        stoptime_results = cur.execute(
-            'SELECT stop_headsign, count(stop_headsign) as headsign_count FROM stop_times WHERE stop_id = ? '
-            'GROUP BY stop_headsign ORDER BY headsign_count DESC LIMIT 2;',
-            (stop_id,)).fetchall()
-        if stoptime_results:
-            count = sum([stoptime[1] for stoptime in stoptime_results])
-            headsigns = '/'.join([stoptime[0] for stoptime in stoptime_results])
-        else:
-            count, headsigns = 0, '*NO ORARI*'
-
-        stops.append((stop_id, stop_name, headsigns, count))
-
-    if not message.location:
-        stops.sort(key=lambda x: -x[3])
-    buttons = [[f'{stop_name} ({stop_id}) - {headsigns}'] for stop_id, stop_name, headsigns, count in stops]
+    buttons = [[InlineKeyboardButton(stop_name, callback_data=stop_ids)]
+               for stop_name, stop_ids in stops]
 
     await update.message.reply_text(
         "Scegli la fermata",
-        reply_markup=ReplyKeyboardMarkup(
-            buttons, one_time_keyboard=True, input_field_placeholder="Scegli la fermata"
+        reply_markup=InlineKeyboardMarkup(
+            buttons
         )
     )
 
@@ -188,21 +167,37 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await query.edit_message_text(text=text, reply_markup=reply_markup)
             return SHOW_STOP
 
-        logger.info("Query data %s", query.data)
-        stopdata = StopData(query_data=query.data)
+        if query.data[0] == 'S':
+            stop_ids = query.data[1:]
+            context.user_data['stop_ids'] = stop_ids
+            now = datetime.now()
+            stopdata = StopData(stop_ids, now.date(), '', '', '')
+            first_message = True
+        else:
+            logger.info("Query data %s", query.data)
+            stopdata = StopData(query_data=query.data, stop_id=context.user_data['stop_ids'])
     else:
         if update.message.text == '-1g' or update.message.text == '+1g':
-            stopdata = StopData(query_data=context.user_data[update.message.text])
+            stopdata = StopData(query_data=context.user_data[update.message.text], stop_id=context.user_data['stop_ids'])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
+            encoded_stop_id = base62.encode(int(stop_id))
             now = datetime.now()
-            stopdata = StopData(stop_id, now.date(), '', '', '')
+            context.user_data['stop_ids'] = encoded_stop_id
+            stopdata = StopData(encoded_stop_id, now.date(), '', '', '')
             first_message = True
 
     stopdata.save_query_data(context)
 
+    if update.callback_query:
+        chat_id = update.callback_query.message.chat_id
+        bot = update.callback_query.get_bot()
+    else:
+        chat_id = update.message.chat_id
+        bot = update.message.get_bot()
+
     if first_message:
-        await update.message.reply_text('Ecco gli orari', disable_notification=True,
+        await bot.send_message(chat_id, 'Ecco gli orari', disable_notification=True,
                                         reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
     results = stopdata.get_times(con)
@@ -212,9 +207,12 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     if update.callback_query:
         await query.answer('')
-        await query.edit_message_text(text=text, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(text=text, reply_markup=reply_markup)
+
+    if not update.callback_query or first_message:
+        await bot.send_message(chat_id, text=text, reply_markup=reply_markup)
+        return SHOW_STOP
+
+    await query.edit_message_text(text=text, reply_markup=reply_markup)
     return SHOW_STOP
 
 
