@@ -209,10 +209,10 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await query.answer('')
 
     if not update.callback_query or first_message:
-        await bot.send_message(chat_id, text=text, reply_markup=reply_markup)
+        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
         return SHOW_STOP
 
-    await query.edit_message_text(text=text, reply_markup=reply_markup)
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
 
 
