@@ -290,8 +290,15 @@ def main() -> None:
         except yaml.YAMLError as err:
             logger.error(err)
 
+    DEV = config.get('DEV', False)
+
     thismodule.aut_db_con = DBFile('automobilistico').connect_to_database()
+    if DEV:
+        thismodule.aut_db_con.set_trace_callback(logger.info)
+
     thismodule.nav_db_con = DBFile('navigazione').connect_to_database()
+    if DEV:
+        thismodule.nav_db_con.set_trace_callback(logger.info)
 
     application = Application.builder().token(config['TOKEN']).build()
 
@@ -315,7 +322,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
 
-    if config.get('DEV', False):
+    if DEV:
         application.run_polling()
     else:
         application.run_webhook(listen='0.0.0.0', port=443, secret_token=config['SECRET_TOKEN'],
