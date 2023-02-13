@@ -1,8 +1,12 @@
 import logging
+import os
 from datetime import datetime, timedelta, time, date
 from sqlite3 import Connection
 
+import base62
 from babel.dates import format_date
+from sklearn.cluster import AgglomerativeClustering, AffinityPropagation
+from sklearn.feature_extraction.text import TfidfVectorizer
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
@@ -19,7 +23,7 @@ class StopData:
                  query_data=None):
 
         if query_data:
-            stop_id, day_raw, line, start_time_raw, end_time_raw, direction = \
+            day_raw, line, start_time_raw, end_time_raw, direction = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
@@ -38,8 +42,10 @@ class StopData:
         # order dict by key
         to_print = {k: to_print[k] for k in sorted(to_print)}
         to_print['day'] = to_print['day'].isoformat()
-        return f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
+        result = f'{to_print["day"]}/{to_print["line"]}/' \
                f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}'
+        logger.info(result)
+        return result
 
     def save_query_data(self, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['query_data'] = self.query_data()
@@ -85,21 +91,23 @@ class StopData:
 
         start_time, end_time = format_time(start_time), format_time(end_time)
 
+        stop_ids = [base62.decode(stop_id) for stop_id in stop_id.split(',')]
+
         end_time_statement = f'AND departure_time <= ?' if end_time != '23:59:59' else ''
         query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
                     FROM stop_times
                              INNER JOIN trips ON stop_times.trip_id = trips.trip_id
                              INNER JOIN routes ON trips.route_id = routes.route_id
-                    WHERE stop_times.stop_id = ?
+                    WHERE stop_times.stop_id in ({stop_id})
                       AND trips.service_id in ({seq})
                       AND pickup_type = 0
                       AND departure_time >= ?
                       {end_time_statement}
                       {route}
                     ORDER BY departure_time, route_short_name, trip_headsign""".format(
-            seq=','.join(['?'] * len(service_ids)), route=route, end_time_statement=end_time_statement)
+            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)), route=route, end_time_statement=end_time_statement)
 
-        params = (stop_id, *service_ids, start_time)
+        params = (*stop_ids, *service_ids, start_time)
 
         if end_time != '23:59:59':
             params += (end_time,)
@@ -133,9 +141,9 @@ class StopData:
         for i, result in enumerate(results_to_display):
             time_raw, line, headsign, trip_id, stop_sequence = result
             time_format = get_time(time_raw).isoformat(timespec="minutes")
-            text += f'\n{i+1}. {time_format} {line} {headsign}'
+            text += f'\n{i + 1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
-            choice_buttons.append(InlineKeyboardButton(f'{i+1}', callback_data=callback_data))
+            choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
         choice_buttons = split_list(choice_buttons)
 
         if full_count > LIMIT:
@@ -276,3 +284,51 @@ def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
                           'ON stops.stop_id = stop_times.stop_id WHERE trip_id = ? AND stop_sequence >= ? '
                           'ORDER BY stop_sequence', (trip_id, stop_sequence)).fetchall()
     return results
+
+
+def cluster_strings(stop_names, stop_ids):
+    # Use the TfidfVectorizer to extract features from the strings
+    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(1, 3))
+    X = vectorizer.fit_transform(stop_names)
+
+    # Use the AgglomerativeClustering to cluster the strings based on their features
+    clustering = AgglomerativeClustering(n_clusters=None, distance_threshold=1, linkage='average')
+    clustering.fit(X.toarray())
+
+    # Create a dictionary to group the strings by their cluster labels
+    clusters = {}
+    for i, label in enumerate(clustering.labels_):
+        clusters.setdefault(label, []).append((stop_names[i], stop_ids[i]))
+    return list(clusters.values())
+
+
+def search_stops(con: Connection, name=None, lat=None, lon=None):
+    cur = con.cursor()
+    if lat and lon:
+        query = 'SELECT stop_id, stop_name FROM stops ' \
+                'ORDER BY ((stop_lat-?)*(stop_lat-?)) + ((stop_lon-?)*(stop_lon-?)) ASC LIMIT 20'
+        results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
+    else:
+        query = 'SELECT stop_id, stop_name FROM stops WHERE stop_name LIKE ? LIMIT 20'
+        results = con.execute(query, (f'%{name}%',)).fetchall()
+
+    stop_ids = [int(result[0]) for result in results]
+    stop_names = [result[1] for result in results]
+
+    clusters = cluster_strings(stop_names, stop_ids)
+
+    stops = []
+
+    for cluster in clusters:
+        stop_names = list(set([stop[0].title() for stop in cluster]))
+        common_stop_name = os.path.commonprefix(stop_names).strip()
+
+        if common_stop_name == '':
+            for stop in cluster:
+                stops.append(f'{stop[0].title()} ({base62.encode(stop[1])})')
+            continue
+
+        stop_ids = 'S' + ','.join([base62.encode(stop[1]) for stop in cluster])
+        stops.append((common_stop_name, stop_ids))
+
+    return stops[:5]
