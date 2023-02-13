@@ -33,11 +33,12 @@ thismodule.nav_db_con = None
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
+HOME_TEXT = "Inizia la tua ricerca con /fermata per partire da una fermata, o /linea per una linea."
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia.\n\n"
-        "Inizia la tua ricerca con /fermata_aut per il servizio automobilistico, o /fermata_nav per quello di navigazione."
+        "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia.\n\n" + HOME_TEXT
     )
 
 
@@ -46,22 +47,22 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, com
     inline_keyboard = [[InlineKeyboardButton("Automobilistico", callback_data="automobilistico"),
                         InlineKeyboardButton("Navigazione", callback_data="navigazione")]]
     await update.message.reply_text(
-        "Quale servizio ti interessa?\n\nDigita /annulla per tornare indietro.",
+        f"Stai cercando per {command}.\n\nQuale servizio di Actv ti interessa?",
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
     )
 
-    if command == 'stop':
+    if command == 'fermata':
         return SPECIFY_STOP
 
     return SPECIFY_LINE
 
 
 async def choose_service_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await choose_service(update, context, 'stop')
+    return await choose_service(update, context, 'fermata')
 
 
 async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await choose_service(update, context, 'line')
+    return await choose_service(update, context, 'linea')
 
 
 async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
@@ -71,7 +72,7 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
 
     context.user_data['transport_type'] = transport_type
 
-    if command == 'stop':
+    if command == 'fermata':
         reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
         reply_keyboard_markup = ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, resize_keyboard=True,
@@ -82,7 +83,7 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
 
     await query.answer('')
 
-    if command == 'stop':
+    if command == 'fermata':
         text = "Inizia digitando il nome della fermata oppure invia la posizione tua attuale o di un altro luogo per " \
                "vedere le fermate più vicine."
     else:
@@ -93,14 +94,14 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
        reply_markup=reply_keyboard_markup
     )
 
-    if command == 'stop':
+    if command == 'fermata':
         return SEARCH_STOP
 
     return SEARCH_LINE
 
 
 async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'stop')
+    return await specify(update, context, 'fermata')
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -218,7 +219,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'line')
+    return await specify(update, context, 'linea')
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -269,8 +270,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     logger.info("User %s canceled the conversation.", user.first_name)
     await update.message.reply_text(
-        "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi.\n\n"
-        "Inizia la tua ricerca con /fermata_aut per il servizio automobilistico, o /fermata_nav per quello di navigazione.",
+        "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi.\n\n"  + HOME_TEXT,
         reply_markup=ReplyKeyboardRemove()
     )
 
@@ -312,7 +312,8 @@ def main() -> None:
                 MessageHandler(filters.Regex(r'^\-|\+1g$'), show_stop)
             ]
         },
-        fallbacks=[CommandHandler("annulla", cancel)]
+        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service_stop),
+                   CommandHandler("linea", choose_service_line)]
     )
 
     application.add_handler(CommandHandler("start", start))
