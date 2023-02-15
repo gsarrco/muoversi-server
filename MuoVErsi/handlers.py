@@ -109,16 +109,16 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     message = update.message
 
     if context.user_data['transport_type'] == 'automobilistico':
-        con: Connection = thismodule.aut_db_con.con
+        db_file = thismodule.aut_db_con
     else:
-        con: Connection = thismodule.nav_db_con.con
+        db_file = thismodule.nav_db_con
 
     if message.location:
         lat = message.location.latitude
         lon = message.location.longitude
-        stops_clusters = search_stops(con, lat=lat, lon=lon)
+        stops_clusters = db_file.search_stops(lat=lat, lon=lon)
     else:
-        stops_clusters = search_stops(con, name=message.text)
+        stops_clusters = db_file.search_stops(name=message.text)
 
     if not stops_clusters:
         await update.message.reply_text('Non abbiamo trovato la fermata che hai inserito. Riprova.')

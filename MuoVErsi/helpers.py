@@ -348,17 +348,3 @@ def cluster_strings(stops):
              'times_count': ref_el[4]})
 
     return clusters
-
-
-# TODO: add as a method to DBFile
-def search_stops(con: Connection, name=None, lat=None, lon=None):
-    cur = con.cursor()
-    if lat and lon:
-        query = 'SELECT id, name FROM stops_clusters ' \
-                'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 5'
-        results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
-    else:
-        query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 5'
-        results = con.execute(query, (f'%{name}%',)).fetchall()
-
-    return results
