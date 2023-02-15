@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import StopData, get_time, get_active_service_ids, search_lines, get_stops_from_trip_id, search_stops
+from .helpers import StopData, get_time, get_active_service_ids, search_lines, get_stops_from_trip_id
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
