@@ -44,7 +44,7 @@ class StopData:
         if to_print['line_direction'] == 'switch':
             to_print['line_direction'] = 1 - self.line_direction
 
-        result = f'{to_print["day"]}/{to_print["line"]}/' \
+        result = f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
                f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}/{to_print["line_direction"]}'
         logger.info(result)
         return result
@@ -93,7 +93,9 @@ class StopData:
 
         start_time, end_time = format_time(start_time), format_time(end_time)
 
-        stop_ids = stop_id.split(',')
+        results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
+                              (stop_id,)).fetchall()
+        stop_ids = [result[0] for result in results]
 
         end_time_statement = f'AND departure_time <= ?' if end_time != '23:59:59' else ''
         query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
@@ -291,9 +293,16 @@ def search_lines(line_name, service_ids, con: Connection):
 
 def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
     cur = con.cursor()
-    results = cur.execute('SELECT stops.stop_id, stops.stop_name, departure_time FROM stop_times INNER JOIN stops '
-                          'ON stops.stop_id = stop_times.stop_id WHERE trip_id = ? AND stop_sequence >= ? '
-                          'ORDER BY stop_sequence', (trip_id, stop_sequence)).fetchall()
+    results = cur.execute('''
+        SELECT sc.id, stop_name, departure_time
+        FROM stop_times
+                 INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+                 LEFT JOIN stops_stops_clusters ssc on stops.stop_id = ssc.stop_id
+                 LEFT JOIN stops_clusters sc on ssc.stop_cluster_id = sc.id
+        WHERE trip_id = ?
+          AND stop_sequence >= ?
+        ORDER BY stop_sequence
+    ''', (trip_id, stop_sequence)).fetchall()
     return results
 
 
