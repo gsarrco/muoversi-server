@@ -18,7 +18,6 @@ class StopDataCase(unittest.TestCase):
         self.assertEqual(get_time('25:34:23'), time(1, 34, 23, 1))
         self.assertEqual(get_time('21:43:23'), time(21, 43, 23, 0))
 
-    # TODO: check if working
     def test_str(self):
         stop_data1 = StopData(123, date(2023, 1, 31), '', '', '')
         self.assertEqual(stop_data1.query_data(line='4'), '123/2023-01-31/4////0')
@@ -26,7 +25,6 @@ class StopDataCase(unittest.TestCase):
         self.assertEqual(stop_data2.query_data(line='4', end_time=time(21, 12, 12)),
                          '123/2023-01-31/4//21:12:12//0')
 
-    # TODO: check if working
     def test_messages(self):
         stop_data = StopData(123, date(2023, 2, 11), '', time(23, 21), '')
         con = DBFile('automobilistico').connect_to_database()
