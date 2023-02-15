@@ -168,23 +168,18 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
         if query.data[0] == 'S':
             cluster_id = query.data[1:]
-            results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?', (cluster_id,)).fetchall()
-            stop_ids = ','.join([str(result[0]) for result in results])
-            # TODO: do not store stop_ids in user_data but pass it to StopData with query_data
-            context.user_data['stop_ids'] = stop_ids
             now = datetime.now()
-            stopdata = StopData(stop_ids, now.date(), '', '', '')
+            stopdata = StopData(cluster_id, now.date(), '', '', '')
             first_message = True
         else:
             logger.info("Query data %s", query.data)
-            stopdata = StopData(query_data=query.data, stop_id=context.user_data['stop_ids'])
+            stopdata = StopData(query_data=query.data)
     else:
         if update.message.text == '-1g' or update.message.text == '+1g':
-            stopdata = StopData(query_data=context.user_data[update.message.text], stop_id=context.user_data['stop_ids'])
+            stopdata = StopData(query_data=context.user_data[update.message.text])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             now = datetime.now()
-            context.user_data['stop_ids'] = stop_id
             stopdata = StopData(stop_id, now.date(), '', '', '')
             first_message = True
 
