@@ -21,7 +21,7 @@ class StopData:
                  query_data=None):
 
         if query_data:
-            day_raw, line, start_time_raw, end_time_raw, direction, line_direction = \
+            stop_id, day_raw, line, start_time_raw, end_time_raw, direction, line_direction = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
