@@ -307,13 +307,15 @@ def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
 
 
 def find_longest_prefix(str1, str2):
-    prefix = ''
-    for i in range(min(len(str1), len(str2))):
-        if str1[i] == str2[i]:
-            prefix += str1[i]
+    words1 = str1.split()
+    words2 = str2.split()
+    prefix = ""
+    for i in range(min(len(words1), len(words2))):
+        if words1[i] == words2[i]:
+            prefix += words1[i] + " "
         else:
             break
-    return prefix
+    return prefix.strip()
 
 
 def cluster_strings(stops):
