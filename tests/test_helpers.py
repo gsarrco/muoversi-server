@@ -20,19 +20,19 @@ class StopDataCase(unittest.TestCase):
 
     # TODO: check if working
     def test_str(self):
-        stop_data1 = StopData('6021', date(2023, 1, 31), '', '', '')
-        self.assertEqual(stop_data1.query_data(line='4'), '6021/2023-01-31/4//')
-        stop_data2 = StopData('6021', date(2023, 1, 31), '', '', '')
+        stop_data1 = StopData(123, date(2023, 1, 31), '', '', '')
+        self.assertEqual(stop_data1.query_data(line='4'), '123/2023-01-31/4////0')
+        stop_data2 = StopData(123, date(2023, 1, 31), '', '', '')
         self.assertEqual(stop_data2.query_data(line='4', end_time=time(21, 12, 12)),
-                         '6021/2023-01-31/4//21:12:12')
+                         '123/2023-01-31/4//21:12:12//0')
 
     # TODO: check if working
     def test_messages(self):
-        stop_data = StopData('1005', date(2023, 2, 11), '', time(23, 21), '')
+        stop_data = StopData(123, date(2023, 2, 11), '', time(23, 21), '')
         con = DBFile('automobilistico').connect_to_database()
         text, reply_markup, times_history = stop_data.format_times_text(stop_data.get_times(con), [])
-        actual_text = "sabato 11 febbraio 2023 - dalle 23:21\n\nNessun orario trovato per questa giornata." \
-                      "\nCambia giorno con i pulsanti -1g e +1g, oppure cambia fermata."
+        actual_text = "<b>sabato 11 febbraio 2023 - dalle 23:21</b>\nNon possiamo mostrare orari di giornate passate." \
+                      " Torna alla giornata odierna o a una futura."
         self.assertEqual(text, actual_text)
         self.assertEqual(reply_markup, None)
 

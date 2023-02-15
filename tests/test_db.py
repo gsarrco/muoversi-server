@@ -1,7 +1,8 @@
+from pprint import pprint
+
 import pytest
 
 from MuoVErsi.db import DBFile, get_clusters_of_stops
-from MuoVErsi.helpers import search_stops
 
 
 @pytest.fixture
@@ -39,16 +40,14 @@ def test_stops_clusters_tables_created(db_files):
 
 
 def test_search_stops_by_name(automobilistico_db_file):
-    con = automobilistico_db_file.con
-    con.set_trace_callback(print)
-    results = search_stops(con, "mestre centro")
+    results = automobilistico_db_file.search_stops("mestre centro")
 
     if isinstance(results, list):
         is_valid = all(isinstance(elem, tuple) and len(elem) == 2 for elem in results)
     else:
         is_valid = False
 
-    assert is_valid, 'search_stops_by_name does not return a list of tuples of size 2'
+    assert is_valid, 'search_stops does not return a list of tuples of size 2'
 
 
 def test_clusters_stops_structure(stops_and_stops_clusters):
