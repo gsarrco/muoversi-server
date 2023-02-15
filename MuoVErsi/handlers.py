@@ -5,7 +5,6 @@ import sys
 from datetime import datetime
 from sqlite3 import Connection
 
-import base62
 import yaml
 from babel.dates import format_date
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
@@ -110,23 +109,23 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     message = update.message
 
     if context.user_data['transport_type'] == 'automobilistico':
-        con: Connection = thismodule.aut_db_con
+        con: Connection = thismodule.aut_db_con.con
     else:
-        con: Connection = thismodule.nav_db_con
+        con: Connection = thismodule.nav_db_con.con
 
     if message.location:
         lat = message.location.latitude
         lon = message.location.longitude
-        stops = search_stops(con, lat=lat, lon=lon)
+        stops_clusters = search_stops(con, lat=lat, lon=lon)
     else:
-        stops = search_stops(con, name=message.text)
+        stops_clusters = search_stops(con, name=message.text)
 
-    if not stops:
+    if not stops_clusters:
         await update.message.reply_text('Non abbiamo trovato la fermata che hai inserito. Riprova.')
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(stop_name, callback_data=stop_ids)]
-               for stop_name, stop_ids in stops]
+    buttons = [[InlineKeyboardButton(cluster_name, callback_data=f'S{cluster_id}')]
+               for cluster_id, cluster_name in stops_clusters]
 
     await update.message.reply_text(
         "Scegli la fermata",
@@ -140,9 +139,9 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'automobilistico':
-        con = thismodule.aut_db_con
+        con = thismodule.aut_db_con.con
     else:
-        con = thismodule.nav_db_con
+        con = thismodule.nav_db_con.con
 
     first_message = False
     if update.callback_query:
@@ -168,7 +167,10 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             return SHOW_STOP
 
         if query.data[0] == 'S':
-            stop_ids = query.data[1:]
+            cluster_id = query.data[1:]
+            results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?', (cluster_id,)).fetchall()
+            stop_ids = ','.join([str(result[0]) for result in results])
+            # TODO: do not store stop_ids in user_data but pass it to StopData with query_data
             context.user_data['stop_ids'] = stop_ids
             now = datetime.now()
             stopdata = StopData(stop_ids, now.date(), '', '', '')
@@ -181,10 +183,9 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             stopdata = StopData(query_data=context.user_data[update.message.text], stop_id=context.user_data['stop_ids'])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
-            encoded_stop_id = base62.encode(int(stop_id))
             now = datetime.now()
-            context.user_data['stop_ids'] = encoded_stop_id
-            stopdata = StopData(encoded_stop_id, now.date(), '', '', '')
+            context.user_data['stop_ids'] = stop_id
+            stopdata = StopData(stop_id, now.date(), '', '', '')
             first_message = True
 
     stopdata.save_query_data(context)
@@ -222,9 +223,9 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'automobilistico':
-        con = thismodule.aut_db_con
+        con = thismodule.aut_db_con.con
     else:
-        con = thismodule.nav_db_con
+        con = thismodule.nav_db_con.con
 
     today = datetime.now().date()
     service_ids = get_active_service_ids(today, con)
@@ -242,9 +243,9 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'automobilistico':
-        con = thismodule.aut_db_con
+        con = thismodule.aut_db_con.con
     else:
-        con = thismodule.nav_db_con
+        con = thismodule.nav_db_con.con
 
     query = update.callback_query
 
@@ -286,13 +287,19 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.aut_db_con = DBFile('automobilistico').connect_to_database()
+    thismodule.aut_db_con = DBFile('automobilistico')
     if DEV:
-        thismodule.aut_db_con.set_trace_callback(logger.info)
+        thismodule.aut_db_con.con.set_trace_callback(logger.info)
+    logger.info('automobilistico DBFile initialized')
+    stops_clusters_uploaded = thismodule.aut_db_con.upload_stops_clusters_to_db()
+    logger.info('automobilistico stops clusters uploaded: %s', stops_clusters_uploaded)
 
-    thismodule.nav_db_con = DBFile('navigazione').connect_to_database()
+    thismodule.nav_db_con = DBFile('navigazione')
     if DEV:
-        thismodule.nav_db_con.set_trace_callback(logger.info)
+        thismodule.nav_db_con.con.set_trace_callback(logger.info)
+    logger.info('navigazione DBFile initialized')
+    stops_clusters_uploaded = thismodule.nav_db_con.upload_stops_clusters_to_db()
+    logger.info('navigazione stops clusters uploaded: %s', stops_clusters_uploaded)
 
     application = Application.builder().token(config['TOKEN']).build()
 

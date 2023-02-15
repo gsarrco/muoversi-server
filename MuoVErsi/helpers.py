@@ -3,10 +3,7 @@ import os
 from datetime import datetime, timedelta, time, date
 from sqlite3 import Connection
 
-import base62
 from babel.dates import format_date
-from sklearn.cluster import AgglomerativeClustering, AffinityPropagation
-from sklearn.feature_extraction.text import TfidfVectorizer
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
@@ -96,7 +93,7 @@ class StopData:
 
         start_time, end_time = format_time(start_time), format_time(end_time)
 
-        stop_ids = [base62.decode(stop_id) for stop_id in stop_id.split(',')]
+        stop_ids = stop_id.split(',')
 
         end_time_statement = f'AND departure_time <= ?' if end_time != '23:59:59' else ''
         query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
@@ -300,49 +297,57 @@ def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
     return results
 
 
-def cluster_strings(stop_names, stop_ids):
-    # Use the TfidfVectorizer to extract features from the strings
-    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(1, 3))
-    X = vectorizer.fit_transform(stop_names)
+def find_longest_prefix(str1, str2):
+    prefix = ''
+    for i in range(min(len(str1), len(str2))):
+        if str1[i] == str2[i]:
+            prefix += str1[i]
+        else:
+            break
+    return prefix
 
-    # Use the AgglomerativeClustering to cluster the strings based on their features
-    clustering = AgglomerativeClustering(n_clusters=None, distance_threshold=1, linkage='average')
-    clustering.fit(X.toarray())
 
-    # Create a dictionary to group the strings by their cluster labels
+def cluster_strings(stops):
+    stops.sort(key=lambda x: x[1])
+    longest_prefix = ''
     clusters = {}
-    for i, label in enumerate(clustering.labels_):
-        clusters.setdefault(label, []).append((stop_names[i], stop_ids[i]))
-    return list(clusters.values())
+    for i1 in range(len(stops)):
+        i2 = i1 + 1
+        ref_el = stops[i1]
+        first_string = ref_el[1]
+        second_string = stops[i2][1] if i2 < len(stops) else ''
+        first_string, second_string = first_string.strip().upper(), second_string.strip().upper()
+        new_cluster = True
+        new_longest_prefix = find_longest_prefix(first_string, second_string).rstrip(' "').rstrip()
+
+        if longest_prefix != '':
+            # space = " " if len(first_string.split()) > 1 else ""
+            if first_string.startswith(longest_prefix) \
+                    and len(new_longest_prefix) <= len(longest_prefix):
+                new_cluster = False
+
+        if new_cluster:
+            longest_prefix = new_longest_prefix
+
+        cluster_name = longest_prefix if longest_prefix != '' and len(longest_prefix) > (
+                    len(first_string) / 3) else first_string
+        # add_to_cluster(clusters, cluster_name, first_string, stops[i1][2:4])
+        clusters.setdefault(cluster_name, {'stops': []})['stops'].append(
+            {'stop_id': ref_el[0], 'stop_name': first_string, 'coords': (ref_el[2], ref_el[3]),
+             'times_count': ref_el[4]})
+
+    return clusters
 
 
+# TODO: add as a method to DBFile
 def search_stops(con: Connection, name=None, lat=None, lon=None):
     cur = con.cursor()
     if lat and lon:
-        query = 'SELECT stop_id, stop_name FROM stops ' \
-                'ORDER BY ((stop_lat-?)*(stop_lat-?)) + ((stop_lon-?)*(stop_lon-?)) ASC LIMIT 20'
+        query = 'SELECT id, name FROM stops_clusters ' \
+                'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 5'
         results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
     else:
-        query = 'SELECT stop_id, stop_name FROM stops WHERE stop_name LIKE ? LIMIT 20'
+        query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 5'
         results = con.execute(query, (f'%{name}%',)).fetchall()
 
-    stop_ids = [int(result[0]) for result in results]
-    stop_names = [result[1] for result in results]
-
-    clusters = cluster_strings(stop_names, stop_ids)
-
-    stops = []
-
-    for cluster in clusters:
-        stop_names = list(set([stop[0].title() for stop in cluster]))
-        common_stop_name = os.path.commonprefix(stop_names).strip()
-
-        if common_stop_name == '':
-            for stop in cluster:
-                stops.append(f'{stop[0].title()} ({base62.encode(stop[1])})')
-            continue
-
-        stop_ids = 'S' + ','.join([base62.encode(stop[1]) for stop in cluster])
-        stops.append((common_stop_name, stop_ids))
-
-    return stops[:5]
+    return results
