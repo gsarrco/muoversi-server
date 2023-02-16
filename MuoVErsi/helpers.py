@@ -17,11 +17,12 @@ MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
 class StopData:
-    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, direction='', line_direction=0,
+    def __init__(self, stop_id=None, day=None, line=None, start_time=None, end_time=None, direction='',
+                 line_direction=0, offset_lines=0,
                  query_data=None):
 
         if query_data:
-            stop_id, day_raw, line, start_time_raw, end_time_raw, direction, line_direction = \
+            stop_id, day_raw, line, start_time_raw, end_time_raw, direction, line_direction, offset_lines = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y-%m-%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
@@ -34,6 +35,7 @@ class StopData:
         self.end_time = end_time
         self.direction = int(direction) if direction != '' else ''
         self.line_direction = int(line_direction)
+        self.offset_lines = int(offset_lines)
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -45,7 +47,8 @@ class StopData:
             to_print['line_direction'] = 1 - self.line_direction
 
         result = f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
-               f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}/{to_print["line_direction"]}'
+               f'{to_print["start_time"]}/{to_print["end_time"]}/{to_print["direction"]}/{to_print["line_direction"]}/' \
+                 f'{to_print["offset_lines"]}'
         logger.info(result)
         return result
 
@@ -191,12 +194,19 @@ class StopData:
         # Lines buttons
         if self.line == '':
             lines = list(dict.fromkeys([result[1] for result in results]))
-            line_buttons = [self.inline_button(line, line=line, direction='') for line in lines[:12]]
+
+            limit = 4 if 0 < self.offset_lines < len(lines) - 5 else 5
+            prev_limit = 5 if self.offset_lines == 5 else 4
+
+            line_buttons = [self.inline_button(line, line=line, direction='') for line in
+                            lines[self.offset_lines:self.offset_lines + limit]]
+            if self.offset_lines > 0:
+                line_buttons.insert(0, self.inline_button('<<', offset_lines=self.offset_lines - prev_limit))
+            if self.offset_lines + 5 < len(lines):
+                line_buttons.append(self.inline_button('>>', offset_lines=self.offset_lines + limit))
             len_line_buttons = len(line_buttons)
-            if len_line_buttons > 6:
-                keyboard += split_list(line_buttons)
-            elif len_line_buttons > 1:
-                keyboard.append([button for button in line_buttons])
+            if len_line_buttons > 1:
+                keyboard.append(line_buttons)
         else:
             keyboard.append([self.inline_button('Tutte le linee', line='', direction='')])
 
