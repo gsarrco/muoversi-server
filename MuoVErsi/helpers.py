@@ -60,7 +60,7 @@ class StopData:
         context.user_data['+1g'] = self.query_data(day=next_day, start_time='', end_time='', direction='')
 
     def title(self):
-        text = format_date(self.day, format='full', locale='it')
+        text = '<b>' + format_date(self.day, format='full', locale='it')
 
         start_time, end_time = self.start_time, self.end_time
 
@@ -73,7 +73,7 @@ class StopData:
 
         if self.line != '':
             text += f' - linea {self.line}'
-        return text
+        return text + '</b>'
 
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
@@ -130,7 +130,7 @@ class StopData:
     def format_times_text(self, results, times_history):
         if times_history is None:
             times_history = []
-        text = f'<b>{self.title()}</b>'
+        text = f'{self.title()}'
 
         full_count = len(results)
 

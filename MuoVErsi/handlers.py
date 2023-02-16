@@ -153,7 +153,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
             results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-            text = format_date(day, format='full', locale='it') + ' - linea ' + line + '\n'
+            text = StopData(day=day, line=line, start_time='', end_time='').title()
 
             for result in results:
                 _, stop_name, time_raw = result
@@ -163,7 +163,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             await query.answer('')
             reply_markup = InlineKeyboardMarkup(
                 [[InlineKeyboardButton('Indietro', callback_data=context.user_data['query_data'])]])
-            await query.edit_message_text(text=text, reply_markup=reply_markup)
+            await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
             return SHOW_STOP
 
         if query.data[0] == 'S':
