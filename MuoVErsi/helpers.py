@@ -12,7 +12,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LIMIT = 10
+LIMIT = 12
 MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
