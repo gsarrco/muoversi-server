@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import get_time, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
 from.stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -158,7 +158,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
             for result in results:
                 _, stop_name, time_raw = result
-                time_format = get_time(time_raw).isoformat(timespec="minutes")
+                time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
                 text += f'\n{time_format} {stop_name}'
 
             await query.answer('')

@@ -11,7 +11,7 @@ LIMIT = 12
 MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
-def get_time(time_string):
+def time_25_to_1(time_string):
     str_time = time_string.split(':')
     str_time = [int(x) for x in str_time]
     hours, minutes, seconds = str_time
