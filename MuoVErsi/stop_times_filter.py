@@ -6,8 +6,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import get_time, split_list, times_groups, format_time, get_active_service_ids
-
+from MuoVErsi.helpers import time_25_to_1, split_list, times_groups, get_active_service_ids
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -148,7 +147,7 @@ class StopTimesFilter:
         choice_buttons = []
         for i, result in enumerate(results_to_display):
             time_raw, line, headsign, trip_id, stop_sequence = result
-            time_format = get_time(time_raw).isoformat(timespec="minutes")
+            time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
             text += f'\n{i + 1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
             choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
