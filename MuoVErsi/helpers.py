@@ -15,12 +15,10 @@ def time_25_to_1(time_string):
     str_time = time_string.split(':')
     str_time = [int(x) for x in str_time]
     hours, minutes, seconds = str_time
-    microseconds = 0
     if hours > 23:
         hours = hours - 24
-        microseconds = 1
 
-    return time(hours, minutes, seconds, microseconds)
+    return time(hours, minutes, seconds)
 
 
 def times_groups(times, n):
@@ -43,13 +41,6 @@ def split_list(input_list):
     first_half = input_list[:midpoint]
     second_half = input_list[midpoint:]
     return [first_half, second_half]
-
-
-def format_time(time_obj):
-    if time_obj.microsecond == 1:
-        return str(time_obj.hour + 24).zfill(2) + time_obj.strftime(':%M:%S')
-    else:
-        return time_obj.isoformat()
 
 
 def get_active_service_ids(day: date, con: Connection) -> tuple:
