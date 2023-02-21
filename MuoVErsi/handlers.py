@@ -154,7 +154,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
             results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-            text = StopTimesFilter(day=day, line=line, start_time='', end_time='').title()
+            text = StopTimesFilter(day=day, line=line, start_time='').title()
 
             for result in results:
                 _, stop_name, time_raw = result
@@ -170,7 +170,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if query.data[0] == 'S':
             cluster_id = query.data[1:]
             now = datetime.now()
-            stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', '', '')
+            stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', now.time())
             first_message = True
         else:
             logger.info("Query data %s", query.data)
@@ -181,7 +181,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             now = datetime.now()
-            stop_times_filter = StopTimesFilter(stop_id, now.date(), '', '', '')
+            stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
 
     stop_times_filter.save_query_data(context)
