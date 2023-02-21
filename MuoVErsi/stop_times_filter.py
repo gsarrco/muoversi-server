@@ -33,6 +33,7 @@ class StopTimesFilter:
         self.start_time = start_time
         self.offset_times = int(offset_times)
         self.offset_lines = int(offset_lines)
+        self.lines = None
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -108,8 +109,24 @@ class StopTimesFilter:
         params += (LIMIT, self.offset_times)
 
         cur = con.cursor()
-        results = cur.execute(query, params)
-        return results.fetchall()
+        results = cur.execute(query, params).fetchall()
+
+        query = """
+            SELECT route_short_name
+            FROM stop_times
+                     INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                     INNER JOIN routes ON trips.route_id = routes.route_id
+            WHERE stop_times.stop_id in ({stop_id})
+              AND trips.service_id in ({seq})
+              AND pickup_type = 0
+            GROUP BY route_short_name ORDER BY count(*) DESC;
+        """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
+
+        params = (*stop_ids, *service_ids)
+
+        self.lines = [line[0] for line in cur.execute(query, params).fetchall()]
+
+        return results
 
     def format_times_text(self, results, times_history):
         if times_history is None:
@@ -153,7 +170,7 @@ class StopTimesFilter:
 
         # Lines buttons
         if self.line == '':
-            lines = list(dict.fromkeys([result[1] for result in results]))
+            lines = self.lines
 
             limit = 4 if 0 < self.offset_lines < len(lines) - 5 else 5
             prev_limit = 5 if self.offset_lines == 5 else 4
