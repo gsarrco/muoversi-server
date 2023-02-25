@@ -145,6 +145,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         con = thismodule.nav_db_con.con
 
     first_message = False
+
     if update.callback_query:
         query = update.callback_query
 
@@ -177,6 +178,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             stop_times_filter = StopTimesFilter(query_data=query.data)
     else:
         if update.message.text == '-1g' or update.message.text == '+1g':
+            del context.user_data['lines']
             stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
@@ -197,7 +199,9 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await bot.send_message(chat_id, 'Ecco gli orari', disable_notification=True,
                                         reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
+    stop_times_filter.lines = context.user_data.get('lines')
     results = stop_times_filter.get_times(con)
+    context.user_data['lines'] = stop_times_filter.lines
 
     text, reply_markup, times_history = stop_times_filter.format_times_text(results, context.user_data.get('times_history', []))
     context.user_data['times_history'] = times_history
