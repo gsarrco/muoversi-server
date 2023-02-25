@@ -146,14 +146,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     first_message = False
 
-    now = datetime.now()
-    now_minus_5 = now - timedelta(minutes=5)
-    # if now - 5 minutes is still in the same day, use now - 5 minutes for start time
-    if now_minus_5.day == now.day:
-        now = now_minus_5
-    else:
-        # otherwise, use 00:00:00
-        now = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    now = datetime.now() - timedelta(minutes=5)
 
     if update.callback_query:
         query = update.callback_query
