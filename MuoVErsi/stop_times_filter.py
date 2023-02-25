@@ -61,7 +61,13 @@ class StopTimesFilter:
         start_time = self.start_time
 
         if start_time != '':
-            text += f' - {start_time.strftime("%H:%M")}'
+            # if start_time is within 5 minutes of now, show that tolerance is applied
+            now = datetime.now()
+            if now.hour == start_time.hour and now.minute - start_time.minute <= 5:
+                diff_in_minutes = now.minute - start_time.minute
+                text += f' - {now.strftime("%H:%M")}(-{diff_in_minutes}min)'
+            else:
+                text += f' - {start_time.strftime("%H:%M")}'
 
         if self.line != '':
             text += f' - linea {self.line}'

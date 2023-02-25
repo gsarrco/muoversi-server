@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlite3 import Connection
 
 import yaml
@@ -146,6 +146,15 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     first_message = False
 
+    now = datetime.now()
+    now_minus_5 = now - timedelta(minutes=5)
+    # if now - 5 minutes is still in the same day, use now - 5 minutes for start time
+    if now_minus_5.day == now.day:
+        now = now_minus_5
+    else:
+        # otherwise, use 00:00:00
+        now = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
     if update.callback_query:
         query = update.callback_query
 
@@ -170,7 +179,6 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
         if query.data[0] == 'S':
             cluster_id = query.data[1:]
-            now = datetime.now()
             stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', now.time())
             first_message = True
         else:
@@ -183,7 +191,6 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
-            now = datetime.now()
             stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
 
