@@ -8,3 +8,4 @@ __pycache__/
 cert.pem
 private.key
 config.yaml
+.DS_Store
