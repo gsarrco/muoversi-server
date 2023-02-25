@@ -11,16 +11,14 @@ LIMIT = 12
 MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
-def get_time(time_string):
+def time_25_to_1(time_string):
     str_time = time_string.split(':')
     str_time = [int(x) for x in str_time]
     hours, minutes, seconds = str_time
-    microseconds = 0
     if hours > 23:
         hours = hours - 24
-        microseconds = 1
 
-    return time(hours, minutes, seconds, microseconds)
+    return time(hours, minutes, seconds)
 
 
 def times_groups(times, n):
@@ -43,13 +41,6 @@ def split_list(input_list):
     first_half = input_list[:midpoint]
     second_half = input_list[midpoint:]
     return [first_half, second_half]
-
-
-def format_time(time_obj):
-    if time_obj.microsecond == 1:
-        return str(time_obj.hour + 24).zfill(2) + time_obj.strftime(':%M:%S')
-    else:
-        return time_obj.isoformat()
 
 
 def get_active_service_ids(day: date, con: Connection) -> tuple:
@@ -153,3 +144,21 @@ def cluster_strings(stops):
              'times_count': ref_el[4]})
 
     return clusters
+
+
+def get_lines_from_stops(service_ids, stop_ids, con: Connection):
+    cur = con.cursor()
+    query = """
+                SELECT route_short_name
+                FROM stop_times
+                         INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                         INNER JOIN routes ON trips.route_id = routes.route_id
+                WHERE stop_times.stop_id in ({stop_id})
+                  AND trips.service_id in ({seq})
+                  AND pickup_type = 0
+                GROUP BY route_short_name ORDER BY count(*) DESC;
+            """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
+
+    params = (*stop_ids, *service_ids)
+
+    return [line[0] for line in cur.execute(query, params).fetchall()]
