@@ -1,0 +1,31 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout production branch
+      uses: actions/checkout@v2
+      with:
+        ref: production
+
+    - name: Install SSH
+      run: sudo apt-get update && sudo apt-get install -y openssh-client
+
+    - name: SSH into machine and restart service
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          cd MuoVErsi
+          git pull origin production
+          sudo systemctl restart muoversi
