@@ -163,7 +163,7 @@ class StopTimesFilter:
             limit = 4 if 0 < self.offset_lines < len(lines) - 5 else 5
             prev_limit = 5 if self.offset_lines == 5 else 4
 
-            line_buttons = [self.inline_button(line, line=line) for line in
+            line_buttons = [self.inline_button(line, line=line, offset_times=0) for line in
                             lines[self.offset_lines:self.offset_lines + limit]]
             if self.offset_lines > 0:
                 line_buttons.insert(0, self.inline_button('<<', offset_lines=self.offset_lines - prev_limit))
