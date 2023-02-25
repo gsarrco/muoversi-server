@@ -19,7 +19,7 @@ from telegram.ext import (
 )
 
 from .db import DBFile
-from .helpers import get_time, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
 from.stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -145,6 +145,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         con = thismodule.nav_db_con.con
 
     first_message = False
+
     if update.callback_query:
         query = update.callback_query
 
@@ -154,11 +155,11 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
             results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-            text = StopTimesFilter(day=day, line=line, start_time='', end_time='').title()
+            text = StopTimesFilter(day=day, line=line, start_time='').title()
 
             for result in results:
                 _, stop_name, time_raw = result
-                time_format = get_time(time_raw).isoformat(timespec="minutes")
+                time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
                 text += f'\n{time_format} {stop_name}'
 
             await query.answer('')
@@ -170,18 +171,20 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if query.data[0] == 'S':
             cluster_id = query.data[1:]
             now = datetime.now()
-            stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', '', '')
+            stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', now.time())
             first_message = True
         else:
             logger.info("Query data %s", query.data)
             stop_times_filter = StopTimesFilter(query_data=query.data)
     else:
         if update.message.text == '-1g' or update.message.text == '+1g':
+            del context.user_data['lines']
+            del context.user_data['service_ids']
             stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             now = datetime.now()
-            stop_times_filter = StopTimesFilter(stop_id, now.date(), '', '', '')
+            stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
 
     stop_times_filter.save_query_data(context)
@@ -197,7 +200,13 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await bot.send_message(chat_id, 'Ecco gli orari', disable_notification=True,
                                         reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
-    results = stop_times_filter.get_times(con)
+    stop_times_filter.lines = context.user_data.get('lines')
+    service_ids = context.user_data.get('service_ids')
+    stop_ids = context.user_data.get('stop_ids')
+    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids, stop_ids)
+    context.user_data['lines'] = stop_times_filter.lines
+    context.user_data['service_ids'] = service_ids
+    context.user_data['stop_ids'] = stop_ids
 
     text, reply_markup, times_history = stop_times_filter.format_times_text(results, context.user_data.get('times_history', []))
     context.user_data['times_history'] = times_history
