@@ -6,7 +6,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import time_25_to_1, split_list, times_groups, get_active_service_ids
+from MuoVErsi.helpers import time_25_to_1, split_list, times_groups, get_active_service_ids, get_lines_from_stops
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -111,20 +111,8 @@ class StopTimesFilter:
         cur = con.cursor()
         results = cur.execute(query, params).fetchall()
 
-        query = """
-            SELECT route_short_name
-            FROM stop_times
-                     INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                     INNER JOIN routes ON trips.route_id = routes.route_id
-            WHERE stop_times.stop_id in ({stop_id})
-              AND trips.service_id in ({seq})
-              AND pickup_type = 0
-            GROUP BY route_short_name ORDER BY count(*) DESC;
-        """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
-
-        params = (*stop_ids, *service_ids)
-
-        self.lines = [line[0] for line in cur.execute(query, params).fetchall()]
+        if self.lines is None:
+            self.lines = get_lines_from_stops(service_ids, stop_ids, con)
 
         return results
 
