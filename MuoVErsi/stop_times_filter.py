@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, time, date
+from datetime import datetime, time, date, timedelta
 from sqlite3 import Connection
 
 from babel.dates import format_date
@@ -53,13 +53,7 @@ class StopTimesFilter:
         start_time = self.start_time
 
         if start_time != '':
-            now = datetime.now()
-            # if start_time is within 5 minutes of now, show that tolerance is applied
-            if abs((now - now.replace(hour=start_time.hour, minute=start_time.minute)).seconds // 60) < 5+1:
-                diff_in_minutes = now.minute - start_time.minute
-                text += f' - {now.strftime("%H:%M")}(-{diff_in_minutes}' + _('min') + ')'
-            else:
-                text += f' - {start_time.strftime("%H:%M")}'
+            text += f' - {self.start_time.strftime("%H:%M")}(-5' + _('min') + ')'
 
         if self.line != '':
             text += ' - ' + _('line') + ' ' + self.line
@@ -104,7 +98,9 @@ class StopTimesFilter:
             params += (line,)
 
         if start_time != '':
-            params += (start_time.strftime('%H:%M'),)
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
 
         params += (LIMIT, self.offset_times)
 
