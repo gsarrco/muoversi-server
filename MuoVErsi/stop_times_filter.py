@@ -56,7 +56,7 @@ class StopTimesFilter:
         context.user_data['+1g'] = self.query_data(day=next_day, start_time='')
 
     def title(self):
-        text = '<b>' + format_date(self.day, format='full', locale='it')
+        text = '<b>' + format_date(self.day, 'EEEE d MMMM', locale='it')
 
         start_time = self.start_time
 
