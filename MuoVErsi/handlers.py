@@ -179,6 +179,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         if update.message.text == '-1g' or update.message.text == '+1g':
             del context.user_data['lines']
+            del context.user_data['service_ids']
             stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
@@ -200,8 +201,12 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                         reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
 
     stop_times_filter.lines = context.user_data.get('lines')
-    results = stop_times_filter.get_times(con)
+    service_ids = context.user_data.get('service_ids')
+    stop_ids = context.user_data.get('stop_ids')
+    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids, stop_ids)
     context.user_data['lines'] = stop_times_filter.lines
+    context.user_data['service_ids'] = service_ids
+    context.user_data['stop_ids'] = stop_ids
 
     text, reply_markup, times_history = stop_times_filter.format_times_text(results, context.user_data.get('times_history', []))
     context.user_data['times_history'] = times_history
