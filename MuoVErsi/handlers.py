@@ -240,7 +240,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    now = datetime.now() - timedelta(minutes=5)
+    now = datetime.now()
 
     text = update.message.text if update.message else update.callback_query.data
 
