@@ -173,7 +173,7 @@ class StopTimesFilter:
             if len_line_buttons > 1:
                 keyboard.append(line_buttons)
         else:
-            keyboard.append([self.inline_button('Tutte le linee', line='')])
+            keyboard.append([self.inline_button('Tutte le linee', line='', offset_times=0)])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
