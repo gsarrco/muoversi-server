@@ -118,14 +118,12 @@ class StopTimesFilter:
 
         return results, service_ids, stop_ids
 
-    def format_times_text(self, results, times_history):
-        if times_history is None:
-            times_history = []
+    def format_times_text(self, results):
         text = f'{self.title()}'
 
         if self.day < date.today():
             text += f'\nNon possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura.'
-            return text, None, times_history
+            return text, None
 
         results_len = len(results)
 
@@ -178,4 +176,4 @@ class StopTimesFilter:
             keyboard.append([self.inline_button('Tutte le linee', line='')])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        return text, reply_markup, times_history
+        return text, reply_markup

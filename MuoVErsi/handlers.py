@@ -208,8 +208,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['service_ids'] = service_ids
     context.user_data['stop_ids'] = stop_ids
 
-    text, reply_markup, times_history = stop_times_filter.format_times_text(results, context.user_data.get('times_history', []))
-    context.user_data['times_history'] = times_history
+    text, reply_markup = stop_times_filter.format_times_text(results)
 
     if update.callback_query:
         await query.answer('')
