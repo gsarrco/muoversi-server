@@ -70,18 +70,20 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, con: Connection):
+    def get_times(self, con: Connection, service_ids, stop_ids):
         day, stop_id, line, start_time = self.day, self.stop_id, self.line, \
             self.start_time
 
-        service_ids = get_active_service_ids(day, con)
+        if service_ids is None:
+            service_ids = get_active_service_ids(day, con)
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
 
-        results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
-                              (stop_id,)).fetchall()
-        stop_ids = [result[0] for result in results]
+        if stop_ids is None:
+            results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
+                                  (stop_id,)).fetchall()
+            stop_ids = [result[0] for result in results]
 
         query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
                     FROM stop_times
@@ -114,7 +116,7 @@ class StopTimesFilter:
         if self.lines is None:
             self.lines = get_lines_from_stops(service_ids, stop_ids, con)
 
-        return results
+        return results, service_ids, stop_ids
 
     def format_times_text(self, results, times_history):
         if times_history is None:
