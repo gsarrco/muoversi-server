@@ -115,6 +115,7 @@ def find_longest_prefix(str1, str2):
 
 
 def cluster_strings(stops):
+    stops = [(stop[0], stop[1].upper(), stop[2], stop[3], stop[4]) for stop in stops]
     stops.sort(key=lambda x: x[1])
     longest_prefix = ''
     clusters = {}
