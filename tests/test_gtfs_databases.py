@@ -1,6 +1,5 @@
 import os
 import unittest
-from datetime import datetime
 
 from freezegun import freeze_time
 

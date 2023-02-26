@@ -1,5 +1,3 @@
-from pprint import pprint
-
 import pytest
 
 from MuoVErsi.db import DBFile, get_clusters_of_stops
