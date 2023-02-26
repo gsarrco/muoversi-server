@@ -3,12 +3,10 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta
-from sqlite3 import Connection
 
 import yaml
-from babel.dates import format_date
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
-    InlineKeyboardButton, Message
+    InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -20,7 +18,7 @@ from telegram.ext import (
 
 from .db import DBFile
 from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
-from.stop_times_filter import StopTimesFilter
+from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO

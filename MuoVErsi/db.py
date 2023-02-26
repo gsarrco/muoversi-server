@@ -2,16 +2,15 @@ import logging
 import os
 import re
 import sqlite3
+import ssl
 import subprocess
 import urllib
+import urllib.request
 from datetime import datetime
-import ssl
 from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
-import urllib.request
-
 from geopy.distance import distance
 
 from MuoVErsi.helpers import cluster_strings
