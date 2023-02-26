@@ -179,13 +179,20 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if update.message.text == '-1g' or update.message.text == '+1g':
             del context.user_data['lines']
             del context.user_data['service_ids']
-            stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
+            stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
+            if update.message.text == '-1g':
+                stop_times_filter.day -= timedelta(days=1)
+            else:
+                stop_times_filter.day += timedelta(days=1)
+            stop_times_filter.start_time = ''
+            stop_times_filter.offset_times = 0
+
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
 
-    stop_times_filter.save_query_data(context)
+    context.user_data['query_data'] = stop_times_filter.query_data()
 
     if update.callback_query:
         chat_id = update.callback_query.message.chat_id
