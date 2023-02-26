@@ -1,10 +1,9 @@
 import logging
-from datetime import datetime, timedelta, time, date
+from datetime import datetime, time, date
 from sqlite3 import Connection
 
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
 
 from MuoVErsi.helpers import time_25_to_1, split_list, get_active_service_ids, get_lines_from_stops
 
@@ -47,13 +46,6 @@ class StopTimesFilter:
                  f'{to_print["start_time"]}/{to_print["offset_times"]}/{to_print["offset_lines"]}'
         logger.info(result)
         return result
-
-    def save_query_data(self, context: ContextTypes.DEFAULT_TYPE):
-        context.user_data['query_data'] = self.query_data()
-        prev_day = self.day - timedelta(days=1)
-        context.user_data['-1g'] = self.query_data(day=prev_day, start_time='')
-        next_day = self.day + timedelta(days=1)
-        context.user_data['+1g'] = self.query_data(day=next_day, start_time='')
 
     def title(self):
         text = '<b>' + format_date(self.day, 'EEEE d MMMM', locale='it')
