@@ -3,10 +3,10 @@ from datetime import datetime, timedelta, time, date
 from sqlite3 import Connection
 
 from babel.dates import format_date
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import time_25_to_1, split_list, times_groups, get_active_service_ids, get_lines_from_stops
+from MuoVErsi.helpers import time_25_to_1, split_list, get_active_service_ids, get_lines_from_stops
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
