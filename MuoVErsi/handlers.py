@@ -3,24 +3,22 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta
-from sqlite3 import Connection
 
 import yaml
-from babel.dates import format_date
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
-    InlineKeyboardButton, Message
+    InlineKeyboardButton
 from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
     ConversationHandler,
     MessageHandler,
-    filters, CallbackQueryHandler,
-)
+    filters, CallbackQueryHandler, )
 
 from .db import DBFile
 from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
-from.stop_times_filter import StopTimesFilter
+from .persistence import SQLitePersistence
+from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -305,9 +303,10 @@ def main() -> None:
     stops_clusters_uploaded = thismodule.nav_db_con.upload_stops_clusters_to_db()
     logger.info('navigazione stops clusters uploaded: %s', stops_clusters_uploaded)
 
-    application = Application.builder().token(config['TOKEN']).build()
+    application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 
     conv_handler = ConversationHandler(
+        name = 'orari',
         entry_points=[CommandHandler("fermata", choose_service_stop), CommandHandler("linea", choose_service_line)],
         states={
             SPECIFY_STOP: [CallbackQueryHandler(specify_stop)],
@@ -322,7 +321,8 @@ def main() -> None:
             ]
         },
         fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service_stop),
-                   CommandHandler("linea", choose_service_line)]
+                   CommandHandler("linea", choose_service_line)],
+        persistent=True
     )
 
     application.add_handler(CommandHandler("start", start))
