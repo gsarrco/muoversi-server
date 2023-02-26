@@ -44,8 +44,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
     context.user_data.clear()
-    inline_keyboard = [[InlineKeyboardButton("Automobilistico", callback_data="automobilistico"),
-                        InlineKeyboardButton("Navigazione", callback_data="navigazione")]]
+    inline_keyboard = [[InlineKeyboardButton("Automobilistico", callback_data="aut"),
+                        InlineKeyboardButton("Navigazione", callback_data="nav")]]
     await update.message.reply_text(
         f"Stai cercando per {command}.\n\nQuale servizio di Actv ti interessa?",
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
@@ -68,9 +68,13 @@ async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
     query = update.callback_query
     chat_id = query.message.chat_id
-    transport_type = query.data
 
-    context.user_data['transport_type'] = transport_type
+    context.user_data['transport_type'] = query.data
+
+    if query.data == 'aut':
+        transport_type = 'automobilistico'
+    else:
+        transport_type = 'navigazione'
 
     if command == 'fermata':
         reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
@@ -107,7 +111,7 @@ async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     message = update.message
 
-    if context.user_data['transport_type'] == 'automobilistico':
+    if context.user_data['transport_type'] == 'aut':
         db_file = thismodule.aut_db_con
     else:
         db_file = thismodule.nav_db_con
@@ -137,7 +141,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'automobilistico':
+    if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
     else:
         con = thismodule.nav_db_con.con
@@ -179,13 +183,20 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if update.message.text == '-1g' or update.message.text == '+1g':
             del context.user_data['lines']
             del context.user_data['service_ids']
-            stop_times_filter = StopTimesFilter(query_data=context.user_data[update.message.text])
+            stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
+            if update.message.text == '-1g':
+                stop_times_filter.day -= timedelta(days=1)
+            else:
+                stop_times_filter.day += timedelta(days=1)
+            stop_times_filter.start_time = ''
+            stop_times_filter.offset_times = 0
+
         else:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
 
-    stop_times_filter.save_query_data(context)
+    context.user_data['query_data'] = stop_times_filter.query_data()
 
     if update.callback_query:
         chat_id = update.callback_query.message.chat_id
@@ -224,7 +235,7 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'automobilistico':
+    if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
     else:
         con = thismodule.nav_db_con.con
@@ -244,7 +255,7 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'automobilistico':
+    if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
     else:
         con = thismodule.nav_db_con.con
