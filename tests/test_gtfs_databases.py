@@ -3,7 +3,7 @@ import unittest
 
 from freezegun import freeze_time
 
-from MuoVErsi.db import DBFile
+from MuoVErsi.db import DBFile, get_latest_gtfs_version
 
 
 class GTFSDatabasesCase(unittest.TestCase):
@@ -35,6 +35,9 @@ class GTFSDatabasesCase(unittest.TestCase):
         db_file = DBFile('automobilistico')
         self.assertEqual(db_file.gtfs_version, 639)
         self.assertEqual(db_file.transport_type, 'automobilistico')
+
+    def test_get_latest_gtfs_version(self):
+        self.assertEqual(get_latest_gtfs_version('automobilistico'), 639)
 
 
 if __name__ == '__main__':
