@@ -1,3 +1,4 @@
+import gettext
 import logging
 import os
 import re
@@ -33,16 +34,21 @@ thismodule.nav_db_con = None
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
-HOME_TEXT = "Inizia la tua ricerca con /fermata per partire da una fermata, o /linea per una linea."
+localedir = os.path.join(parent_dir, 'locales')
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia.\n\n" + HOME_TEXT
-    )
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+    await update.message.reply_text(_('welcome') + "\n\n" + _('home'))
 
 
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
     context.user_data.pop('service_ids', None)
@@ -51,10 +57,10 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, com
     if context.user_data.get('transport_type'):
         return await specify(update, context, command)
 
-    inline_keyboard = [[InlineKeyboardButton("Automobilistico", callback_data="0aut"),
-                        InlineKeyboardButton("Navigazione", callback_data="0nav")]]
+    inline_keyboard = [[InlineKeyboardButton(_('aut'), callback_data="0aut"),
+                        InlineKeyboardButton(_('nav'), callback_data="0nav")]]
     await update.message.reply_text(
-        f"Stai cercando per {command}.\n\nQuale servizio di Actv ti interessa?",
+        _('choose_service'),
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
     )
 
@@ -88,9 +94,13 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
         bot = update.message.get_bot()
         chat_id = update.message.chat_id
 
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
     transport_types = {
-        'aut': 'automobilistico',
-        'nav': 'navigazione'
+        'aut': _('aut'),
+        'nav': _('nav')
     }
 
     transport_type = transport_types[short_transport_type]
@@ -98,36 +108,30 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
     other_short_transport_type = list(transport_types.keys())[1 - position]
     other_transport_type = transport_types[other_short_transport_type]
 
-    keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(f"Cambia in {other_transport_type}", callback_data=f'1{other_short_transport_type}')]])
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(_('change_service') % other_transport_type,
+                             callback_data=f'1{other_short_transport_type}')
+    ]])
 
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text(
-            f"Hai selezionato il servizio {transport_type}.",
-            reply_markup=keyboard
-        )
+        await update.callback_query.edit_message_text(_('service_selected') % transport_type, reply_markup=keyboard)
     else:
-        await bot.send_message(chat_id,
-           f"Hai selezionato il servizio {transport_type}.",
-           reply_markup=keyboard
-        )
+        await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard)
 
     if send_second_message:
         if command == 'fermata':
-            reply_keyboard = [[KeyboardButton("Invia posizione", request_location=True)]]
+            reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
             reply_keyboard_markup = ReplyKeyboardMarkup(
-                reply_keyboard, one_time_keyboard=True, resize_keyboard=True,
-                input_field_placeholder="Posizione attuale"
+                reply_keyboard, one_time_keyboard=True, resize_keyboard=True
             )
         else:
             reply_keyboard_markup = ReplyKeyboardRemove()
 
         if command == 'fermata':
-            text = "Inizia digitando il nome della fermata oppure invia la posizione tua attuale o di un altro luogo " \
-                   "per vedere le fermate più vicine."
+            text = _('insert_stop')
         else:
-            text = 'Digita il numero della linea interessata.'
+            text = _('insert_line')
         await bot.send_message(chat_id, text, reply_markup=reply_keyboard_markup)
 
     if command == 'fermata':
@@ -141,6 +145,10 @@ async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
     message = update.message
 
     if context.user_data['transport_type'] == 'aut':
@@ -156,14 +164,14 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         stops_clusters = db_file.search_stops(name=message.text)
 
     if not stops_clusters:
-        await update.message.reply_text('Non abbiamo trovato la fermata che hai inserito. Riprova.')
+        await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
     buttons = [[InlineKeyboardButton(cluster_name, callback_data=f'S{cluster_id}')]
                for cluster_id, cluster_name in stops_clusters]
 
     await update.message.reply_text(
-        "Scegli la fermata",
+        _('choose_stop'),
         reply_markup=InlineKeyboardMarkup(
             buttons
         )
@@ -177,6 +185,9 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         con = thismodule.aut_db_con.con
     else:
         con = thismodule.nav_db_con.con
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
 
     first_message = False
 
@@ -191,16 +202,16 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
             results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-            text = StopTimesFilter(day=day, line=line, start_time='').title()
+            text = StopTimesFilter(day=day, line=line, start_time='').title(_, lang)
 
             for result in results:
-                _, stop_name, time_raw = result
+                stop_id, stop_name, time_raw = result
                 time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
                 text += f'\n{time_format} {stop_name}'
 
             await query.answer('')
             reply_markup = InlineKeyboardMarkup(
-                [[InlineKeyboardButton('Indietro', callback_data=context.user_data['query_data'])]])
+                [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
             await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
             return SHOW_STOP
 
@@ -212,11 +223,11 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             logger.info("Query data %s", query.data)
             stop_times_filter = StopTimesFilter(query_data=query.data)
     else:
-        if update.message.text == '-1g' or update.message.text == '+1g':
+        if update.message.text == _('minus_day') or update.message.text == _('plus_day'):
             del context.user_data['lines']
             del context.user_data['service_ids']
             stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
-            if update.message.text == '-1g':
+            if update.message.text == _('minus_day'):
                 stop_times_filter.day -= timedelta(days=1)
             else:
                 stop_times_filter.day += timedelta(days=1)
@@ -238,8 +249,9 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         bot = update.message.get_bot()
 
     if first_message:
-        await bot.send_message(chat_id, 'Ecco gli orari', disable_notification=True,
-                                        reply_markup=ReplyKeyboardMarkup([['-1g', '+1g']], resize_keyboard=True))
+        await bot.send_message(chat_id, _('here_times'), disable_notification=True,
+                               reply_markup=ReplyKeyboardMarkup([[_('minus_day'), _('plus_day')]],
+                                                                resize_keyboard=True))
 
     stop_times_filter.lines = context.user_data.get('lines')
     service_ids = context.user_data.get('service_ids')
@@ -249,7 +261,7 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['service_ids'] = service_ids
     context.user_data['stop_ids'] = stop_ids
 
-    text, reply_markup = stop_times_filter.format_times_text(results)
+    text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
     if update.callback_query:
         await query.answer('')
@@ -272,6 +284,10 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     else:
         con = thismodule.nav_db_con.con
 
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
     today = datetime.now().date()
     service_ids = get_active_service_ids(today, con)
 
@@ -279,9 +295,7 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
 
-    await update.message.reply_text(
-        "Quale linea cerchi?", reply_markup=inline_markup
-    )
+    await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
 
     return SHOW_LINE
 
@@ -292,13 +306,17 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     else:
         con = thismodule.nav_db_con.con
 
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
     query = update.callback_query
 
     trip_id = query.data
 
     stops = get_stops_from_trip_id(trip_id, con)
 
-    text = 'Fermate:\n'
+    text = _('stops') + ':\n'
 
     for stop in stops:
         text += f'\n/{stop[0]} {stop[1]}'
@@ -315,10 +333,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.pop('service_ids', None)
     context.user_data.pop('stop_ids', None)
 
-    await update.message.reply_text(
-        "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi.\n\n"  + HOME_TEXT,
-        reply_markup=ReplyKeyboardRemove()
-    )
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
+    await update.message.reply_text(_('cancel') + "\n\n" + _('home'), reply_markup=ReplyKeyboardRemove())
 
     return ConversationHandler.END
 
@@ -351,7 +370,7 @@ def main() -> None:
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 
     conv_handler = ConversationHandler(
-        name = 'orari',
+        name='orari',
         entry_points=[CommandHandler("fermata", choose_service_stop), CommandHandler("linea", choose_service_line)],
         states={
             SPECIFY_STOP: [CallbackQueryHandler(specify_stop)],
@@ -368,7 +387,7 @@ def main() -> None:
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop),
                 CallbackQueryHandler(show_stop),
-                MessageHandler(filters.Regex(r'^\-|\+1g$'), show_stop)
+                MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), show_stop)
             ]
         },
         fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service_stop),

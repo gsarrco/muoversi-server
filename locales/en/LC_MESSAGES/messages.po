@@ -1,0 +1,71 @@
+msgid "welcome"
+msgstr "Welcome to MuoVErsi, an advanced tool for those taking public transportation in Venice."
+
+msgid "home"
+msgstr "Begin your search with /fermata to start from a stop, or /linea from a line."
+
+msgid "cancel"
+msgstr "The conversation was stopped. You are in the home screen of MuoVErsi."
+
+msgid "aut"
+msgstr "bus/tram"
+
+msgid "nav"
+msgstr "waterbus"
+
+msgid "choose_service"
+msgstr "Which service are you interested in?"
+
+msgid "service_selected"
+msgstr "You have selected the %s service."
+
+msgid "change_service"
+msgstr "Change to %s"
+
+msgid "send_location"
+msgstr "Send location"
+
+msgid "insert_stop"
+msgstr "Start by typing the name of the stop or send your current location or another location to see the nearest stops."
+
+msgid "insert_line"
+msgstr "Type in the number of the desired line."
+
+msgid "stop_not_found"
+msgstr "We could not find the stop you entered. Please try again."
+
+msgid "choose_stop"
+msgstr "Choose the stop"
+
+msgid "back"
+msgstr "Back"
+
+msgid "here_times"
+msgstr "Here are the times"
+
+msgid "past_date"
+msgstr "We cannot show times of past days. Return to today or a future day."
+
+msgid "no_times"
+msgstr "No times found for these filters."
+
+msgid "all_lines"
+msgstr "All lines"
+
+msgid "plus_day"
+msgstr "+1d"
+
+msgid "minus_day"
+msgstr "-1d"
+
+msgid "choose_line"
+msgstr "Which line are you looking for?"
+
+msgid "stops"
+msgstr "Stops"
+
+msgid "line"
+msgstr "line"
+
+msgid "min"
+msgstr "min"
