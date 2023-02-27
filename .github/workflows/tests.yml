@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: '14.x'
-      - run: npm install gtfs --global
+      - run: npm install gtfs@^4.1.0 --global
 
       - name: Run pytest
         run: python -m pytest tests
