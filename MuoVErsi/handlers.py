@@ -310,8 +310,6 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.message.from_user
-
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
     context.user_data.pop('service_ids', None)
