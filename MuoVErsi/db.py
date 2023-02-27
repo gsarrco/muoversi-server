@@ -98,16 +98,17 @@ class DBFile:
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
     def download_and_convert_file(self, force=False):
-        if not os.path.isfile(self.file_path('zip')) or force:
-            url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
-                  f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
-            ssl._create_default_https_context = ssl._create_unverified_context
-            file_path = self.file_path('zip')
-            logger.info('Downloading %s to %s', url, file_path)
-            urllib.request.urlretrieve(url, file_path)
+        if os.path.isfile(self.file_path('db')) and not force:
+            return
 
-        if not os.path.isfile(self.file_path('db')) or force:
-            subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
+        url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
+              f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
+        ssl._create_default_https_context = ssl._create_unverified_context
+        file_path = self.file_path('zip')
+        logger.info('Downloading %s to %s', url, file_path)
+        urllib.request.urlretrieve(url, file_path)
+
+        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
     def get_calendar_services(self) -> list[str]:
         today_ymd = datetime.today().strftime('%Y%m%d')
