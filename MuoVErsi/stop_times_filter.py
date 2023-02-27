@@ -47,8 +47,8 @@ class StopTimesFilter:
         logger.info(result)
         return result
 
-    def title(self):
-        text = '<b>' + format_date(self.day, 'EEEE d MMMM', locale='it')
+    def title(self, _, lang):
+        text = '<b>' + format_date(self.day, 'EEEE d MMMM', locale=lang)
 
         start_time = self.start_time
 
@@ -57,12 +57,12 @@ class StopTimesFilter:
             # if start_time is within 5 minutes of now, show that tolerance is applied
             if abs((now - now.replace(hour=start_time.hour, minute=start_time.minute)).seconds // 60) < 5+1:
                 diff_in_minutes = now.minute - start_time.minute
-                text += f' - {now.strftime("%H:%M")}(-{diff_in_minutes}min)'
+                text += f' - {now.strftime("%H:%M")}(-{diff_in_minutes}' + _('min') + ')'
             else:
                 text += f' - {start_time.strftime("%H:%M")}'
 
         if self.line != '':
-            text += f' - linea {self.line}'
+            text += ' - ' + _('line') + ' ' + self.line
         return text + '</b>'
 
     def inline_button(self, text: str, **new_params):
@@ -116,17 +116,17 @@ class StopTimesFilter:
 
         return results, service_ids, stop_ids
 
-    def format_times_text(self, results):
-        text = f'{self.title()}'
+    def format_times_text(self, results, _, lang):
+        text = f'{self.title(_, lang)}'
 
         if self.day < date.today():
-            text += f'\nNon possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura.'
+            text += '\n' + _('past_date')
             return text, None
 
         results_len = len(results)
 
         if results_len == 0:
-            text += '\nNessun orario trovato per questi filtri.'
+            text += '\n' + _('no_times')
 
         choice_buttons = []
         for i, result in enumerate(results):
@@ -171,7 +171,7 @@ class StopTimesFilter:
             if len_line_buttons > 1:
                 keyboard.append(line_buttons)
         else:
-            keyboard.append([self.inline_button('Tutte le linee', line='', offset_times=0)])
+            keyboard.append([self.inline_button(_('all_lines'), line='', offset_times=0)])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
