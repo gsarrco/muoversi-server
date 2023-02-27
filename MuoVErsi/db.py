@@ -73,8 +73,9 @@ def get_clusters_of_stops(stops):
 
 
 class DBFile:
-    def __init__(self, transport_type, gtfs_version=None):
+    def __init__(self, transport_type, gtfs_version=None, location=''):
         self.transport_type = transport_type
+        self.location = location
 
         if gtfs_version:
             self.gtfs_version = gtfs_version
@@ -92,7 +93,7 @@ class DBFile:
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + "/../")
+        parent_dir = os.path.abspath(current_dir + f"/../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
