@@ -73,8 +73,9 @@ def get_clusters_of_stops(stops):
 
 
 class DBFile:
-    def __init__(self, transport_type, gtfs_version=None):
+    def __init__(self, transport_type, gtfs_version=None, location=''):
         self.transport_type = transport_type
+        self.location = location
 
         if gtfs_version:
             self.gtfs_version = gtfs_version
@@ -92,21 +93,22 @@ class DBFile:
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + "/../")
+        parent_dir = os.path.abspath(current_dir + f"/../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
     def download_and_convert_file(self, force=False):
-        if not os.path.isfile(self.file_path('zip')) or force:
-            url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
-                  f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
-            ssl._create_default_https_context = ssl._create_unverified_context
-            file_path = self.file_path('zip')
-            logger.info('Downloading %s to %s', url, file_path)
-            urllib.request.urlretrieve(url, file_path)
+        if os.path.isfile(self.file_path('db')) and not force:
+            return
 
-        if not os.path.isfile(self.file_path('db')) or force:
-            subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
+        url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
+              f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
+        ssl._create_default_https_context = ssl._create_unverified_context
+        file_path = self.file_path('zip')
+        logger.info('Downloading %s to %s', url, file_path)
+        urllib.request.urlretrieve(url, file_path)
+
+        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
     def get_calendar_services(self) -> list[str]:
         today_ymd = datetime.today().strftime('%Y%m%d')
