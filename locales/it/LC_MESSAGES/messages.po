@@ -78,3 +78,15 @@ msgstr "Cerca per fermata"
 
 msgid "search_by_line"
 msgstr "Cerca per linea"
+
+msgid "gtfs_files_version"
+msgstr "Versione dei file GTFS"
+
+msgid "language"
+msgstr "Lingua"
+
+msgid "bot"
+msgstr "Bot"
+
+msgid "telegram_user"
+msgstr "Utente Telegram"
