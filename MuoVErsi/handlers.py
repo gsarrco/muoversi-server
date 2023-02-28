@@ -406,7 +406,7 @@ def main() -> None:
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), show_stop)
             ]
         },
-        fallbacks=[CommandHandler("annulla", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
+        fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         persistent=True
     )
 
