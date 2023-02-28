@@ -46,10 +46,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(_('welcome') + "\n\n" + _('home'))
 
 
-async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
+async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
+
+    if update.message.text[1:] == _('stop'):
+        command = 'fermata'
+    elif update.message.text[1:] == _('line'):
+        command = 'linea'
+    else:
+        return ConversationHandler.END
 
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
@@ -70,14 +77,6 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE, com
         return SPECIFY_STOP
 
     return SPECIFY_LINE
-
-
-async def choose_service_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await choose_service(update, context, 'fermata')
-
-
-async def choose_service_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await choose_service(update, context, 'linea')
 
 
 async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
@@ -388,7 +387,7 @@ def main() -> None:
 
     conv_handler = ConversationHandler(
         name='orari',
-        entry_points=[CommandHandler("fermata", choose_service_stop), CommandHandler("linea", choose_service_line)],
+        entry_points=[MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         states={
             SPECIFY_STOP: [CallbackQueryHandler(specify_stop)],
             SEARCH_STOP: [
@@ -407,8 +406,7 @@ def main() -> None:
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), show_stop)
             ]
         },
-        fallbacks=[CommandHandler("annulla", cancel), CommandHandler("fermata", choose_service_stop),
-                   CommandHandler("linea", choose_service_line)],
+        fallbacks=[CommandHandler("annulla", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         persistent=True
     )
 
