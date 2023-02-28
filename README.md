@@ -5,8 +5,6 @@ It allows you to get departure times for the next buses, trams and vaporetti (wa
 location, or starting from a specific line. You can then use filters to get the right results and see all the
 stops/times of that specific route.
 
-Unfortunately the bot is currently only available in Italian, but I'm working on a translation.
-
 ## Infrastructure
 
 The bot is written in Python 3 and uses
