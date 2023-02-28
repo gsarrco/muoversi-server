@@ -46,6 +46,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
 
 
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+    aut_db_file: DBFile = thismodule.aut_db_con
+    nav_db_file: DBFile = thismodule.nav_db_con
+    text = _('gtfs_files_version') + '\n' + f'- {aut_db_file.transport_type}: {aut_db_file.gtfs_version}\n' \
+                                            f'- {nav_db_file.transport_type}: {nav_db_file.gtfs_version}\n'
+    text += _('language') + '\n' + f"- {_('bot')}: {lang}\n" \
+                                   f"- {_('telegram_user')}: {update.effective_user.language_code}"
+    await update.message.reply_text(text)
+
+
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
@@ -411,6 +424,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("info", info))
     application.add_handler(conv_handler)
 
     if DEV:
