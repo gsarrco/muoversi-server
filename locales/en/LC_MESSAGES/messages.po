@@ -69,3 +69,13 @@ msgstr "line"
 
 msgid "min"
 msgstr "min"
+
+
+msgid "stop"
+msgstr "stop"
+
+msgid "search_by_stop"
+msgstr "Search by stop"
+
+msgid "search_by_line"
+msgstr "Search by line"

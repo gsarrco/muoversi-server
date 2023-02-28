@@ -69,3 +69,12 @@ msgstr "linea"
 
 msgid "min"
 msgstr "min"
+
+msgid "stop"
+msgstr "fermata"
+
+msgid "search_by_stop"
+msgstr "Cerca per fermata"
+
+msgid "search_by_line"
+msgstr "Cerca per linea"
