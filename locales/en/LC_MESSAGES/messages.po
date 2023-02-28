@@ -78,15 +78,3 @@ msgstr "Search by stop"
 
 msgid "search_by_line"
 msgstr "Search by line"
-
-msgid "gtfs_files_version"
-msgstr "GTFS files version"
-
-msgid "language"
-msgstr "Language"
-
-msgid "bot"
-msgstr "Bot"
-
-msgid "telegram_user"
-msgstr "Telegram user"
