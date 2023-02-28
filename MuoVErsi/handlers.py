@@ -43,7 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
-    await update.message.reply_text(_('welcome') + "\n\n" + _('home'))
+    await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
 
 
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -338,7 +338,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    await update.message.reply_text(_('cancel') + "\n\n" + _('home'), reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(_('cancel') + "\n\n" + _('home') % (_('stop'), _('line')), reply_markup=ReplyKeyboardRemove())
 
     return ConversationHandler.END
 
