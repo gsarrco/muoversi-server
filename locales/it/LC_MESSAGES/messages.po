@@ -1,0 +1,80 @@
+msgid "welcome"
+msgstr "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia."
+
+msgid "home"
+msgstr "Inizia la tua ricerca con /%s per partire da una fermata, o /%s per una linea."
+
+msgid "cancel"
+msgstr "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi."
+
+msgid "aut"
+msgstr "automobilistico"
+
+msgid "nav"
+msgstr "navigazione"
+
+msgid "choose_service"
+msgstr "Quale servizio di Actv ti interessa?"
+
+msgid "service_selected"
+msgstr "Hai selezionato il servizio %s."
+
+msgid "change_service"
+msgstr "Cambia in %s"
+
+msgid "send_location"
+msgstr "Invia posizione"
+
+msgid "insert_stop"
+msgstr "Inizia digitando il nome della fermata oppure invia la posizione tua attuale o di un altro luogo per vedere le fermate più vicine."
+
+msgid "insert_line"
+msgstr "Digita il numero della linea interessata."
+
+msgid "stop_not_found"
+msgstr "Non abbiamo trovato la fermata che hai inserito. Riprova."
+
+msgid "choose_stop"
+msgstr "Scegli la fermata"
+
+msgid "back"
+msgstr "Indietro"
+
+msgid "here_times"
+msgstr "Ecco gli orari"
+
+msgid "past_date"
+msgstr "Non possiamo mostrare orari di giornate passate. Torna alla giornata odierna o a una futura."
+
+msgid "no_times"
+msgstr "Nessun orario trovato per questi filtri."
+
+msgid "all_lines"
+msgstr "Tutte le linee"
+
+msgid "plus_day"
+msgstr "+1g"
+
+msgid "minus_day"
+msgstr "-1g"
+
+msgid "choose_line"
+msgstr "Quale linea cerchi?"
+
+msgid "stops"
+msgstr "Fermate"
+
+msgid "line"
+msgstr "linea"
+
+msgid "min"
+msgstr "min"
+
+msgid "stop"
+msgstr "fermata"
+
+msgid "search_by_stop"
+msgstr "Cerca per fermata"
+
+msgid "search_by_line"
+msgstr "Cerca per linea"
