@@ -1,10 +1,12 @@
 import gettext
+import gettext
 import logging
 import os
 import re
 import sys
 from datetime import datetime, timedelta
 
+import requests
 import yaml
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
     InlineKeyboardButton
@@ -368,6 +370,21 @@ def main() -> None:
     logger.info('navigazione stops clusters uploaded: %s', stops_clusters_uploaded)
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
+
+    langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]
+    default_lang = 'en'
+
+    for lang in langs:
+        trans = gettext.translation('messages', localedir, languages=[lang])
+        _ = trans.gettext
+        language_code = lang if lang != default_lang else ''
+        r = requests.post(f'https://api.telegram.org/bot{config["TOKEN"]}/setMyCommands', json={
+            'commands': [
+                {'command': _('stop'), 'description': _('search_by_stop')},
+                {'command': _('line'), 'description': _('search_by_line')}
+            ],
+            'language_code': language_code
+        })
 
     conv_handler = ConversationHandler(
         name='orari',
