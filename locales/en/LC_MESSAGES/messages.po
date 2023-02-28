@@ -70,7 +70,6 @@ msgstr "line"
 msgid "min"
 msgstr "min"
 
-
 msgid "stop"
 msgstr "stop"
 
