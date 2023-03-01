@@ -242,14 +242,19 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     now = datetime.now() - timedelta(minutes=5)
 
-    stop_id = re.search(r'\d+', update.message.text).group(0)
+    text = update.message.text if update.message else update.callback_query.data
+
+    if update.callback_query:
+        await update.callback_query.answer()
+
+    stop_id = re.search(r'\d+', text).group(0)
     stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
 
     return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
                                  context)
 
 
-async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
     else:
@@ -258,44 +263,46 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    now = datetime.now() - timedelta(minutes=5)
+    query = update.callback_query
+    logger.info("Query data %s", query.data)
+    stop_times_filter = StopTimesFilter(query_data=query.data)
+    message_id = query.message.message_id
 
-    message_id = None
-
-    if update.callback_query:
-        query = update.callback_query
-
-        if query.data[0] == 'R':
-            trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
-            day = datetime.strptime(day_raw, '%Y%m%d').date()
-
-            results = get_stops_from_trip_id(trip_id, con, stop_sequence)
-
-            text = StopTimesFilter(day=day, line=line, start_time='').title(_, lang)
-
-            for result in results:
-                stop_id, stop_name, time_raw = result
-                time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
-                text += f'\n{time_format} {stop_name}'
-
-            await query.answer('')
-            reply_markup = InlineKeyboardMarkup(
-                [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
-            await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
-            return SHOW_STOP
-
-        if query.data[0] == 'S':
-            cluster_id = query.data[1:]
-            stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', now.time())
-        else:
-            logger.info("Query data %s", query.data)
-            stop_times_filter = StopTimesFilter(query_data=query.data)
-            message_id = query.message.message_id
-        chat_id = update.callback_query.message.chat_id
-        bot = update.callback_query.get_bot()
-        await query.answer('')
+    chat_id = update.callback_query.message.chat_id
+    bot = update.get_bot()
+    await query.answer('')
 
     return await send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot, context)
+
+
+async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'aut':
+        con = thismodule.aut_db_con.con
+    else:
+        con = thismodule.nav_db_con.con
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
+    query = update.callback_query
+
+    trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
+    day = datetime.strptime(day_raw, '%Y%m%d').date()
+
+    results = get_stops_from_trip_id(trip_id, con, stop_sequence)
+
+    text = StopTimesFilter(day=day, line=line, start_time='').title(_, lang)
+
+    for result in results:
+        stop_id, stop_name, time_raw = result
+        time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
+        text += f'\n{time_format} {stop_name}'
+
+    await query.answer('')
+    reply_markup = InlineKeyboardMarkup(
+        [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
+    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
+    return SHOW_STOP
 
 
 async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -425,7 +432,9 @@ def main() -> None:
             SHOW_LINE: [CallbackQueryHandler(show_line)],
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
-                CallbackQueryHandler(show_stop),
+                CallbackQueryHandler(filter_show_stop, r'^\d'),
+                CallbackQueryHandler(ride_view_show_stop, r'^R'),
+                CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop)
             ]
         },
