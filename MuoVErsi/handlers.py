@@ -231,6 +231,24 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
                                  context)
 
 
+async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'aut':
+        con = thismodule.aut_db_con.con
+    else:
+        con = thismodule.nav_db_con.con
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
+
+    now = datetime.now() - timedelta(minutes=5)
+
+    stop_id = re.search(r'\d+', update.message.text).group(0)
+    stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
+
+    return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+                                 context)
+
+
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
@@ -276,11 +294,6 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         chat_id = update.callback_query.message.chat_id
         bot = update.callback_query.get_bot()
         await query.answer('')
-    else:
-        stop_id = re.search(r'\d+', update.message.text).group(0)
-        stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
-        chat_id = update.message.chat_id
-        bot = update.message.get_bot()
 
     return await send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot, context)
 
@@ -411,7 +424,7 @@ def main() -> None:
             ],
             SHOW_LINE: [CallbackQueryHandler(show_line)],
             SHOW_STOP: [
-                MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop),
+                MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
                 CallbackQueryHandler(show_stop),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop)
             ]
