@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import requests
 import yaml
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
-    InlineKeyboardButton
+    InlineKeyboardButton, Bot
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -181,6 +181,33 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
+async def send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot: Bot,
+                          context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['query_data'] = stop_times_filter.query_data()
+
+    if not message_id:
+        await bot.send_message(chat_id, _('here_times'), disable_notification=True,
+                               reply_markup=ReplyKeyboardMarkup([[_('minus_day'), _('plus_day')]],
+                                                                resize_keyboard=True))
+
+    stop_times_filter.lines = context.user_data.get('lines')
+    service_ids = context.user_data.get('service_ids')
+    stop_ids = context.user_data.get('stop_ids')
+    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids, stop_ids)
+    context.user_data['lines'] = stop_times_filter.lines
+    context.user_data['service_ids'] = service_ids
+    context.user_data['stop_ids'] = stop_ids
+
+    text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
+
+    if not message_id:
+        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
+        return SHOW_STOP
+
+    await bot.edit_message_text(text, chat_id, message_id, reply_markup=reply_markup, parse_mode='HTML')
+    return SHOW_STOP
+
+
 async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
@@ -193,6 +220,8 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     first_message = False
 
     now = datetime.now() - timedelta(minutes=5)
+
+    message_id = None
 
     if update.callback_query:
         query = update.callback_query
@@ -223,6 +252,10 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         else:
             logger.info("Query data %s", query.data)
             stop_times_filter = StopTimesFilter(query_data=query.data)
+            message_id = query.message.message_id
+        chat_id = update.callback_query.message.chat_id
+        bot = update.callback_query.get_bot()
+        await query.answer('')
     else:
         if update.message.text == _('minus_day') or update.message.text == _('plus_day'):
             del context.user_data['lines']
@@ -239,40 +272,10 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             stop_id = re.search(r'\d+', update.message.text).group(0)
             stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
             first_message = True
-
-    context.user_data['query_data'] = stop_times_filter.query_data()
-
-    if update.callback_query:
-        chat_id = update.callback_query.message.chat_id
-        bot = update.callback_query.get_bot()
-    else:
         chat_id = update.message.chat_id
         bot = update.message.get_bot()
 
-    if first_message:
-        await bot.send_message(chat_id, _('here_times'), disable_notification=True,
-                               reply_markup=ReplyKeyboardMarkup([[_('minus_day'), _('plus_day')]],
-                                                                resize_keyboard=True))
-
-    stop_times_filter.lines = context.user_data.get('lines')
-    service_ids = context.user_data.get('service_ids')
-    stop_ids = context.user_data.get('stop_ids')
-    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids, stop_ids)
-    context.user_data['lines'] = stop_times_filter.lines
-    context.user_data['service_ids'] = service_ids
-    context.user_data['stop_ids'] = stop_ids
-
-    text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
-
-    if update.callback_query:
-        await query.answer('')
-
-    if not update.callback_query or first_message:
-        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
-        return SHOW_STOP
-
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
-    return SHOW_STOP
+    return await send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot, context)
 
 
 async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
