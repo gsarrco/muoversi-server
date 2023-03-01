@@ -208,7 +208,7 @@ async def send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, 
     return SHOW_STOP
 
 
-async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
     else:
@@ -217,7 +217,28 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    first_message = False
+    del context.user_data['lines']
+    del context.user_data['service_ids']
+    stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
+    if update.message.text == _('minus_day'):
+        stop_times_filter.day -= timedelta(days=1)
+    else:
+        stop_times_filter.day += timedelta(days=1)
+    stop_times_filter.start_time = ''
+    stop_times_filter.offset_times = 0
+
+    return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+                                 context)
+
+
+async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if context.user_data['transport_type'] == 'aut':
+        con = thismodule.aut_db_con.con
+    else:
+        con = thismodule.nav_db_con.con
+    lang = 'it' if update.effective_user.language_code == 'it' else 'en'
+    trans = gettext.translation('messages', localedir, languages=[lang])
+    _ = trans.gettext
 
     now = datetime.now() - timedelta(minutes=5)
 
@@ -248,7 +269,6 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if query.data[0] == 'S':
             cluster_id = query.data[1:]
             stop_times_filter = StopTimesFilter(cluster_id, now.date(), '', now.time())
-            first_message = True
         else:
             logger.info("Query data %s", query.data)
             stop_times_filter = StopTimesFilter(query_data=query.data)
@@ -257,21 +277,8 @@ async def show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         bot = update.callback_query.get_bot()
         await query.answer('')
     else:
-        if update.message.text == _('minus_day') or update.message.text == _('plus_day'):
-            del context.user_data['lines']
-            del context.user_data['service_ids']
-            stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
-            if update.message.text == _('minus_day'):
-                stop_times_filter.day -= timedelta(days=1)
-            else:
-                stop_times_filter.day += timedelta(days=1)
-            stop_times_filter.start_time = ''
-            stop_times_filter.offset_times = 0
-
-        else:
-            stop_id = re.search(r'\d+', update.message.text).group(0)
-            stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
-            first_message = True
+        stop_id = re.search(r'\d+', update.message.text).group(0)
+        stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
         chat_id = update.message.chat_id
         bot = update.message.get_bot()
 
@@ -406,7 +413,7 @@ def main() -> None:
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop),
                 CallbackQueryHandler(show_stop),
-                MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), show_stop)
+                MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop)
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
