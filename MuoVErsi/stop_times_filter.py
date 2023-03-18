@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, time, date
+from datetime import datetime, time, date, timedelta
 from sqlite3 import Connection
 
 from babel.dates import format_date
@@ -53,13 +53,7 @@ class StopTimesFilter:
         start_time = self.start_time
 
         if start_time != '':
-            now = datetime.now()
-            # if start_time is within 5 minutes of now, show that tolerance is applied
-            if abs((now - now.replace(hour=start_time.hour, minute=start_time.minute)).seconds // 60) < 5+1:
-                diff_in_minutes = now.minute - start_time.minute
-                text += f' - {now.strftime("%H:%M")}(-{diff_in_minutes}' + _('min') + ')'
-            else:
-                text += f' - {start_time.strftime("%H:%M")}'
+            text += f' - {self.start_time.strftime("%H:%M")}(-5' + _('min') + ')'
 
         if self.line != '':
             text += ' - ' + _('line') + ' ' + self.line
@@ -104,7 +98,9 @@ class StopTimesFilter:
             params += (line,)
 
         if start_time != '':
-            params += (start_time.strftime('%H:%M'),)
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
 
         params += (LIMIT, self.offset_times)
 
@@ -131,8 +127,13 @@ class StopTimesFilter:
         choice_buttons = []
         for i, result in enumerate(results):
             time_raw, line, headsign, trip_id, stop_sequence = result
-            time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
-            text += f'\n{i + 1}. {time_format} {line} {headsign}'
+            time = time_25_to_1(time_raw)
+            time_format = time.isoformat(timespec="minutes")
+            dt = datetime.combine(self.day, time)
+            if dt < datetime.now():
+                text += f'\n{i + 1}. <i>{time_format} {line} {headsign}</i>'
+            else:
+                text += f'\n{i + 1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
             choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
 
