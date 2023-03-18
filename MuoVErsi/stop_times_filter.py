@@ -127,8 +127,13 @@ class StopTimesFilter:
         choice_buttons = []
         for i, result in enumerate(results):
             time_raw, line, headsign, trip_id, stop_sequence = result
-            time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
-            text += f'\n{i + 1}. {time_format} {line} {headsign}'
+            time = time_25_to_1(time_raw)
+            time_format = time.isoformat(timespec="minutes")
+            dt = datetime.combine(self.day, time)
+            if dt < datetime.now():
+                text += f'\n{i + 1}. <i>{time_format} {line} {headsign}</i>'
+            else:
+                text += f'\n{i + 1}. {time_format} {line} {headsign}'
             callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
             choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
 
