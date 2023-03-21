@@ -142,11 +142,13 @@ class StopTimesFilter:
         paging_buttons = []
 
         # prev/next page buttons
+        if self.offset_times == 0 and self.start_time != '':
+            paging_buttons.append(self.inline_button('<<', start_time=''))
         if results_len > 0:
             if self.offset_times > 0:
-                paging_buttons.append(self.inline_button('<<', offset_times=self.offset_times - LIMIT))
+                paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - LIMIT))
             if results_len == LIMIT:
-                paging_buttons.append(self.inline_button('>>', offset_times=self.offset_times + LIMIT))
+                paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + LIMIT))
 
         keyboard.append(paging_buttons)
 
