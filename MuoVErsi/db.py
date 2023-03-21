@@ -182,10 +182,10 @@ class DBFile:
         cur = self.con.cursor()
         if lat and lon:
             query = 'SELECT id, name FROM stops_clusters ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 5'
+                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 4'
             results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
         else:
-            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 5'
+            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 4'
             results = cur.execute(query, (f'%{name}%',)).fetchall()
 
         return results
