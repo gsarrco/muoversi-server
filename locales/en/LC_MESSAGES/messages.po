@@ -74,7 +74,7 @@ msgid "stop"
 msgstr "stop"
 
 msgid "search_by_stop"
-msgstr "Search by stop"
+msgstr "Search by departing stop"
 
 msgid "search_by_line"
 msgstr "Search by line"
