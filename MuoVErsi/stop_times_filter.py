@@ -162,9 +162,9 @@ class StopTimesFilter:
             line_buttons = [self.inline_button(line, line=line, offset_times=0) for line in
                             lines[self.offset_lines:self.offset_lines + limit]]
             if self.offset_lines > 0:
-                line_buttons.insert(0, self.inline_button('<<', offset_lines=self.offset_lines - prev_limit))
+                line_buttons.insert(0, self.inline_button('<', offset_lines=self.offset_lines - prev_limit))
             if self.offset_lines + 5 < len(lines):
-                line_buttons.append(self.inline_button('>>', offset_lines=self.offset_lines + limit))
+                line_buttons.append(self.inline_button('>', offset_lines=self.offset_lines + limit))
             len_line_buttons = len(line_buttons)
             if len_line_buttons > 1:
                 keyboard.append(line_buttons)
