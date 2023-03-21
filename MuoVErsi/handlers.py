@@ -19,7 +19,8 @@ from telegram.ext import (
     filters, CallbackQueryHandler, )
 
 from .db import DBFile
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id, \
+    get_stop_ids_from_cluster
 from .persistence import SQLitePersistence
 from .stop_times_filter import StopTimesFilter
 
@@ -192,11 +193,9 @@ async def send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, 
 
     stop_times_filter.lines = context.user_data.get('lines')
     service_ids = context.user_data.get('service_ids')
-    stop_ids = context.user_data.get('stop_ids')
-    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids, stop_ids)
+    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids)
     context.user_data['lines'] = stop_times_filter.lines
     context.user_data['service_ids'] = service_ids
-    context.user_data['stop_ids'] = stop_ids
 
     text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
@@ -219,7 +218,8 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
     del context.user_data['lines']
     del context.user_data['service_ids']
-    stop_times_filter = StopTimesFilter(query_data=context.user_data['query_data'])
+    stop_ids = context.user_data.get('stop_ids')
+    stop_times_filter = StopTimesFilter(stop_ids=stop_ids, query_data=context.user_data['query_data'])
     if update.message.text == _('minus_day'):
         stop_times_filter.day -= timedelta(days=1)
     else:
@@ -247,8 +247,10 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         await update.callback_query.answer()
 
-    stop_id = re.search(r'\d+', text).group(0)
-    stop_times_filter = StopTimesFilter(stop_id, now.date(), '', now.time())
+    cluster_id = re.search(r'\d+', text).group(0)
+    stop_ids = get_stop_ids_from_cluster(cluster_id, con)
+    stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time())
+    context.user_data['stop_ids'] = stop_ids
 
     return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
                                  context)
@@ -265,7 +267,8 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     query = update.callback_query
     logger.info("Query data %s", query.data)
-    stop_times_filter = StopTimesFilter(query_data=query.data)
+    stop_ids = context.user_data.get('stop_ids')
+    stop_times_filter = StopTimesFilter(stop_ids=stop_ids, query_data=query.data)
     message_id = query.message.message_id
 
     chat_id = update.callback_query.message.chat_id

@@ -17,16 +17,16 @@ MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
 class StopTimesFilter:
-    def __init__(self, stop_id=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
+    def __init__(self, stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
                  query_data=None):
 
         if query_data:
-            stop_id, day_raw, line, start_time_raw, offset_times, offset_lines = \
+            day_raw, line, start_time_raw, offset_times, offset_lines = \
                 query_data.split('/')
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
-        self.stop_id = stop_id
+        self.stop_ids = stop_ids
         self.day = day
         self.line = line
         self.start_time = start_time
@@ -42,7 +42,7 @@ class StopTimesFilter:
         to_print['day'] = to_print['day'].strftime('%Y%m%d')
         to_print['start_time'] = to_print['start_time'].isoformat(timespec='minutes') if to_print['start_time'] != '' else ''
 
-        result = f'{to_print["stop_id"]}/{to_print["day"]}/{to_print["line"]}/' \
+        result = f'{to_print["day"]}/{to_print["line"]}/' \
                  f'{to_print["start_time"]}/{to_print["offset_times"]}/{to_print["offset_lines"]}'
         logger.info(result)
         return result
@@ -62,8 +62,8 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, con: Connection, service_ids, stop_ids):
-        day, stop_id, line, start_time = self.day, self.stop_id, self.line, \
+    def get_times(self, con: Connection, service_ids):
+        day, stop_ids, line, start_time = self.day, self.stop_ids, self.line, \
             self.start_time
 
         if service_ids is None:
@@ -71,11 +71,6 @@ class StopTimesFilter:
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
-
-        if stop_ids is None:
-            results = con.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
-                                  (stop_id,)).fetchall()
-            stop_ids = [result[0] for result in results]
 
         query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
                     FROM stop_times
