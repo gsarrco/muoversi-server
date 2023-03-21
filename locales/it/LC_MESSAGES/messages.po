@@ -2,7 +2,7 @@ msgid "welcome"
 msgstr "Benvenuto su MuoVErsi, uno strumento avanzato per chi prende i trasporti pubblici a Venezia."
 
 msgid "home"
-msgstr "Inizia la tua ricerca con /%s per partire da una fermata, o /%s per una linea."
+msgstr "Inizia la tua ricerca con /%s per partire dalla fermata di partenza, o /%s per una linea."
 
 msgid "cancel"
 msgstr "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi."

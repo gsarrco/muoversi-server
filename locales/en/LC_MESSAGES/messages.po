@@ -2,7 +2,7 @@ msgid "welcome"
 msgstr "Welcome to MuoVErsi, an advanced tool for those taking public transportation in Venice."
 
 msgid "home"
-msgstr "Begin your search with /%s to start from a stop, or /%s from a line."
+msgstr "Begin your search with /%s to start from the departing stop, or /%s from a line."
 
 msgid "cancel"
 msgstr "The conversation was stopped. You are in the home screen of MuoVErsi."
