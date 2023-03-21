@@ -40,6 +40,13 @@ SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = ran
 localedir = os.path.join(parent_dir, 'locales')
 
 
+def clean_user_data(context):
+    context.user_data.pop('query_data', None)
+    context.user_data.pop('lines', None)
+    context.user_data.pop('service_ids', None)
+    context.user_data.pop('stop_ids', None)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
@@ -59,10 +66,7 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         return ConversationHandler.END
 
-    context.user_data.pop('query_data', None)
-    context.user_data.pop('lines', None)
-    context.user_data.pop('service_ids', None)
-    context.user_data.pop('stop_ids', None)
+    clean_user_data(context)
 
     if context.user_data.get('transport_type'):
         return await specify(update, context, command)
@@ -362,10 +366,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data.pop('query_data', None)
-    context.user_data.pop('lines', None)
-    context.user_data.pop('service_ids', None)
-    context.user_data.pop('stop_ids', None)
+    clean_user_data(context)
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
