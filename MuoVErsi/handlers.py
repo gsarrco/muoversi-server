@@ -44,7 +44,8 @@ def clean_user_data(context):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
     context.user_data.pop('service_ids', None)
-    context.user_data.pop('stop_ids', None)
+    context.user_data.pop('dep_stop_ids', None)
+    context.user_data.pop('arr_stop_ids', None)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -129,7 +130,7 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
         if command == 'fermata':
             reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
             reply_keyboard_markup = ReplyKeyboardMarkup(
-                reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+                reply_keyboard, resize_keyboard=True, is_persistent=True
             )
         else:
             reply_keyboard_markup = ReplyKeyboardRemove()
@@ -186,18 +187,14 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
-async def send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot: Bot,
+async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, message_id, bot: Bot,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
-    if not message_id:
-        await bot.send_message(chat_id, _('here_times'), disable_notification=True,
-                               reply_markup=ReplyKeyboardMarkup([[_('minus_day'), _('plus_day')]],
-                                                                resize_keyboard=True))
-
     stop_times_filter.lines = context.user_data.get('lines')
     service_ids = context.user_data.get('service_ids')
-    results, service_ids, stop_ids = stop_times_filter.get_times(con, service_ids)
+
+    results, service_ids = stop_times_filter.get_times(db_file, service_ids)
     context.user_data['lines'] = stop_times_filter.lines
     context.user_data['service_ids'] = service_ids
 
@@ -214,16 +211,19 @@ async def send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, 
 async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
+        db_file = thismodule.aut_db_con
     else:
         con = thismodule.nav_db_con.con
+        db_file = thismodule.nav_db_con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
     del context.user_data['lines']
     del context.user_data['service_ids']
-    stop_ids = context.user_data.get('stop_ids')
-    stop_times_filter = StopTimesFilter(stop_ids=stop_ids, query_data=context.user_data['query_data'])
+    dep_stop_ids = context.user_data.get('dep_stop_ids')
+    arr_stop_ids = context.user_data.get('arr_stop_ids')
+    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'], arr_stop_ids=arr_stop_ids)
     if update.message.text == _('minus_day'):
         stop_times_filter.day -= timedelta(days=1)
     else:
@@ -231,15 +231,17 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     stop_times_filter.start_time = ''
     stop_times_filter.offset_times = 0
 
-    return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
                                  context)
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
+        db_file = thismodule.aut_db_con
     else:
         con = thismodule.nav_db_con.con
+        db_file = thismodule.nav_db_con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -253,33 +255,42 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     cluster_id = re.search(r'\d+', text).group(0)
     stop_ids = get_stop_ids_from_cluster(cluster_id, con)
-    stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time())
-    context.user_data['stop_ids'] = stop_ids
+    saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
 
-    return await send_stop_times(_, lang, con, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+    if saved_dep_stop_ids:
+        stop_times_filter = StopTimesFilter(saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids)
+        context.user_data['arr_stop_ids'] = stop_ids
+    else:
+        stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time())
+        context.user_data['dep_stop_ids'] = stop_ids
+
+    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
                                  context)
 
 
 async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data['transport_type'] == 'aut':
         con = thismodule.aut_db_con.con
+        db_file = thismodule.aut_db_con
     else:
         con = thismodule.nav_db_con.con
+        db_file = thismodule.nav_db_con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
     query = update.callback_query
     logger.info("Query data %s", query.data)
-    stop_ids = context.user_data.get('stop_ids')
-    stop_times_filter = StopTimesFilter(stop_ids=stop_ids, query_data=query.data)
+    dep_stop_ids = context.user_data.get('dep_stop_ids')
+    arr_stop_ids = context.user_data.get('arr_stop_ids')
+    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids)
     message_id = query.message.message_id
 
     chat_id = update.callback_query.message.chat_id
     bot = update.get_bot()
     await query.answer('')
 
-    return await send_stop_times(_, lang, con, stop_times_filter, chat_id, message_id, bot, context)
+    return await send_stop_times(_, lang, db_file, stop_times_filter, chat_id, message_id, bot, context)
 
 
 async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -439,7 +450,8 @@ def main() -> None:
                 CallbackQueryHandler(filter_show_stop, r'^\d'),
                 CallbackQueryHandler(ride_view_show_stop, r'^R'),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
-                MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop)
+                MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
+                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],

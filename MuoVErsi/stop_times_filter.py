@@ -1,10 +1,10 @@
 import logging
 from datetime import datetime, time, date, timedelta
-from sqlite3 import Connection
 
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from MuoVErsi.db import DBFile
 from MuoVErsi.helpers import time_25_to_1, split_list, get_active_service_ids, get_lines_from_stops
 
 logging.basicConfig(
@@ -17,8 +17,8 @@ MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
 class StopTimesFilter:
-    def __init__(self, stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
-                 query_data=None):
+    def __init__(self, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
+                 query_data=None, arr_stop_ids=None):
 
         if query_data:
             day_raw, line, start_time_raw, offset_times, offset_lines = \
@@ -26,7 +26,8 @@ class StopTimesFilter:
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
-        self.stop_ids = stop_ids
+        self.dep_stop_ids = dep_stop_ids
+        self.arr_stop_ids = arr_stop_ids
         self.day = day
         self.line = line
         self.start_time = start_time
@@ -62,12 +63,18 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, con: Connection, service_ids):
-        day, stop_ids, line, start_time = self.day, self.stop_ids, self.line, \
+    def get_times(self, db_file: DBFile, service_ids):
+        day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
+
+        con = db_file.con
 
         if service_ids is None:
             service_ids = get_active_service_ids(day, con)
+
+        if self.arr_stop_ids:
+            return db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
+                                                        line, start_time, self.offset_times, LIMIT, day)
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
@@ -84,10 +91,10 @@ class StopTimesFilter:
                     ORDER BY departure_time, route_short_name, trip_headsign
                     LIMIT ? OFFSET ?
                     """.format(
-            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)), route=route,
+            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(dep_stop_ids)), route=route,
             departure_time=departure_time)
 
-        params = (*stop_ids, *service_ids)
+        params = (*dep_stop_ids, *service_ids)
 
         if line != '':
             params += (line,)
@@ -103,9 +110,9 @@ class StopTimesFilter:
         results = cur.execute(query, params).fetchall()
 
         if self.lines is None:
-            self.lines = get_lines_from_stops(service_ids, stop_ids, con)
+            self.lines = get_lines_from_stops(service_ids, dep_stop_ids, con)
 
-        return results, service_ids, stop_ids
+        return results, service_ids
 
     def format_times_text(self, results, _, lang):
         text = f'{self.title(_, lang)}'
@@ -121,10 +128,14 @@ class StopTimesFilter:
 
         choice_buttons = []
         for i, result in enumerate(results):
-            time_raw, line, headsign, trip_id, stop_sequence = result
-            time = time_25_to_1(time_raw)
-            time_format = time.isoformat(timespec="minutes")
-            dt = datetime.combine(self.day, time)
+            time_raw, line, headsign, trip_id, stop_sequence = result[:5]
+            dep_time = time_25_to_1(time_raw)
+            time_format = dep_time.isoformat(timespec="minutes")
+            if len(result) > 5:
+                arr_time = time_25_to_1(result[5])
+                arr_time_format = arr_time.isoformat(timespec="minutes")
+                time_format += f'->{arr_time_format}'
+            dt = datetime.combine(self.day, dep_time)
             if dt < datetime.now():
                 text += f'\n{i + 1}. <i>{time_format} {line} {headsign}</i>'
             else:
