@@ -6,7 +6,7 @@ import ssl
 import subprocess
 import urllib
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlite3 import Connection
 
 import requests
@@ -187,5 +187,63 @@ class DBFile:
         else:
             query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 4'
             results = cur.execute(query, (f'%{name}%',)).fetchall()
+
+        return results
+
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids: set, line, start_time, offset_times, limit, day):
+        con = self.con
+        con.row_factory = sqlite3.Row
+        cur = con.cursor()
+
+        route = 'AND route_short_name = ?' if line != '' else ''
+        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
+
+        tot_stop_ids = dep_stop_ids.union(arr_stop_ids)
+        
+        query = """
+        SELECT st.departure_time      as dept_time,
+               r.route_short_name     as line,
+               t.trip_headsign        as headsign,
+               t.trip_id              as trip_id,
+               st.stop_sequence       as stop_sequence,
+               st2.max_dep_time as arr_time
+        FROM stop_times st
+                 INNER JOIN (SELECT trip_id,
+                                    min(departure_time) as min_dep_time,
+                                    max(departure_time) as max_dep_time
+                             FROM stop_times
+                             WHERE stop_times.stop_id in ({tot_stop_ids})
+                               {departure_time}
+                             GROUP BY trip_id
+                             HAVING count(*) = 2) st2 ON st.trip_id = st2.trip_id AND st.departure_time = st2.min_dep_time
+                 INNER JOIN trips t ON st.trip_id = t.trip_id
+                 INNER JOIN routes r ON t.route_id = r.route_id
+        WHERE st.stop_id in ({arr_stop_ids})
+          AND t.service_id in ({service_ids})
+          AND st.pickup_type = 0
+          {route}
+        ORDER BY st.departure_time, r.route_short_name, t.trip_headsign, st.stop_sequence
+        LIMIT ? OFFSET ?
+        """.format(
+            service_ids=','.join(['?'] * len(service_ids)),
+            tot_stop_ids=','.join(['?'] * len(tot_stop_ids)),
+            arr_stop_ids=','.join(['?'] * len(arr_stop_ids)),
+            route=route,
+            departure_time=departure_time
+        )
+
+        params = (*tot_stop_ids, *arr_stop_ids, *service_ids)
+
+        if line != '':
+            params += (line,)
+
+        if start_time != '':
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
+
+        params += (limit, offset_times)
+
+        results = cur.execute(query, params).fetchall()
 
         return results
