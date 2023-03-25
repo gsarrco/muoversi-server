@@ -5,7 +5,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from MuoVErsi.db import DBFile
-from MuoVErsi.helpers import time_25_to_1, split_list, get_active_service_ids, get_lines_from_stops
+from MuoVErsi.helpers import time_25_to_1, get_active_service_ids, get_lines_from_stops
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -133,8 +133,7 @@ class StopTimesFilter:
         if results_len == 0:
             text += '\n' + _('no_times')
 
-        choice_buttons = []
-        for i, result in enumerate(results):
+        for result in results:
             time_raw, line, headsign, trip_id, stop_sequence = result[:5]
             dep_time = time_25_to_1(time_raw)
             time_format = dep_time.isoformat(timespec="minutes")
@@ -144,18 +143,11 @@ class StopTimesFilter:
                 time_format += f'->{arr_time_format}'
             dt = datetime.combine(self.day, dep_time)
             if dt < datetime.now():
-                text += f'\n{i + 1}. <i>{time_format} {line} {headsign}</i>'
+                text += f'\n<i>{time_format} {line} {headsign}</i>'
             else:
-                text += f'\n{i + 1}. {time_format} {line} {headsign}'
-            callback_data = f'R{trip_id}/{self.day.strftime("%Y%m%d")}/{stop_sequence}/{line}'
-            choice_buttons.append(InlineKeyboardButton(f'{i + 1}', callback_data=callback_data))
+                text += f'\n{time_format} {line} {headsign}'
 
         keyboard = []
-        len_choice_buttons = len(choice_buttons)
-        if len_choice_buttons > MAX_CHOICE_BUTTONS_PER_ROW:
-            keyboard = split_list(choice_buttons)
-        elif len_choice_buttons > 0:
-            keyboard.append([button for button in choice_buttons])
 
         paging_buttons = []
 
