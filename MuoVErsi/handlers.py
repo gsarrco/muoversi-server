@@ -256,7 +256,10 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     text = update.message.text if update.message else update.callback_query.data
 
+    message_id = None
+
     if update.callback_query:
+        message_id = update.callback_query.message.message_id
         await update.callback_query.answer()
 
     cluster_id = re.search(r'\d+', text).group(0)
@@ -275,7 +278,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
 
-    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, message_id, update.get_bot(),
                                  context)
 
 
