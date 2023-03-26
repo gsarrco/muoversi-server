@@ -18,7 +18,7 @@ MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 class StopTimesFilter:
     def __init__(self, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
-                 query_data=None, arr_stop_ids=None):
+                 query_data=None, arr_stop_ids=None, dep_cluster_name=None, arr_cluster_name=None):
 
         if query_data:
             day_raw, line, start_time_raw, offset_times, offset_lines = \
@@ -34,6 +34,8 @@ class StopTimesFilter:
         self.offset_times = int(offset_times)
         self.offset_lines = int(offset_lines)
         self.lines = None
+        self.dep_cluster_name = dep_cluster_name
+        self.arr_cluster_name = arr_cluster_name
 
     def query_data(self, **new_params):
         original_params = self.__dict__
@@ -49,7 +51,12 @@ class StopTimesFilter:
         return result
 
     def title(self, _, lang):
-        text = '<b>' + format_date(self.day, 'EEEE d MMMM', locale=lang)
+        text = f'<b>PARTENZE DA {self.dep_cluster_name}\n'
+
+        if self.arr_cluster_name:
+            text += f'DESTINAZIONE {self.arr_cluster_name}\n'
+
+        text += format_date(self.day, 'EEEE d MMMM', locale=lang)
 
         start_time = self.start_time
 

@@ -20,7 +20,7 @@ from telegram.ext import (
 
 from .db import DBFile
 from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id, \
-    get_stop_ids_from_cluster
+    get_stop_ids_from_cluster, get_cluster_name
 from .persistence import SQLitePersistence
 from .stop_times_filter import StopTimesFilter
 
@@ -223,7 +223,11 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     del context.user_data['service_ids']
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
-    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'], arr_stop_ids=arr_stop_ids)
+    dep_cluster_name = context.user_data.get('dep_cluster_name')
+    arr_cluster_name = context.user_data.get('arr_cluster_name')
+    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'],
+                                        arr_stop_ids=arr_stop_ids, dep_cluster_name=dep_cluster_name,
+                                        arr_cluster_name=arr_cluster_name)
     if update.message.text == _('minus_day'):
         stop_times_filter.day -= timedelta(days=1)
     else:
@@ -254,15 +258,20 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.callback_query.answer()
 
     cluster_id = re.search(r'\d+', text).group(0)
+    cluster_name = get_cluster_name(cluster_id, con)
     stop_ids = get_stop_ids_from_cluster(cluster_id, con)
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
+    saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids)
+        stop_times_filter = StopTimesFilter(saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
+                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name)
         context.user_data['arr_stop_ids'] = stop_ids
+        context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time())
+        stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time(), dep_cluster_name=cluster_name)
         context.user_data['dep_stop_ids'] = stop_ids
+        context.user_data['dep_cluster_name'] = cluster_name
 
     return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
                                  context)
@@ -283,7 +292,10 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     logger.info("Query data %s", query.data)
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
-    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids)
+    dep_cluster_name = context.user_data.get('dep_cluster_name')
+    arr_cluster_name = context.user_data.get('arr_cluster_name')
+    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids,
+                                        dep_cluster_name=dep_cluster_name, arr_cluster_name=arr_cluster_name)
     message_id = query.message.message_id
 
     chat_id = update.callback_query.message.chat_id
