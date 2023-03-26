@@ -46,6 +46,8 @@ def clean_user_data(context):
     context.user_data.pop('service_ids', None)
     context.user_data.pop('dep_stop_ids', None)
     context.user_data.pop('arr_stop_ids', None)
+    context.user_data.pop('dep_cluster_name', None)
+    context.user_data.pop('arr_cluster_name', None)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
