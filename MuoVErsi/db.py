@@ -195,8 +195,6 @@ class DBFile:
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
-
-        tot_stop_ids = dep_stop_ids.union(arr_stop_ids)
         
         query = """
         SELECT st.departure_time      as dept_time,
@@ -204,16 +202,16 @@ class DBFile:
                t.trip_headsign        as headsign,
                t.trip_id              as trip_id,
                st.stop_sequence       as stop_sequence,
-               st2.max_dep_time       as arr_time
+               arr_time               as arr_time
         FROM stop_times st
-                 INNER JOIN (SELECT trip_id,
-                                    min(departure_time) as min_dep_time,
-                                    max(departure_time) as max_dep_time
+                 INNER JOIN (SELECT trip_id, departure_time as arr_time
                              FROM stop_times
-                             WHERE stop_times.stop_id in ({tot_stop_ids})
+                             WHERE stop_times.stop_id in ({arr_stop_ids})
+                               AND stop_times.pickup_type = 0
                                {departure_time}
-                             GROUP BY trip_id
-                             HAVING count(*) = 2) st2 ON st.trip_id = st2.trip_id AND st.departure_time = st2.min_dep_time
+                            ORDER BY stop_times.departure_time
+                            )
+                        st2 ON st.trip_id = st2.trip_id
                  INNER JOIN trips t ON st.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
         WHERE st.stop_id in ({dep_stop_ids})
@@ -224,13 +222,13 @@ class DBFile:
         LIMIT ? OFFSET ?
         """.format(
             service_ids=','.join(['?'] * len(service_ids)),
-            tot_stop_ids=','.join(['?'] * len(tot_stop_ids)),
+            arr_stop_ids=','.join(['?'] * len(arr_stop_ids)),
             dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
             route=route,
             departure_time=departure_time
         )
 
-        params = (*tot_stop_ids,)
+        params = (*arr_stop_ids,)
 
         if start_time != '':
             start_datetime = datetime.combine(day, start_time)
