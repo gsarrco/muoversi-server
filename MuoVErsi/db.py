@@ -197,28 +197,28 @@ class DBFile:
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
         
         query = """
-        SELECT st.departure_time      as dept_time,
+        SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,
                t.trip_headsign        as headsign,
                t.trip_id              as trip_id,
-               st.stop_sequence       as stop_sequence,
+               dep.stop_sequence       as stop_sequence,
                arr_time               as arr_time
-        FROM stop_times st
-                 INNER JOIN (SELECT trip_id, departure_time as arr_time
+        FROM stop_times dep
+                 INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence
                              FROM stop_times
                              WHERE stop_times.stop_id in ({arr_stop_ids})
-                               AND stop_times.pickup_type = 0
                                {departure_time}
                             ORDER BY stop_times.departure_time
                             )
-                        st2 ON st.trip_id = st2.trip_id
-                 INNER JOIN trips t ON st.trip_id = t.trip_id
+                        arr ON dep.trip_id = arr.trip_id
+                 INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
-        WHERE st.stop_id in ({dep_stop_ids})
+        WHERE dep.stop_id in ({dep_stop_ids})
           AND t.service_id in ({service_ids})
-          AND st.pickup_type = 0
+          AND dep.pickup_type = 0
+          AND dep.stop_sequence < arr.stop_sequence
           {route}
-        ORDER BY st.departure_time, r.route_short_name, t.trip_headsign, st.stop_sequence
+        ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
         LIMIT ? OFFSET ?
         """.format(
             service_ids=','.join(['?'] * len(service_ids)),
