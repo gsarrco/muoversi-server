@@ -51,10 +51,10 @@ class StopTimesFilter:
         return result
 
     def title(self, _, lang):
-        text = f'<b>PARTENZE DA {self.dep_cluster_name}\n'
+        text = '<b>' + (_('departures') % self.dep_cluster_name).upper() + '\n'
 
         if self.arr_cluster_name:
-            text += f'DESTINAZIONE {self.arr_cluster_name}\n'
+            text += (_('arrival') % self.arr_cluster_name).upper() + '\n'
 
         text += format_date(self.day, 'EEEE d MMMM', locale=lang)
 

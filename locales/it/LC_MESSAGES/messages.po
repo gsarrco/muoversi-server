@@ -78,3 +78,9 @@ msgstr "Cerca per fermata di partenza"
 
 msgid "search_by_line"
 msgstr "Cerca per linea"
+
+msgid "departures"
+msgstr "Partenze da %s"
+
+msgid "arrival"
+msgstr "Arrivo a %s"
