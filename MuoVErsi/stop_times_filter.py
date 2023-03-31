@@ -150,7 +150,10 @@ class StopTimesFilter:
                 text += f'\n{time_format} {line} {headsign}'
 
         if self.first_time:
-            text += '\n<i>' + _('send_arr_stop') + '</i>'
+            if self.arr_stop_ids:
+                text += '\n<i>' + _('send_new_arr_stop') + '</i>'
+            else:
+                text += '\n<i>' + _('send_arr_stop') + '</i>'
 
         keyboard = []
 

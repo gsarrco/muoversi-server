@@ -275,7 +275,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     if saved_dep_stop_ids:
         stop_times_filter = StopTimesFilter(saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
-                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name)
+                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name, first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
