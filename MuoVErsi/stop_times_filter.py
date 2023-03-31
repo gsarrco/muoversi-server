@@ -44,7 +44,8 @@ class StopTimesFilter:
         # order dict by key
         to_print = {k: to_print[k] for k in sorted(to_print)}
         to_print['day'] = to_print['day'].strftime('%Y%m%d')
-        to_print['start_time'] = to_print['start_time'].isoformat(timespec='minutes') if to_print['start_time'] != '' else ''
+        to_print['start_time'] = to_print['start_time'].isoformat(timespec='minutes') if to_print[
+                                                                                             'start_time'] != '' else ''
 
         result = f'{to_print["day"]}/{to_print["line"]}/' \
                  f'{to_print["start_time"]}/{to_print["offset_times"]}/{to_print["offset_lines"]}'
@@ -185,5 +186,17 @@ class StopTimesFilter:
         else:
             keyboard.append([self.inline_button(_('all_lines'), line='', offset_times=0)])
 
+        # change day buttons
+        now = datetime.now()
+        plus_day = self.day + timedelta(days=1)
+        plus_day_start_time = now.time() if plus_day == date.today() else ''
+        day_buttons = [self.inline_button(_('plus_day'), day=plus_day, start_time=plus_day_start_time, offset_times=0)]
+        if self.day > date.today():
+            minus_day = self.day - timedelta(days=1)
+            minus_day_start_time = now.time() if minus_day == date.today() else ''
+            day_buttons.insert(0, self.inline_button(_('minus_day'), day=minus_day, start_time=minus_day_start_time,
+                                                     offset_times=0))
+
+        keyboard.append(day_buttons)
         reply_markup = InlineKeyboardMarkup(keyboard)
         return text, reply_markup
