@@ -84,3 +84,6 @@ msgstr "Departures from %s"
 
 msgid "arrival"
 msgstr "Arrival at %s"
+
+msgid "send_arr_stop"
+msgstr "send your destination stop for more details"
