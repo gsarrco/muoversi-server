@@ -137,15 +137,15 @@ class StopTimesFilter:
 
         for result in results:
             time_raw, line, headsign, trip_id, stop_sequence = result[:5]
-            dep_time = time_25_to_1(time_raw)
-            time_format = dep_time.isoformat(timespec="minutes")
+            dep_time = time_25_to_1(self.day, time_raw)
+            time_format = dep_time.time().isoformat(timespec="minutes")
             if len(result) > 5:
-                arr_time = time_25_to_1(result[5])
-                arr_time_format = arr_time.isoformat(timespec="minutes")
+                arr_time = time_25_to_1(self.day, result[5])
+                arr_time_format = arr_time.time().isoformat(timespec="minutes")
                 time_format += f'->{arr_time_format}'
-            dt = datetime.combine(self.day, dep_time)
-            if dt < datetime.now():
-                text += f'\n<i>{time_format} {line} {headsign}</i>'
+
+            if dep_time < datetime.now():
+                text += f'\n<del>{time_format} {line} {headsign}</del>'
             else:
                 text += f'\n{time_format} {line} {headsign}'
 
