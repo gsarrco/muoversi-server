@@ -78,3 +78,15 @@ msgstr "Search by departing stop"
 
 msgid "search_by_line"
 msgstr "Search by line"
+
+msgid "departures"
+msgstr "Departures from %s"
+
+msgid "arrival"
+msgstr "Arrival at %s"
+
+msgid "send_arr_stop"
+msgstr "send your destination stop for more details"
+
+msgid "send_new_arr_stop"
+msgstr "you can also send a new destination stop"
