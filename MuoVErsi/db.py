@@ -194,7 +194,7 @@ class DBFile:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
-        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
+        departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
         
         query = """
         SELECT dep.departure_time      as dep_time,
@@ -207,7 +207,6 @@ class DBFile:
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence
                              FROM stop_times
                              WHERE stop_times.stop_id in ({arr_stop_ids})
-                               {departure_time}
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
@@ -218,6 +217,7 @@ class DBFile:
           AND dep.pickup_type = 0
           AND dep.stop_sequence < arr.stop_sequence
           {route}
+          {departure_time}
         ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
         LIMIT ? OFFSET ?
         """.format(
@@ -230,15 +230,15 @@ class DBFile:
 
         params = (*arr_stop_ids,)
 
-        if start_time != '':
-            start_datetime = datetime.combine(day, start_time)
-            minutes_5 = start_datetime - timedelta(minutes=5)
-            params += (minutes_5.strftime('%H:%M'),)
-
         params += (*dep_stop_ids, *service_ids)
 
         if line != '':
             params += (line,)
+
+        if start_time != '':
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
 
         params += (limit, offset_times)
 
