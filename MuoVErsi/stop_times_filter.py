@@ -149,12 +149,6 @@ class StopTimesFilter:
             else:
                 text += f'\n{time_format} {line} {headsign}'
 
-        if self.first_time:
-            if self.arr_stop_ids:
-                text += '\n<i>' + _('send_new_arr_stop') + '</i>'
-            else:
-                text += '\n<i>' + _('send_arr_stop') + '</i>'
-
         keyboard = []
 
         paging_buttons = []

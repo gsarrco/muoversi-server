@@ -193,14 +193,6 @@ async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, 
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
-    if not message_id:
-        reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
-        reply_keyboard_markup = ReplyKeyboardMarkup(
-            reply_keyboard, resize_keyboard=True, is_persistent=True
-        )
-        await bot.send_message(chat_id, _('here_times'), disable_notification=True,
-                               reply_markup=reply_keyboard_markup)
-
     stop_times_filter.lines = context.user_data.get('lines')
     service_ids = context.user_data.get('service_ids')
 
@@ -210,11 +202,25 @@ async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, 
 
     text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
-    if not message_id:
+    if message_id:
+        await bot.edit_message_text(text, chat_id, message_id, reply_markup=reply_markup, parse_mode='HTML')
+    else:
         await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
-        return SHOW_STOP
 
-    await bot.edit_message_text(text, chat_id, message_id, reply_markup=reply_markup, parse_mode='HTML')
+    if stop_times_filter.first_time:
+        if stop_times_filter.arr_stop_ids:
+            text = '<i>' + _('send_new_arr_stop') + '</i>'
+        else:
+            text = '<i>' + _('send_arr_stop') + '</i>'
+
+        reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
+        reply_keyboard_markup = ReplyKeyboardMarkup(
+            reply_keyboard, resize_keyboard=True, is_persistent=True
+        )
+
+        await bot.send_message(chat_id, text, disable_notification=True,
+                               reply_markup=reply_keyboard_markup, parse_mode='HTML')
+
     return SHOW_STOP
 
 
@@ -264,7 +270,10 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     text = update.message.text if update.message else update.callback_query.data
 
+    message_id = None
+
     if update.callback_query:
+        message_id = update.callback_query.message.message_id
         await update.callback_query.answer()
 
     cluster_id = re.search(r'\d+', text).group(0)
@@ -284,7 +293,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
 
-    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, None, update.get_bot(),
+    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, message_id, update.get_bot(),
                                  context)
 
 
