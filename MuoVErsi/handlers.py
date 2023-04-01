@@ -196,6 +196,10 @@ async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, 
     stop_times_filter.lines = context.user_data.get('lines')
     service_ids = context.user_data.get('service_ids')
 
+    if context.user_data.get('day') != stop_times_filter.day.isoformat():
+        context.user_data['day'] = stop_times_filter.day.isoformat()
+        service_ids = None
+
     results, service_ids = stop_times_filter.get_times(db_file, service_ids)
     context.user_data['lines'] = stop_times_filter.lines
     context.user_data['service_ids'] = service_ids
