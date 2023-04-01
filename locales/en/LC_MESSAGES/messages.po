@@ -86,7 +86,7 @@ msgid "arrival"
 msgstr "Arrival at %s"
 
 msgid "send_arr_stop"
-msgstr "send your destination stop for more details"
+msgstr "send the destination stop for more details"
 
 msgid "send_new_arr_stop"
 msgstr "you can also send a new destination stop"
