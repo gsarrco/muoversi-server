@@ -32,8 +32,7 @@ logger = logging.getLogger(__name__)
 current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
-thismodule.aut_db_con = None
-thismodule.nav_db_con = None
+thismodule.sources = {}
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
@@ -160,10 +159,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     message = update.message
 
-    if context.user_data['transport_type'] == 'aut':
-        db_file = thismodule.aut_db_con
-    else:
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
 
     if message.location:
         lat = message.location.latitude
@@ -229,12 +225,8 @@ async def send_stop_times(_, lang, db_file: GTFS, stop_times_filter, chat_id, me
 
 
 async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -260,12 +252,9 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -302,12 +291,8 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -330,10 +315,8 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -364,10 +347,8 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
@@ -386,11 +367,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
-
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -435,19 +413,14 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.aut_db_con = GTFS('automobilistico')
-    if DEV:
-        thismodule.aut_db_con.con.set_trace_callback(logger.info)
-    logger.info('automobilistico DBFile initialized')
-    stops_clusters_uploaded = thismodule.aut_db_con.upload_stops_clusters_to_db()
-    logger.info('automobilistico stops clusters uploaded: %s', stops_clusters_uploaded)
+    thismodule.sources = {'aut': GTFS('automobilistico'), 'nav': GTFS('navigazione')}
 
-    thismodule.nav_db_con = GTFS('navigazione')
-    if DEV:
-        thismodule.nav_db_con.con.set_trace_callback(logger.info)
-    logger.info('navigazione DBFile initialized')
-    stops_clusters_uploaded = thismodule.nav_db_con.upload_stops_clusters_to_db()
-    logger.info('navigazione stops clusters uploaded: %s', stops_clusters_uploaded)
+    for source in thismodule.sources.values():
+        if DEV:
+            source.con.set_trace_callback(logger.info)
+        logger.info('%s DBFile initialized', source.name)
+        stops_clusters_uploaded = source.upload_stops_clusters_to_db()
+        logger.info('%s stops clusters uploaded: %s', source.name, stops_clusters_uploaded)
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 
