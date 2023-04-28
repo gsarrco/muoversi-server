@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from geopy.distance import distance
 
 from MuoVErsi.helpers import cluster_strings
+from MuoVErsi.sources.Source import Source
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -72,8 +73,9 @@ def get_clusters_of_stops(stops):
     return clusters
 
 
-class DBFile:
+class GTFS(Source):
     def __init__(self, transport_type, gtfs_version=None, location=''):
+        super().__init__(transport_type)
         self.transport_type = transport_type
         self.location = location
 
@@ -93,7 +95,7 @@ class DBFile:
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + f"/../{self.location}")
+        parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
@@ -190,12 +192,13 @@ class DBFile:
 
         return results
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time, offset_times, limit, day):
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+                                     offset_times, limit, day):
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
-        
+
         query = """
         SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,

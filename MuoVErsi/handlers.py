@@ -18,10 +18,10 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .db import DBFile
 from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id, \
     get_stop_ids_from_cluster, get_cluster_name
 from .persistence import SQLitePersistence
+from .sources.GTFS import GTFS
 from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -189,7 +189,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
-async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, message_id, bot: Bot,
+async def send_stop_times(_, lang, db_file: GTFS, stop_times_filter, chat_id, message_id, bot: Bot,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
@@ -435,14 +435,14 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.aut_db_con = DBFile('automobilistico')
+    thismodule.aut_db_con = GTFS('automobilistico')
     if DEV:
         thismodule.aut_db_con.con.set_trace_callback(logger.info)
     logger.info('automobilistico DBFile initialized')
     stops_clusters_uploaded = thismodule.aut_db_con.upload_stops_clusters_to_db()
     logger.info('automobilistico stops clusters uploaded: %s', stops_clusters_uploaded)
 
-    thismodule.nav_db_con = DBFile('navigazione')
+    thismodule.nav_db_con = GTFS('navigazione')
     if DEV:
         thismodule.nav_db_con.con.set_trace_callback(logger.info)
     logger.info('navigazione DBFile initialized')

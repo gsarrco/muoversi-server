@@ -1,11 +1,11 @@
 import pytest
 
-from MuoVErsi.db import DBFile, get_clusters_of_stops
+from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops
 
 
 @pytest.fixture
 def db_file():
-    return DBFile('navigazione', 541, 'tests/data')
+    return GTFS('navigazione', 541, 'tests/data')
 
 
 @pytest.fixture

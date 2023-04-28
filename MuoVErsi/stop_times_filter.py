@@ -4,8 +4,8 @@ from datetime import datetime, time, date, timedelta
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from MuoVErsi.db import DBFile
 from MuoVErsi.helpers import time_25_to_1, get_active_service_ids, get_lines_from_stops
+from MuoVErsi.sources.GTFS import GTFS
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -72,7 +72,7 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, db_file: DBFile, service_ids):
+    def get_times(self, db_file: GTFS, service_ids):
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
