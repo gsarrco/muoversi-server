@@ -4,8 +4,9 @@ from datetime import datetime, time, date, timedelta
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from MuoVErsi.helpers import time_25_to_1, get_active_service_ids, get_lines_from_stops
+from MuoVErsi.helpers import time_25_to_1
 from MuoVErsi.sources.GTFS import GTFS
+from MuoVErsi.sources.base import StopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -76,54 +77,20 @@ class StopTimesFilter:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
-        con = db_file.con
-
-        if service_ids is None:
-            service_ids = get_active_service_ids(day, con)
+        service_ids = db_file.get_service_ids(day, service_ids)
 
         if self.arr_stop_ids:
             return db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
                                                         line, start_time, self.offset_times, LIMIT, day)
 
-        route = 'AND route_short_name = ?' if line != '' else ''
-        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
-
-        query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
-                    FROM stop_times
-                             INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                             INNER JOIN routes ON trips.route_id = routes.route_id
-                    WHERE stop_times.stop_id in ({stop_id})
-                      AND trips.service_id in ({seq})
-                      AND pickup_type = 0
-                      {route}
-                      {departure_time}
-                    ORDER BY departure_time, route_short_name, trip_headsign
-                    LIMIT ? OFFSET ?
-                    """.format(
-            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(dep_stop_ids)), route=route,
-            departure_time=departure_time)
-
-        params = (*dep_stop_ids, *service_ids)
-
-        if line != '':
-            params += (line,)
-
-        if start_time != '':
-            start_datetime = datetime.combine(day, start_time)
-            minutes_5 = start_datetime - timedelta(minutes=5)
-            params += (minutes_5.strftime('%H:%M'),)
-
-        params += (LIMIT, self.offset_times)
-
-        cur = con.cursor()
-        results = cur.execute(query, params).fetchall()
+        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, LIMIT, day, self.offset_times)
 
         if self.lines is None:
-            self.lines = get_lines_from_stops(service_ids, dep_stop_ids, con)
+            self.lines = db_file.get_lines_from_stops(service_ids, dep_stop_ids)
 
         return results, service_ids
 
-    def format_times_text(self, results, _, lang):
+    def format_times_text(self, results: list[StopTime], _, lang):
         text = f'{self.title(_, lang)}'
 
         if self.day < date.today():
@@ -136,11 +103,12 @@ class StopTimesFilter:
             text += '\n' + _('no_times')
 
         for result in results:
-            time_raw, line, headsign, trip_id, stop_sequence = result[:5]
+            time_raw, line, headsign, trip_id, stop_sequence = result.departure_time, result.route_name, result.headsign, \
+                                                                  result.trip_id, result.stop_sequence
             dep_time = time_25_to_1(self.day, time_raw)
             time_format = dep_time.time().isoformat(timespec="minutes")
-            if len(result) > 5:
-                arr_time = time_25_to_1(self.day, result[5])
+            if result.arr_time:
+                arr_time = time_25_to_1(self.day, result.arr_time)
                 arr_time_format = arr_time.time().isoformat(timespec="minutes")
                 time_format += f'->{arr_time_format}'
 

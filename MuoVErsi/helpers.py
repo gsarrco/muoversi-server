@@ -148,24 +148,6 @@ def cluster_strings(stops):
     return clusters
 
 
-def get_lines_from_stops(service_ids, stop_ids, con: Connection):
-    cur = con.cursor()
-    query = """
-                SELECT route_short_name
-                FROM stop_times
-                         INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                         INNER JOIN routes ON trips.route_id = routes.route_id
-                WHERE stop_times.stop_id in ({stop_id})
-                  AND trips.service_id in ({seq})
-                  AND pickup_type = 0
-                GROUP BY route_short_name ORDER BY count(*) DESC;
-            """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
-
-    params = (*stop_ids, *service_ids)
-
-    return [line[0] for line in cur.execute(query, params).fetchall()]
-
-
 def get_stop_ids_from_cluster(cluster_id, con):
     cur = con.cursor()
     results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
