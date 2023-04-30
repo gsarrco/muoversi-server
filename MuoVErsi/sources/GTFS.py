@@ -13,8 +13,8 @@ import requests
 from bs4 import BeautifulSoup
 from geopy.distance import distance
 
-from MuoVErsi.helpers import cluster_strings
-from MuoVErsi.sources.base import Source, Stop
+from MuoVErsi.helpers import cluster_strings, get_active_service_ids
+from MuoVErsi.sources.base import Source, Stop, StopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -60,10 +60,12 @@ def get_clusters_of_stops(stops):
                 i = 1
                 for stop in stops:
                     if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'], 'times_count': stop['times_count']}
+                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
+                                                                  'times_count': stop['times_count']}
                         i += 1
                     else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'], 'times_count': stop['times_count']}
+                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
+                                                       'times_count': stop['times_count']}
             else:
                 clusters[cluster_name]['coords'] = centroid
                 clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
@@ -196,6 +198,68 @@ class GTFS(Source):
 
         return stops
 
+    def get_service_ids(self, day, service_ids) -> tuple:
+        if service_ids is None:
+            service_ids = get_active_service_ids(day, self.con)
+        return service_ids
+
+    def get_lines_from_stops(self, service_ids, stop_ids):
+        cur = self.con.cursor()
+        query = """
+                    SELECT route_short_name
+                    FROM stop_times
+                             INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                             INNER JOIN routes ON trips.route_id = routes.route_id
+                    WHERE stop_times.stop_id in ({stop_id})
+                      AND trips.service_id in ({seq})
+                      AND pickup_type = 0
+                    GROUP BY route_short_name ORDER BY count(*) DESC;
+                """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
+
+        params = (*stop_ids, *service_ids)
+
+        return [line[0] for line in cur.execute(query, params).fetchall()]
+
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+        route = 'AND route_short_name = ?' if line != '' else ''
+        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
+
+        query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
+                            FROM stop_times
+                                     INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                                     INNER JOIN routes ON trips.route_id = routes.route_id
+                            WHERE stop_times.stop_id in ({stop_id})
+                              AND trips.service_id in ({seq})
+                              AND pickup_type = 0
+                              {route}
+                              {departure_time}
+                            ORDER BY departure_time, route_short_name, trip_headsign
+                            LIMIT ? OFFSET ?
+                            """.format(
+            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(dep_stop_ids)), route=route,
+            departure_time=departure_time)
+
+        params = (*dep_stop_ids, *service_ids)
+
+        if line != '':
+            params += (line,)
+
+        if start_time != '':
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
+
+        params += (LIMIT, offset_times)
+
+        cur = self.con.cursor()
+        results = cur.execute(query, params).fetchall()
+
+        stop_times = []
+        for result in results:
+            stop_times.append(StopTime(result[0], result[1], result[2], result[3], result[4]))
+
+        return stop_times
+
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, limit, day):
         cur = self.con.cursor()
@@ -251,4 +315,9 @@ class GTFS(Source):
 
         results = cur.execute(query, params).fetchall()
 
-        return results, service_ids
+        stop_times = []
+
+        for result in results:
+            stop_times.append(StopTime(result[0], result[1], result[2], result[3], result[4], result[5]))
+
+        return stop_times, service_ids
