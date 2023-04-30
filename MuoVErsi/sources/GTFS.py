@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from geopy.distance import distance
 
 from MuoVErsi.helpers import cluster_strings
-from MuoVErsi.sources.Source import Source
+from MuoVErsi.sources.base import Source, Stop
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -180,7 +180,7 @@ class GTFS(Source):
         self.con.commit()
         return True
 
-    def search_stops(self, name=None, lat=None, lon=None):
+    def search_stops(self, name=None, lat=None, lon=None) -> list[Stop]:
         cur = self.con.cursor()
         if lat and lon:
             query = 'SELECT id, name FROM stops_clusters ' \
@@ -190,7 +190,11 @@ class GTFS(Source):
             query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 4'
             results = cur.execute(query, (f'%{name}%',)).fetchall()
 
-        return results
+        stops = []
+        for result in results:
+            stops.append(Stop(result[0], result[1]))
+
+        return stops
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, limit, day):

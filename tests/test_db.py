@@ -29,10 +29,8 @@ def test_stops_clusters_tables_created(db_file):
 def test_search_stops_by_name(db_file):
     results = db_file.search_stops("roma")
 
-    if isinstance(results, list):
-        is_valid = all(isinstance(elem, tuple) and len(elem) == 2 for elem in results)
-    else:
-        is_valid = False
+    # check if id and name are present in each result
+    is_valid = all(hasattr(elem, 'id_') and hasattr(elem, 'name') for elem in results)
 
     assert is_valid, 'search_stops does not return a list of tuples of size 2'
 

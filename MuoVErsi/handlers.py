@@ -22,6 +22,7 @@ from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_sto
     get_stop_ids_from_cluster, get_cluster_name
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
+from .sources.base import Source
 from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -159,7 +160,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     message = update.message
 
-    db_file = thismodule.sources[context.user_data['transport_type']]
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
     if message.location:
         lat = message.location.latitude
@@ -172,8 +173,8 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster_name, callback_data=f'S{cluster_id}')]
-               for cluster_id, cluster_name in stops_clusters]
+    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.id_}')]
+               for cluster in stops_clusters]
 
     await update.message.reply_text(
         _('choose_stop'),
