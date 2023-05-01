@@ -7,13 +7,14 @@ class Stop:
         self.ids = ids
 
 class StopTime:
-    def __init__(self, departure_time, route_name, headsign, trip_id, stop_sequence, arr_time=None):
+    def __init__(self, departure_time, route_name, headsign, trip_id, stop_sequence, arr_time=None, delay=0):
         self.departure_time = departure_time
         self.route_name = route_name
         self.headsign = headsign
         self.trip_id = trip_id
         self.stop_sequence = stop_sequence
         self.arr_time = arr_time
+        self.delay = delay
 
 
 class Source:

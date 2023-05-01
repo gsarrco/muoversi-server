@@ -108,6 +108,10 @@ class StopTimesFilter:
                                                                   result.trip_id, result.stop_sequence
             dep_time = time_25_to_1(self.day, time_raw)
             time_format = dep_time.time().isoformat(timespec="minutes")
+
+            if result.delay > 0:
+                time_format += f'+{result.delay}m'
+
             if result.arr_time:
                 arr_time = time_25_to_1(self.day, result.arr_time)
                 arr_time_format = arr_time.time().isoformat(timespec="minutes")
