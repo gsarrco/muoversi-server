@@ -77,12 +77,14 @@ class Trenitalia(Source):
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         cur = self.con.cursor()
         if lat and lon:
-            query = 'SELECT id, name FROM stations WHERE lat NOT NULL ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
+            query = 'SELECT id, name FROM stations WHERE lat NOT NULL AND region_code = 12' \
+                    ' ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
             results = cur.execute(query, (lat, lat, lon, lon, limit)).fetchall()
         else:
-            query = 'SELECT id, name FROM stations WHERE name LIKE ? LIMIT ?'
-            results = cur.execute(query, (f'%{name}%', limit)).fetchall()
+            lat, lon = 45.441569, 12.320882
+            query = 'SELECT id, name FROM stations WHERE name LIKE ? AND region_code = 12' \
+                    ' ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
+            results = cur.execute(query, (f'%{name}%', lat, lat, lon, lon, limit)).fetchall()
 
         stops = []
         for result in results:
