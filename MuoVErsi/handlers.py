@@ -74,8 +74,11 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if context.user_data.get('transport_type'):
         return await specify(update, context, command)
 
-    inline_keyboard = [[InlineKeyboardButton(_('aut'), callback_data="0aut"),
-                        InlineKeyboardButton(_('nav'), callback_data="0nav")]]
+    inline_keyboard = [[]]
+
+    for source in thismodule.sources:
+        inline_keyboard[0].append(InlineKeyboardButton(_(source), callback_data="0" + source))
+
     await update.message.reply_text(
         _('choose_service'),
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
@@ -107,20 +110,16 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    transport_types = {
-        'aut': _('aut'),
-        'nav': _('nav')
-    }
+    others_sources = [source for source in thismodule.sources if source != short_transport_type]
 
-    transport_type = transport_types[short_transport_type]
-    position = list(transport_types.keys()).index(short_transport_type)
-    other_short_transport_type = list(transport_types.keys())[1 - position]
-    other_transport_type = transport_types[other_short_transport_type]
+    inline_keyboard = [[]]
 
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton(_('change_service') % other_transport_type,
-                             callback_data=f'1{other_short_transport_type}')
-    ]])
+    for source in others_sources:
+        inline_keyboard[0].append(InlineKeyboardButton(_('change_service') % _(source), callback_data="1" + source))
+
+    transport_type = _(short_transport_type)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard)
 
     if update.callback_query:
         await update.callback_query.answer()
