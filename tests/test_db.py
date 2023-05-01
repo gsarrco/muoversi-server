@@ -27,12 +27,12 @@ def test_stops_clusters_tables_created(db_file):
 
 
 def test_search_stops_by_name(db_file):
-    results = db_file.search_stops("roma")
+    stops = db_file.search_stops("roma")
 
-    # check if id and name are present in each result
-    is_valid = all(hasattr(elem, 'id_') and hasattr(elem, 'name') for elem in results)
+    # check if ref and name are present in each result
+    is_valid = all(hasattr(stop, 'ref') and hasattr(stop, 'name') for stop in stops)
 
-    assert is_valid, 'search_stops does not return a list of tuples of size 2'
+    assert is_valid, 'search_stops does not return a list of Stop objects with ref and name attributes'
 
 
 def test_clusters_stops_structure(stops_and_stops_clusters):
