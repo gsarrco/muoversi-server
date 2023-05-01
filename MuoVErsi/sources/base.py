@@ -1,8 +1,10 @@
 class Stop:
-    def __init__(self, id_, name):
-        self.id_ = id_
+    def __init__(self, ref: str, name: str, ids=None):
+        if ids is None:
+            ids = []
+        self.ref = ref
         self.name = name
-
+        self.ids = ids
 
 class StopTime:
     def __init__(self, departure_time, route_name, headsign, trip_id, stop_sequence, arr_time=None):
@@ -18,7 +20,7 @@ class Source:
     def __init__(self, name):
         self.name = name
 
-    def search_stops(self, name=None, lat=None, lon=None) -> list[Stop]:
+    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
@@ -29,3 +31,6 @@ class Source:
 
     def get_lines_from_stops(self, service_ids, stop_ids):
         raise []
+
+    def get_stop_from_ref(self, ref) -> Stop:
+        raise NotImplementedError

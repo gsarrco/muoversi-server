@@ -2,7 +2,6 @@ import gettext
 import gettext
 import logging
 import os
-import re
 import sys
 from datetime import datetime, timedelta
 
@@ -18,11 +17,11 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id, \
-    get_stop_ids_from_cluster, get_cluster_name
+from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
+from .sources.trenitalia import Trenitalia
 from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -172,7 +171,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.id_}')]
+    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.ref}')]
                for cluster in stops_clusters]
 
     await update.message.reply_text(
@@ -185,7 +184,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
-async def send_stop_times(_, lang, db_file: GTFS, stop_times_filter, chat_id, message_id, bot: Bot,
+async def send_stop_times(_, lang, db_file: Source, stop_times_filter, chat_id, message_id, bot: Bot,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
@@ -252,8 +251,7 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
@@ -269,9 +267,10 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_id = update.callback_query.message.message_id
         await update.callback_query.answer()
 
-    cluster_id = re.search(r'\d+', text).group(0)
-    cluster_name = get_cluster_name(cluster_id, con)
-    stop_ids = get_stop_ids_from_cluster(cluster_id, con)
+    stop_ref = text[1:]
+    stop = db_file.get_stop_from_ref(stop_ref)
+    cluster_name = stop.name
+    stop_ids = stop.ids
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
@@ -413,14 +412,11 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.sources = {'aut': GTFS('automobilistico'), 'nav': GTFS('navigazione')}
+    thismodule.sources = {'aut': GTFS('automobilistico'), 'nav': GTFS('navigazione'), 'treni': Trenitalia()}
 
     for source in thismodule.sources.values():
         if DEV:
             source.con.set_trace_callback(logger.info)
-        logger.info('%s DBFile initialized', source.name)
-        stops_clusters_uploaded = source.upload_stops_clusters_to_db()
-        logger.info('%s stops clusters uploaded: %s', source.name, stops_clusters_uploaded)
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 

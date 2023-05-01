@@ -146,17 +146,3 @@ def cluster_strings(stops):
              'times_count': ref_el[4]})
 
     return clusters
-
-
-def get_stop_ids_from_cluster(cluster_id, con):
-    cur = con.cursor()
-    results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
-                          (cluster_id,)).fetchall()
-    return [result[0] for result in results]
-
-
-def get_cluster_name(cluster_id, con):
-    cur = con.cursor()
-    results = cur.execute('SELECT name FROM stops_clusters WHERE id = ?', (cluster_id,)).fetchall()
-    return results[0][0]
-
