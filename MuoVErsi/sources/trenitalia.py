@@ -100,17 +100,22 @@ class Trenitalia(Source):
 
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
         start_dt = datetime.now()
+        dt = start_dt
         station_id = dep_stop_ids[0]
 
         stop_times: list[StopTime] = []
 
         while len(stop_times) < LIMIT:
-            stop_times += self.get_stop_times_from_start_dt(station_id, start_dt)
+            stop_times += self.get_stop_times_from_start_dt(station_id, dt)
             stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
-            new_start_dt = stop_times[-1].dep_time
-            if new_start_dt == start_dt:
+            # remove stop_times with dep_time earlier than 5 minutes from the start_dt
+            stop_times = [stop_time for stop_time in stop_times if stop_time.dep_time >= start_dt - timedelta(minutes=5)]
+            if len(stop_times) == 0:
                 break
-            start_dt = new_start_dt
+            new_start_dt = stop_times[-1].dep_time
+            if new_start_dt == dt:
+                break
+            dt = new_start_dt
 
         return stop_times[:LIMIT]
 
@@ -142,7 +147,7 @@ class Trenitalia(Source):
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, limit, day) -> list[StopTime]:
-        start_dt = datetime.now()
+        start_dt = datetime.now() - timedelta(minutes=5)
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%Y-%m-%dT%H:%M:%S")
         # S02512 to 2512
