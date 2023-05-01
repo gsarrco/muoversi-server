@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 class Stop:
     def __init__(self, ref: str, name: str, ids=None):
         if ids is None:
@@ -7,8 +10,8 @@ class Stop:
         self.ids = ids
 
 class StopTime:
-    def __init__(self, departure_time, route_name, headsign, trip_id, stop_sequence, arr_time=None, delay=0):
-        self.departure_time = departure_time
+    def __init__(self, dep_time: datetime, route_name, headsign, trip_id, stop_sequence, arr_time=None, delay=0):
+        self.dep_time = dep_time
         self.route_name = route_name
         self.headsign = headsign
         self.trip_id = trip_id

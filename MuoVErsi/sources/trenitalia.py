@@ -99,8 +99,6 @@ class Trenitalia(Source):
         return Stop(ref, result[0], [ref]) if result else None
 
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
-        date = quote(day.strftime("%a %b %d %Y %H:%M:%S GMT+0100"))
-
         start_dt = datetime.now()
         station_id = dep_stop_ids[0]
 
@@ -109,8 +107,7 @@ class Trenitalia(Source):
         while len(stop_times) < LIMIT:
             stop_times += self.get_stop_times_from_start_dt(station_id, start_dt)
             stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
-            last_stop_time = datetime.strptime(stop_times[-1].departure_time, '%H:%M:%S')
-            new_start_dt = datetime.combine(day, last_stop_time.time())
+            new_start_dt = stop_times[-1].dep_time
             if new_start_dt == start_dt:
                 break
             start_dt = new_start_dt
@@ -132,7 +129,7 @@ class Trenitalia(Source):
             if departure['categoria'] != 'REG':
                 continue
 
-            dep_time = departure['compOrarioPartenza'] + ':00'
+            dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000)
             route_name = str(departure['numeroTreno'])
             headsign = departure['destinazione']
             trip_id = departure['numeroTreno']
@@ -171,13 +168,11 @@ class Trenitalia(Source):
             if vehicle['categoriaDescrizione'] != 'Regionale' and vehicle['categoriaDescrizione'] != 'RV':
                 continue
 
-            dep_time = datetime.strptime(vehicle['orarioPartenza'], '%Y-%m-%dT%H:%M:%S').strftime('%H:%M:%S')
+            dep_time = datetime.strptime(vehicle['orarioPartenza'], '%Y-%m-%dT%H:%M:%S')
             arr_time = datetime.strptime(vehicle['orarioArrivo'], '%Y-%m-%dT%H:%M:%S')
 
             if day != arr_time.date():
                 continue
-
-            arr_time = arr_time.strftime('%H:%M:%S')
 
             route_name = vehicle['numeroTreno']
             headsign = ''

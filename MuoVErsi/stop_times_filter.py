@@ -104,8 +104,9 @@ class StopTimesFilter:
             text += '\n' + _('no_times')
 
         for result in results:
-            time_raw, line, headsign, trip_id, stop_sequence = result.departure_time, result.route_name, result.headsign, \
+            line, headsign, trip_id, stop_sequence = result.route_name, result.headsign, \
                                                                   result.trip_id, result.stop_sequence
+            time_raw = result.dep_time.strftime('%H:%M:%S')
             dep_time = time_25_to_1(self.day, time_raw)
             time_format = dep_time.time().isoformat(timespec="minutes")
 
@@ -113,7 +114,7 @@ class StopTimesFilter:
                 time_format += f'+{result.delay}m'
 
             if result.arr_time:
-                arr_time = time_25_to_1(self.day, result.arr_time)
+                arr_time = time_25_to_1(self.day, result.arr_time.strftime('%H:%M:%S'))
                 arr_time_format = arr_time.time().isoformat(timespec="minutes")
                 time_format += f'->{arr_time_format}'
 
