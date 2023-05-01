@@ -17,7 +17,7 @@ msgid "treni"
 msgstr "treni"
 
 msgid "choose_service"
-msgstr "Quale servizio di Actv ti interessa?"
+msgstr "Quale servizio ti interessa?"
 
 msgid "service_selected"
 msgstr "Hai selezionato il servizio %s."
