@@ -80,8 +80,9 @@ class StopTimesFilter:
         service_ids = db_file.get_service_ids(day, service_ids)
 
         if self.arr_stop_ids:
-            return db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
+            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
                                                         line, start_time, self.offset_times, LIMIT, day)
+            return results, service_ids
 
         results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, LIMIT, day, self.offset_times)
 

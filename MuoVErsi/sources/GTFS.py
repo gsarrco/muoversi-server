@@ -264,7 +264,7 @@ class GTFS(Source):
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day):
+                                     offset_times, limit, day) -> list[StopTime]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
