@@ -259,7 +259,8 @@ class GTFS(Source):
 
         stop_times = []
         for result in results:
-            stop_times.append(StopTime(result[0], result[1], result[2], result[3], result[4]))
+            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
+            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4]))
 
         return stop_times
 
@@ -321,9 +322,11 @@ class GTFS(Source):
         stop_times = []
 
         for result in results:
-            stop_times.append(StopTime(result[0], result[1], result[2], result[3], result[4], result[5]))
+            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
+            arr_time = datetime.combine(day, datetime.strptime(result[5], '%H:%M:%S').time())
+            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4], arr_time))
 
-        return stop_times, service_ids
+        return stop_times
 
     def get_stop_from_ref(self, ref) -> Stop:
         # get stop name
