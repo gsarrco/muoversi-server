@@ -140,3 +140,47 @@ class Trenitalia(Source):
             stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence))
 
         return stop_times
+
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+                                     offset_times, limit, day) -> list[StopTime]:
+        start_dt = datetime.now()
+        is_dst = start_dt.astimezone().dst() != timedelta(0)
+        date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%Y-%m-%dT%H:%M:%S")
+        # S02512 to 2512
+        dep_station_id = list(dep_stop_ids)[0]
+        dep_station_id = int(dep_station_id[1:])
+        arr_station_id = list(arr_stop_ids)[0]
+        arr_station_id = int(arr_station_id[1:])
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/soluzioniViaggioNew/' \
+              f'{dep_station_id}/{arr_station_id}/{quote(date)}'
+        print(url)
+        r = requests.get(url)
+        if r.status_code != 200:
+            return []
+
+        stop_times = []
+
+        for solution in r.json()['soluzioni']:
+            if len(solution['vehicles']) != 1:
+                continue
+
+            vehicle = solution['vehicles'][0]
+
+            if vehicle['categoriaDescrizione'] != 'Regionale' and vehicle['categoriaDescrizione'] != 'RV':
+                continue
+
+            dep_time = datetime.strptime(vehicle['orarioPartenza'], '%Y-%m-%dT%H:%M:%S').strftime('%H:%M:%S')
+            arr_time = datetime.strptime(vehicle['orarioArrivo'], '%Y-%m-%dT%H:%M:%S')
+
+            if day != arr_time.date():
+                continue
+
+            arr_time = arr_time.strftime('%H:%M:%S')
+
+            route_name = vehicle['numeroTreno']
+            headsign = ''
+            trip_id = vehicle['numeroTreno']
+            stop_sequence = None
+            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, arr_time))
+
+        return stop_times[:limit]

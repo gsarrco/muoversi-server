@@ -26,6 +26,10 @@ class Source:
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
         raise NotImplementedError
 
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+                                     offset_times, limit, day) -> list[StopTime]:
+        raise NotImplementedError
+
     def get_service_ids(self, day, service_ids) -> tuple:
         return service_ids
 
