@@ -137,7 +137,9 @@ class Trenitalia(Source):
             headsign = departure['destinazione']
             trip_id = departure['numeroTreno']
             stop_sequence = len(departure['compInStazionePartenza']) - 1
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence))
+            delay = departure['ritardo']
+
+            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, delay=delay))
 
         return stop_times
 
