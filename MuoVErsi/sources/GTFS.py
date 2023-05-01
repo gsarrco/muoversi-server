@@ -95,6 +95,9 @@ class GTFS(Source):
 
         self.con = self.connect_to_database()
 
+        stops_clusters_uploaded = self.upload_stops_clusters_to_db()
+        logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
+
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
@@ -182,15 +185,15 @@ class GTFS(Source):
         self.con.commit()
         return True
 
-    def search_stops(self, name=None, lat=None, lon=None) -> list[Stop]:
+    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         cur = self.con.cursor()
         if lat and lon:
             query = 'SELECT id, name FROM stops_clusters ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 4'
-            results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
+                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
+            results = cur.execute(query, (lat, lat, lon, lon, limit)).fetchall()
         else:
-            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 4'
-            results = cur.execute(query, (f'%{name}%',)).fetchall()
+            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT ?'
+            results = cur.execute(query, (f'%{name}%', limit)).fetchall()
 
         stops = []
         for result in results:
@@ -321,3 +324,17 @@ class GTFS(Source):
             stop_times.append(StopTime(result[0], result[1], result[2], result[3], result[4], result[5]))
 
         return stop_times, service_ids
+
+    def get_stop_from_ref(self, ref) -> Stop:
+        # get stop name
+        cur = self.con.cursor()
+        results = cur.execute('SELECT name FROM stops_clusters WHERE id = ?', (ref,)).fetchall()
+        name = results[0][0]
+
+        # get stop ids
+        cur = self.con.cursor()
+        results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
+                              (ref,)).fetchall()
+        ids = [result[0] for result in results]
+
+        return Stop(ref, name, ids)
