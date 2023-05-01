@@ -30,7 +30,7 @@ class Source:
         return service_ids
 
     def get_lines_from_stops(self, service_ids, stop_ids):
-        raise []
+        return []
 
     def get_stop_from_ref(self, ref) -> Stop:
         raise NotImplementedError

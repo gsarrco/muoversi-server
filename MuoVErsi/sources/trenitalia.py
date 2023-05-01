@@ -1,10 +1,19 @@
 import json
+import logging
 import os
 import sqlite3
+from datetime import datetime, timedelta
 from sqlite3 import Connection
+from urllib.parse import quote
 
-from MuoVErsi.sources.base import Source, Stop
+import requests
 
+from MuoVErsi.sources.base import Source, Stop, StopTime
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 class Trenitalia(Source):
     def __init__(self, location=''):
@@ -86,3 +95,46 @@ class Trenitalia(Source):
         query = 'SELECT name FROM stations WHERE id = ?'
         result = cur.execute(query, (ref,)).fetchone()
         return Stop(ref, result[0], [ref]) if result else None
+
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+        date = quote(day.strftime("%a %b %d %Y %H:%M:%S GMT+0100"))
+
+        start_dt = datetime.now()
+        station_id = dep_stop_ids[0]
+
+        stop_times: list[StopTime] = []
+
+        while len(stop_times) < LIMIT:
+            stop_times += self.get_stop_times_from_start_dt(station_id, start_dt)
+            stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
+            last_stop_time = datetime.strptime(stop_times[-1].departure_time, '%H:%M:%S')
+            new_start_dt = datetime.combine(day, last_stop_time.time())
+            if new_start_dt == start_dt:
+                break
+            start_dt = new_start_dt
+
+        return stop_times[:LIMIT]
+
+    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime) -> list[StopTime]:
+        is_dst = start_dt.astimezone().dst() != timedelta(0)
+        date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
+        r = requests.get(url)
+        if r.status_code != 200:
+            return []
+
+        logger.info('URL: %s', url)
+
+        stop_times = []
+        for departure in r.json():
+            if departure['categoria'] != 'REG':
+                continue
+
+            dep_time = departure['compOrarioPartenza'] + ':00'
+            route_name = str(departure['numeroTreno'])
+            headsign = departure['destinazione']
+            trip_id = departure['numeroTreno']
+            stop_sequence = len(departure['compInStazionePartenza']) - 1
+            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence))
+
+        return stop_times
