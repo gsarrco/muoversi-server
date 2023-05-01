@@ -8,10 +8,13 @@ msgid "cancel"
 msgstr "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi."
 
 msgid "aut"
-msgstr "automobilistico"
+msgstr "autom"
 
 msgid "nav"
-msgstr "navigazione"
+msgstr "nav"
+
+msgid "treni"
+msgstr "treni"
 
 msgid "choose_service"
 msgstr "Quale servizio di Actv ti interessa?"
@@ -26,7 +29,7 @@ msgid "send_location"
 msgstr "Invia posizione"
 
 msgid "insert_stop"
-msgstr "Inizia digitando il nome della fermata oppure invia la posizione tua attuale o di un altro luogo per vedere le fermate più vicine."
+msgstr "Digita il nome della fermata oppure invia la posizione."
 
 msgid "insert_line"
 msgstr "Digita il numero della linea interessata."
