@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from sqlite3 import Connection
 from urllib.parse import quote
 
@@ -99,7 +99,11 @@ class Trenitalia(Source):
         return Stop(ref, result[0], [ref]) if result else None
 
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
-        start_dt = datetime.now()
+        if start_time == '':
+            start_dt = datetime.combine(day, time(5))
+        else:
+            start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+
         dt = start_dt
         station_id = dep_stop_ids[0]
 
@@ -108,8 +112,6 @@ class Trenitalia(Source):
         while len(stop_times) < LIMIT:
             stop_times += self.get_stop_times_from_start_dt(station_id, dt)
             stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
-            # remove stop_times with dep_time earlier than 5 minutes from the start_dt
-            stop_times = [stop_time for stop_time in stop_times if stop_time.dep_time >= start_dt - timedelta(minutes=5)]
             if len(stop_times) == 0:
                 break
             new_start_dt = stop_times[-1].dep_time
@@ -135,54 +137,121 @@ class Trenitalia(Source):
                 continue
 
             dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000)
+
+            if dep_time < start_dt - timedelta(minutes=5):
+                continue
+
+            trip_id = departure['numeroTreno']
             route_name = str(departure['numeroTreno'])
             headsign = departure['destinazione']
-            trip_id = departure['numeroTreno']
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
 
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, delay=delay))
+            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, dep_delay=delay))
 
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, limit, day) -> list[StopTime]:
-        start_dt = datetime.now() - timedelta(minutes=5)
-        is_dst = start_dt.astimezone().dst() != timedelta(0)
-        date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%Y-%m-%dT%H:%M:%S")
+        if start_time == '':
+            date = datetime.combine(day, time(5))
+        else:
+            date = datetime.combine(day, start_time) - timedelta(minutes=5)
+
         # S02512 to 2512
-        dep_station_id = list(dep_stop_ids)[0]
-        dep_station_id = int(dep_station_id[1:])
-        arr_station_id = list(arr_stop_ids)[0]
-        arr_station_id = int(arr_station_id[1:])
-        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/soluzioniViaggioNew/' \
-              f'{dep_station_id}/{arr_station_id}/{quote(date)}'
-        print(url)
-        r = requests.get(url)
+        dep_station_id_raw = list(dep_stop_ids)[0]
+        dep_station_id = int('8300' + dep_station_id_raw[1:])
+        arr_station_id_raw = list(arr_stop_ids)[0]
+        arr_station_id = int('8300' + arr_station_id_raw[1:])
+        url = 'https://www.lefrecce.it/Channels.Website.BFF.WEB/website/ticket/solutions'
+        r = requests.post(url, json={
+            "departureLocationId": dep_station_id,
+            "arrivalLocationId": arr_station_id,
+            "departureTime": date.isoformat(),
+            "adults": 1,
+            "children": 0,
+            "criteria": {
+                "frecceOnly": False,
+                "regionalOnly": True,
+                "noChanges": True,
+                "order": "DEPARTURE_DATE",
+                "limit": limit,
+                "offset": offset_times
+            },
+            "advancedSearchRequest": {
+                "bestFare": False
+            }
+        })
+
         if r.status_code != 200:
             return []
 
         stop_times = []
 
-        for solution in r.json()['soluzioni']:
-            if len(solution['vehicles']) != 1:
-                continue
+        for solution in r.json()['solutions']:
+            solution = solution['solution']
 
-            vehicle = solution['vehicles'][0]
-
-            if vehicle['categoriaDescrizione'] != 'Regionale' and vehicle['categoriaDescrizione'] != 'RV':
-                continue
-
-            dep_time = datetime.strptime(vehicle['orarioPartenza'], '%Y-%m-%dT%H:%M:%S')
-            arr_time = datetime.strptime(vehicle['orarioArrivo'], '%Y-%m-%dT%H:%M:%S')
+            dep_time = datetime.strptime(solution['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z')
+            arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z')
 
             if day != arr_time.date():
                 continue
 
-            route_name = vehicle['numeroTreno']
+            train = solution['trains'][0]
+            train_id = train['name']
+
+            route_name = train['acronym'] + train_id
             headsign = ''
-            trip_id = vehicle['numeroTreno']
+            trip_id = train_id
             stop_sequence = None
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, arr_time))
+
+            now = datetime.now(tz=dep_time.tzinfo)
+
+            if now >= dep_time - timedelta(minutes=30):
+                dep_delay, arr_delay = self.get_andamento_treno(train_id, dep_station_id_raw, arr_station_id_raw)
+            else:
+                dep_delay, arr_delay = 0, 0
+
+            stop_times.append(
+                StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, arr_time, dep_delay, arr_delay))
 
         return stop_times[:limit]
+
+    def get_andamento_treno(self, train_id, dep_station_id, arr_station_id) -> tuple[int, int]:
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/' \
+              f'{train_id}'
+        r = requests.get(url)
+
+        if r.status_code != 200:
+            return 0, 0
+
+        logger.info('URL: %s', url)
+
+        response = r.text
+
+        train_id, origin_id, dep_time = response.split('|')[1].rstrip().split('-')
+
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/andamentoTreno/' \
+              f'{origin_id}/{train_id}/{dep_time}'
+
+        r = requests.get(url)
+        if r.status_code != 200:
+            return 0, 0
+
+        logger.info('URL: %s', url)
+
+        response = r.json()
+
+        dep_delay = 0
+        arr_delay = 0
+
+        for stop in response['fermate']:
+            if stop['id'] == dep_station_id:
+                dep_delay = stop['ritardo']
+                continue
+
+            if stop['id'] == arr_station_id:
+                arr_delay = stop['ritardo']
+                continue
+
+        return dep_delay, arr_delay
