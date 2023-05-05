@@ -184,7 +184,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
-async def send_stop_times(_, lang, db_file: Source, stop_times_filter, chat_id, message_id, bot: Bot,
+async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimesFilter, chat_id, message_id, bot: Bot,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
@@ -196,6 +196,7 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter, chat_id, 
         service_ids = None
 
     results, service_ids = stop_times_filter.get_times(db_file, service_ids)
+
     context.user_data['lines'] = stop_times_filter.lines
     context.user_data['service_ids'] = service_ids
 

@@ -5,15 +5,14 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from MuoVErsi.helpers import time_25_to_1
-from MuoVErsi.sources.GTFS import GTFS
-from MuoVErsi.sources.base import StopTime
+from MuoVErsi.sources.base import StopTime, Source
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-LIMIT = 12
+LIMIT = 10
 MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
@@ -73,7 +72,7 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, db_file: GTFS, service_ids):
+    def get_times(self, db_file: Source, service_ids) -> tuple[list[StopTime], tuple]:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
@@ -110,13 +109,16 @@ class StopTimesFilter:
             dep_time = time_25_to_1(self.day, time_raw)
             time_format = dep_time.time().isoformat(timespec="minutes")
 
-            if result.delay > 0:
-                time_format += f'+{result.delay}m'
+            if result.dep_delay > 0:
+                time_format += f'+{result.dep_delay}m'
 
             if result.arr_time:
                 arr_time = time_25_to_1(self.day, result.arr_time.strftime('%H:%M:%S'))
                 arr_time_format = arr_time.time().isoformat(timespec="minutes")
                 time_format += f'->{arr_time_format}'
+
+                if result.arr_delay > 0:
+                    time_format += f'+{result.arr_delay}m'
 
             if dep_time < datetime.now():
                 text += f'\n<del>{time_format} {line} {headsign}</del>'
