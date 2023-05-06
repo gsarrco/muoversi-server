@@ -2,7 +2,6 @@ import gettext
 import gettext
 import logging
 import os
-import re
 import sys
 from datetime import datetime, timedelta
 
@@ -18,10 +17,11 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .db import DBFile
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id, \
-    get_stop_ids_from_cluster, get_cluster_name
+from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
 from .persistence import SQLitePersistence
+from .sources.GTFS import GTFS
+from .sources.base import Source
+from .sources.trenitalia import Trenitalia
 from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -32,8 +32,7 @@ logger = logging.getLogger(__name__)
 current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
-thismodule.aut_db_con = None
-thismodule.nav_db_con = None
+thismodule.sources = {}
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
@@ -74,8 +73,11 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if context.user_data.get('transport_type'):
         return await specify(update, context, command)
 
-    inline_keyboard = [[InlineKeyboardButton(_('aut'), callback_data="0aut"),
-                        InlineKeyboardButton(_('nav'), callback_data="0nav")]]
+    inline_keyboard = [[]]
+
+    for source in thismodule.sources:
+        inline_keyboard[0].append(InlineKeyboardButton(_(source), callback_data="0" + source))
+
     await update.message.reply_text(
         _('choose_service'),
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
@@ -107,20 +109,16 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    transport_types = {
-        'aut': _('aut'),
-        'nav': _('nav')
-    }
+    others_sources = [source for source in thismodule.sources if source != short_transport_type]
 
-    transport_type = transport_types[short_transport_type]
-    position = list(transport_types.keys()).index(short_transport_type)
-    other_short_transport_type = list(transport_types.keys())[1 - position]
-    other_transport_type = transport_types[other_short_transport_type]
+    inline_keyboard = [[]]
 
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton(_('change_service') % other_transport_type,
-                             callback_data=f'1{other_short_transport_type}')
-    ]])
+    for source in others_sources:
+        inline_keyboard[0].append(InlineKeyboardButton(_('change_service') % _(source), callback_data="1" + source))
+
+    transport_type = _(short_transport_type)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard)
 
     if update.callback_query:
         await update.callback_query.answer()
@@ -160,10 +158,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     message = update.message
 
-    if context.user_data['transport_type'] == 'aut':
-        db_file = thismodule.aut_db_con
-    else:
-        db_file = thismodule.nav_db_con
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
     if message.location:
         lat = message.location.latitude
@@ -176,8 +171,8 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster_name, callback_data=f'S{cluster_id}')]
-               for cluster_id, cluster_name in stops_clusters]
+    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.ref}')]
+               for cluster in stops_clusters]
 
     await update.message.reply_text(
         _('choose_stop'),
@@ -189,7 +184,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return SHOW_STOP
 
 
-async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, message_id, bot: Bot,
+async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimesFilter, chat_id, message_id, bot: Bot,
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
@@ -201,6 +196,7 @@ async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, 
         service_ids = None
 
     results, service_ids = stop_times_filter.get_times(db_file, service_ids)
+
     context.user_data['lines'] = stop_times_filter.lines
     context.user_data['service_ids'] = service_ids
 
@@ -229,12 +225,8 @@ async def send_stop_times(_, lang, db_file: DBFile, stop_times_filter, chat_id, 
 
 
 async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -245,7 +237,7 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'],
+    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'],
                                         arr_stop_ids=arr_stop_ids, dep_cluster_name=dep_cluster_name,
                                         arr_cluster_name=arr_cluster_name)
     if update.message.text == _('minus_day'):
@@ -260,12 +252,8 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -280,19 +268,20 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_id = update.callback_query.message.message_id
         await update.callback_query.answer()
 
-    cluster_id = re.search(r'\d+', text).group(0)
-    cluster_name = get_cluster_name(cluster_id, con)
-    stop_ids = get_stop_ids_from_cluster(cluster_id, con)
+    stop_ref = text[1:]
+    stop = db_file.get_stop_from_ref(stop_ref)
+    cluster_name = stop.name
+    stop_ids = stop.ids
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
+        stop_times_filter = StopTimesFilter(db_file, saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
                                             arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name, first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(stop_ids, now.date(), '', now.time(), dep_cluster_name=cluster_name,
+        stop_times_filter = StopTimesFilter(db_file, stop_ids, now.date(), '', now.time(), dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
@@ -302,12 +291,8 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-        db_file = thismodule.aut_db_con
-    else:
-        con = thismodule.nav_db_con.con
-        db_file = thismodule.nav_db_con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -318,7 +303,7 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids,
+    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_cluster_name=arr_cluster_name)
     message_id = query.message.message_id
 
@@ -330,10 +315,8 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -345,11 +328,11 @@ async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-    text = StopTimesFilter(day=day, line=line, start_time='').title(_, lang)
+    text = StopTimesFilter(db_file, day=day, line=line, start_time='').title(_, lang)
 
     for result in results:
         stop_id, stop_name, time_raw = result
-        time_format = time_25_to_1(time_raw).isoformat(timespec="minutes")
+        time_format = time_25_to_1(day, time_raw).isoformat(timespec="minutes")
         text += f'\n{time_format} {stop_name}'
 
     await query.answer('')
@@ -364,10 +347,8 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
@@ -386,11 +367,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    if context.user_data['transport_type'] == 'aut':
-        con = thismodule.aut_db_con.con
-    else:
-        con = thismodule.nav_db_con.con
-
+    db_file = thismodule.sources[context.user_data['transport_type']]
+    con = db_file.con
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -435,19 +413,11 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.aut_db_con = DBFile('automobilistico')
-    if DEV:
-        thismodule.aut_db_con.con.set_trace_callback(logger.info)
-    logger.info('automobilistico DBFile initialized')
-    stops_clusters_uploaded = thismodule.aut_db_con.upload_stops_clusters_to_db()
-    logger.info('automobilistico stops clusters uploaded: %s', stops_clusters_uploaded)
+    thismodule.sources = {'aut': GTFS('automobilistico'), 'nav': GTFS('navigazione'), 'treni': Trenitalia()}
 
-    thismodule.nav_db_con = DBFile('navigazione')
-    if DEV:
-        thismodule.nav_db_con.con.set_trace_callback(logger.info)
-    logger.info('navigazione DBFile initialized')
-    stops_clusters_uploaded = thismodule.nav_db_con.upload_stops_clusters_to_db()
-    logger.info('navigazione stops clusters uploaded: %s', stops_clusters_uploaded)
+    for source in thismodule.sources.values():
+        if DEV:
+            source.con.set_trace_callback(logger.info)
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 
