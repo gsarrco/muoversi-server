@@ -17,7 +17,7 @@ MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
 
 
 class StopTimesFilter:
-    def __init__(self, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
+    def __init__(self, source: Source, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
                  query_data=None, arr_stop_ids=None, dep_cluster_name=None, arr_cluster_name=None, first_time=False):
 
         if query_data:
@@ -26,6 +26,7 @@ class StopTimesFilter:
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
+        self.source = source
         self.dep_stop_ids = dep_stop_ids
         self.arr_stop_ids = arr_stop_ids
         self.day = day
@@ -138,7 +139,12 @@ class StopTimesFilter:
             if results_len == LIMIT:
                 paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + LIMIT))
 
-        keyboard.append(paging_buttons)
+        if self.source.allow_offset_buttons_single_stop:
+            keyboard.append(paging_buttons)
+        else:
+            if len(results) > 0:
+                if results[0].arr_time:
+                    keyboard.append(paging_buttons)
 
         # Lines buttons
         if self.line == '':

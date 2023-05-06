@@ -24,8 +24,9 @@ class StopTime:
 
 
 class Source:
-    def __init__(self, name):
+    def __init__(self, name, allow_offset_buttons_single_stop):
         self.name = name
+        self.allow_offset_buttons_single_stop = allow_offset_buttons_single_stop
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError

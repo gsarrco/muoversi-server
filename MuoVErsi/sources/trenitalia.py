@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
-        super().__init__('treni')
+        super().__init__('treni', False)
 
         if os.path.exists(self.file_path()):
             self.con = self.connect_to_database()
