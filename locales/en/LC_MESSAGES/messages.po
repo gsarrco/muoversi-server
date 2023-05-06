@@ -13,6 +13,9 @@ msgstr "bus/tram"
 msgid "nav"
 msgstr "waterbus"
 
+msgid "treni"
+msgstr "trains"
+
 msgid "choose_service"
 msgstr "Which service are you interested in?"
 
@@ -26,7 +29,7 @@ msgid "send_location"
 msgstr "Send location"
 
 msgid "insert_stop"
-msgstr "Start by typing the name of the stop or send your current location or another location to see the nearest stops."
+msgstr "Type the stop name or send the location."
 
 msgid "insert_line"
 msgstr "Type in the number of the desired line."

@@ -13,7 +13,8 @@ import requests
 from bs4 import BeautifulSoup
 from geopy.distance import distance
 
-from MuoVErsi.helpers import cluster_strings
+from MuoVErsi.helpers import cluster_strings, get_active_service_ids
+from MuoVErsi.sources.base import Source, Stop, StopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -59,10 +60,12 @@ def get_clusters_of_stops(stops):
                 i = 1
                 for stop in stops:
                     if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'], 'times_count': stop['times_count']}
+                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
+                                                                  'times_count': stop['times_count']}
                         i += 1
                     else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'], 'times_count': stop['times_count']}
+                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
+                                                       'times_count': stop['times_count']}
             else:
                 clusters[cluster_name]['coords'] = centroid
                 clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
@@ -72,8 +75,9 @@ def get_clusters_of_stops(stops):
     return clusters
 
 
-class DBFile:
+class GTFS(Source):
     def __init__(self, transport_type, gtfs_version=None, location=''):
+        super().__init__(transport_type, True)
         self.transport_type = transport_type
         self.location = location
 
@@ -91,9 +95,12 @@ class DBFile:
 
         self.con = self.connect_to_database()
 
+        stops_clusters_uploaded = self.upload_stops_clusters_to_db()
+        logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
+
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + f"/../{self.location}")
+        parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
@@ -178,24 +185,92 @@ class DBFile:
         self.con.commit()
         return True
 
-    def search_stops(self, name=None, lat=None, lon=None):
+    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         cur = self.con.cursor()
         if lat and lon:
             query = 'SELECT id, name FROM stops_clusters ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) ASC LIMIT 4'
-            results = cur.execute(query, (lat, lat, lon, lon)).fetchall()
+                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
+            results = cur.execute(query, (lat, lat, lon, lon, limit)).fetchall()
         else:
-            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT 4'
-            results = cur.execute(query, (f'%{name}%',)).fetchall()
+            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT ?'
+            results = cur.execute(query, (f'%{name}%', limit)).fetchall()
 
-        return results
+        stops = []
+        for result in results:
+            stops.append(Stop(result[0], result[1]))
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time, offset_times, limit, day):
+        return stops
+
+    def get_service_ids(self, day, service_ids) -> tuple:
+        if service_ids is None:
+            service_ids = get_active_service_ids(day, self.con)
+        return service_ids
+
+    def get_lines_from_stops(self, service_ids, stop_ids):
+        cur = self.con.cursor()
+        query = """
+                    SELECT route_short_name
+                    FROM stop_times
+                             INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                             INNER JOIN routes ON trips.route_id = routes.route_id
+                    WHERE stop_times.stop_id in ({stop_id})
+                      AND trips.service_id in ({seq})
+                      AND pickup_type = 0
+                    GROUP BY route_short_name ORDER BY count(*) DESC;
+                """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
+
+        params = (*stop_ids, *service_ids)
+
+        return [line[0] for line in cur.execute(query, params).fetchall()]
+
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+        route = 'AND route_short_name = ?' if line != '' else ''
+        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
+
+        query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
+                            FROM stop_times
+                                     INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                                     INNER JOIN routes ON trips.route_id = routes.route_id
+                            WHERE stop_times.stop_id in ({stop_id})
+                              AND trips.service_id in ({seq})
+                              AND pickup_type = 0
+                              {route}
+                              {departure_time}
+                            ORDER BY departure_time, route_short_name, trip_headsign
+                            LIMIT ? OFFSET ?
+                            """.format(
+            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(dep_stop_ids)), route=route,
+            departure_time=departure_time)
+
+        params = (*dep_stop_ids, *service_ids)
+
+        if line != '':
+            params += (line,)
+
+        if start_time != '':
+            start_datetime = datetime.combine(day, start_time)
+            minutes_5 = start_datetime - timedelta(minutes=5)
+            params += (minutes_5.strftime('%H:%M'),)
+
+        params += (LIMIT, offset_times)
+
+        cur = self.con.cursor()
+        results = cur.execute(query, params).fetchall()
+
+        stop_times = []
+        for result in results:
+            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
+            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4]))
+
+        return stop_times
+
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+                                     offset_times, limit, day) -> list[StopTime]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
-        
+
         query = """
         SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,
@@ -244,4 +319,25 @@ class DBFile:
 
         results = cur.execute(query, params).fetchall()
 
-        return results, service_ids
+        stop_times = []
+
+        for result in results:
+            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
+            arr_time = datetime.combine(day, datetime.strptime(result[5], '%H:%M:%S').time())
+            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4], arr_time))
+
+        return stop_times
+
+    def get_stop_from_ref(self, ref) -> Stop:
+        # get stop name
+        cur = self.con.cursor()
+        results = cur.execute('SELECT name FROM stops_clusters WHERE id = ?', (ref,)).fetchall()
+        name = results[0][0]
+
+        # get stop ids
+        cur = self.con.cursor()
+        results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
+                              (ref,)).fetchall()
+        ids = [result[0] for result in results]
+
+        return Stop(ref, name, ids)
