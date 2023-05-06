@@ -109,11 +109,17 @@ class Trenitalia(Source):
 
         stop_times: list[StopTime] = []
 
+        notimes = 0
+
         while len(stop_times) < LIMIT:
             stop_times += self.get_stop_times_from_start_dt(station_id, dt)
             stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
             if len(stop_times) == 0:
-                break
+                dt = dt + timedelta(hours=1)
+                notimes += 1
+                if notimes > 4:
+                    break
+                continue
             new_start_dt = stop_times[-1].dep_time
             if new_start_dt == dt:
                 break
