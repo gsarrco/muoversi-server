@@ -46,7 +46,7 @@ class Trenitalia(Source):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         datadir = os.path.abspath(current_dir + '/data')
 
-        with open(os.path.join(datadir, 'stationIDS.json')) as f:
+        with open(os.path.join(datadir, 'stationIDs.json')) as f:
             station_ids = json.load(f)
 
         with open(os.path.join(datadir, 'stations_coords.json')) as f:
