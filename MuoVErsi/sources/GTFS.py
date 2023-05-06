@@ -77,7 +77,7 @@ def get_clusters_of_stops(stops):
 
 class GTFS(Source):
     def __init__(self, transport_type, gtfs_version=None, location=''):
-        super().__init__(transport_type)
+        super().__init__(transport_type, True)
         self.transport_type = transport_type
         self.location = location
 
