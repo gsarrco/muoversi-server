@@ -200,7 +200,7 @@ class Trenitalia(Source):
             train = solution['trains'][0]
             train_id = train['name']
 
-            route_name = train['acronym'] + train_id
+            route_name = train_id
             headsign = ''
             trip_id = train_id
             stop_sequence = None
