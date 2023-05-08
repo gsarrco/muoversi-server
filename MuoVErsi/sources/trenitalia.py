@@ -240,6 +240,9 @@ class Trenitalia(Source):
 
         response = r.text
 
+        if response == '':
+            return 0, 0
+
         train_id, origin_id, dep_time = response.split('|')[1].rstrip().split('-')
 
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/andamentoTreno/' \
