@@ -147,8 +147,13 @@ class Trenitalia(Source):
             if dep_time < start_dt - timedelta(minutes=5):
                 continue
 
-            trip_id = departure['numeroTreno']
-            route_name = str(departure['numeroTreno'])
+            trip_id: int = departure['numeroTreno']
+            if 3000 <= trip_id < 4000:
+                acronym = 'RV'
+            else:
+                acronym = 'R'
+
+            route_name = acronym + str(departure['numeroTreno'])
             headsign = departure['destinazione']
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
@@ -204,17 +209,17 @@ class Trenitalia(Source):
                 continue
 
             train = solution['trains'][0]
-            train_id = train['name']
+            trip_id = train['name']
 
-            route_name = train_id
+            acronym = 'R' if train['acronym'] == 'RE' else train['acronym']
+            route_name = acronym + trip_id
             headsign = ''
-            trip_id = train_id
             stop_sequence = None
 
             now = datetime.now(tz=dep_time.tzinfo)
 
             if now >= dep_time - timedelta(minutes=30):
-                dep_delay, arr_delay = self.get_andamento_treno(train_id, dep_station_id_raw, arr_station_id_raw)
+                dep_delay, arr_delay = self.get_andamento_treno(trip_id, dep_station_id_raw, arr_station_id_raw)
             else:
                 dep_delay, arr_delay = 0, 0
 
