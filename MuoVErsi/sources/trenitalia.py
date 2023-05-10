@@ -46,25 +46,22 @@ class Trenitalia(Source):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         datadir = os.path.abspath(current_dir + '/data')
 
-        with open(os.path.join(datadir, 'stationIDs.json')) as f:
-            station_ids = json.load(f)
+        with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
+            stations = json.load(f)
 
-        with open(os.path.join(datadir, 'stations_coords.json')) as f:
-            stations_coords = json.load(f)
-
-        for station_id, station_name in station_ids.items():
-            # get values from stations_coords only if station_id is present
-            station_coords = stations_coords.get(station_id, {})
-            region_code = station_coords.get('region_code', None)
-            lat = station_coords.get('lat', None)
-            lon = station_coords.get('lon', None)
+        for station in stations:
+            _id = station.get('code', None)
+            name = station.get('long_name', None)
+            region_code = station.get('region', None)
+            lat = station.get('latitude', None)
+            lon = station.get('longitude', None)
 
             # insert values into stations table
             cur.execute("""
                 INSERT INTO stations (id, name, region_code, lat, lon)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (station_id, station_name, region_code, lat, lon)
+                (_id, name, region_code, lat, lon)
             )
 
         self.con.commit()
