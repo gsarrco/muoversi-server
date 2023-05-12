@@ -141,10 +141,6 @@ class StopTimesFilter:
 
         if self.source.allow_offset_buttons_single_stop:
             keyboard.append(paging_buttons)
-        else:
-            if len(results) > 0:
-                if results[0].arr_time:
-                    keyboard.append(paging_buttons)
 
         # Lines buttons
         if self.line == '':
