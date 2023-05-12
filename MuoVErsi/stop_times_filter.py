@@ -124,7 +124,7 @@ class StopTimesFilter:
             if result.platform:
                 line = f'<b>{time_format}</b> {headsign}\n⎿ {line} BIN. {result.platform}'
             else:
-                line = f'{time_format} {line} {headsign}'
+                line = f'<b>{time_format}</b> {line} {headsign}'
 
             if dep_time < datetime.now():
                 line = f'<del>{line}</del>'
