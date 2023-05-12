@@ -163,7 +163,13 @@ class Trenitalia(Source):
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
 
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, dep_delay=delay))
+            if departure['binarioEffettivoPartenzaDescrizione']:
+                platform = departure['binarioEffettivoPartenzaDescrizione']
+            else:
+                platform = departure['binarioProgrammatoPartenzaDescrizione']
+
+            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, dep_delay=delay,
+                                       platform=platform))
 
         return stop_times
 

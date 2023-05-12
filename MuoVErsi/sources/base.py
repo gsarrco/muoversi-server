@@ -12,7 +12,7 @@ class Stop:
 
 class StopTime:
     def __init__(self, dep_time: datetime, route_name, headsign, trip_id, stop_sequence, arr_time=None, dep_delay=0,
-                 arr_delay=0):
+                 arr_delay=0, platform=None):
         self.dep_time = dep_time
         self.route_name = route_name
         self.headsign = headsign
@@ -21,6 +21,7 @@ class StopTime:
         self.arr_time = arr_time
         self.dep_delay = dep_delay
         self.arr_delay = arr_delay
+        self.platform = platform
 
 
 class Source:
