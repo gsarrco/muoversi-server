@@ -104,12 +104,15 @@ class Trenitalia(Source):
         dt = start_dt
         station_id = dep_stop_ids[0]
 
+        return self.loop_get_times(LIMIT, station_id, dt)
+
+    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[StopTime]:
         stop_times: list[StopTime] = []
 
         notimes = 0
 
-        while len(stop_times) < LIMIT:
-            stop_times += self.get_stop_times_from_start_dt(station_id, dt)
+        while len(stop_times) < limit:
+            stop_times += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
             stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
             if len(stop_times) == 0:
                 dt = dt + timedelta(hours=1)
@@ -122,9 +125,9 @@ class Trenitalia(Source):
                 break
             dt = new_start_dt
 
-        return stop_times[:LIMIT]
+        return stop_times[:limit]
 
-    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime) -> list[StopTime]:
+    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids) -> list[StopTime]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
@@ -139,12 +142,17 @@ class Trenitalia(Source):
             if departure['categoria'] != 'REG':
                 continue
 
+            trip_id: int = departure['numeroTreno']
+
+            if train_ids:
+                if trip_id not in train_ids:
+                    continue
+
             dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000)
 
             if dep_time < start_dt - timedelta(minutes=5):
                 continue
 
-            trip_id: int = departure['numeroTreno']
             if 3000 <= trip_id < 4000:
                 acronym = 'RV'
             else:
@@ -196,34 +204,22 @@ class Trenitalia(Source):
 
         stop_times = []
 
-        for solution in r.json()['solutions']:
+        solutions = r.json()['solutions']
+
+        train_ids = [int(solution['solution']['trains'][0]['name']) for solution in solutions]
+        first_train_dep_time = datetime\
+            .strptime(solutions[0]['solution']['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z')\
+            .replace(tzinfo=None)
+
+        stop_times = self.loop_get_times(10, dep_station_id_raw, first_train_dep_time, train_ids)
+
+        # loop over solutions and stop times together
+        for solution, stop_time in zip(solutions, stop_times):
             solution = solution['solution']
+            arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
+            stop_time.arr_time = arr_time
 
-            dep_time = datetime.strptime(solution['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z')
-            arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z')
-
-            if day != arr_time.date():
-                continue
-
-            train = solution['trains'][0]
-            trip_id = train['name']
-
-            acronym = 'R' if train['acronym'] == 'RE' else train['acronym']
-            route_name = acronym + trip_id
-            headsign = ''
-            stop_sequence = None
-
-            now = datetime.now(tz=dep_time.tzinfo)
-
-            if now >= dep_time - timedelta(minutes=30):
-                dep_delay, arr_delay = self.get_andamento_treno(trip_id, dep_station_id_raw, arr_station_id_raw)
-            else:
-                dep_delay, arr_delay = 0, 0
-
-            stop_times.append(
-                StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, arr_time, dep_delay, arr_delay))
-
-        return stop_times[:limit]
+        return stop_times
 
     def get_andamento_treno(self, train_id, dep_station_id, arr_station_id) -> tuple[int, int]:
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/' \
