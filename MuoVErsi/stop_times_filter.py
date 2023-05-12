@@ -120,11 +120,13 @@ class StopTimesFilter:
 
                 if result.arr_delay > 0:
                     time_format += f'+{result.arr_delay}m'
+            
+            line = f'{time_format} {line} {headsign}'
 
             if dep_time < datetime.now():
-                text += f'\n<del>{time_format} {line} {headsign}</del>'
-            else:
-                text += f'\n{time_format} {line} {headsign}'
+                line = f'<del>{line}</del>'
+
+            text += f'\n{line}'
 
         keyboard = []
 
