@@ -266,7 +266,6 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
-        await update.callback_query.answer()
 
     stop_ref = text[1:]
     stop = db_file.get_stop_from_ref(stop_ref)
@@ -286,8 +285,13 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
 
-    return await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id, message_id, update.get_bot(),
-                                 context)
+    new_state = await send_stop_times(_, lang, db_file, stop_times_filter, update.effective_chat.id,
+                                      message_id, update.get_bot(), context)
+
+    if update.callback_query:
+        await update.callback_query.answer()
+
+    return new_state
 
 
 async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -309,9 +313,12 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     chat_id = update.callback_query.message.chat_id
     bot = update.get_bot()
+
+    new_state = await send_stop_times(_, lang, db_file, stop_times_filter, chat_id, message_id, bot, context)
+
     await query.answer('')
 
-    return await send_stop_times(_, lang, db_file, stop_times_filter, chat_id, message_id, bot, context)
+    return new_state
 
 
 async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -335,10 +342,10 @@ async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE
         time_format = time_25_to_1(day, time_raw).isoformat(timespec="minutes")
         text += f'\n{time_format} {stop_name}'
 
-    await query.answer('')
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
     await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
+    await query.answer('')
     return SHOW_STOP
 
 
@@ -384,8 +391,8 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     for stop in stops:
         text += f'\n/{stop[0]} {stop[1]}'
 
-    await query.answer('')
     await query.edit_message_text(text=text)
+    await query.answer('')
 
     return SHOW_STOP
 
