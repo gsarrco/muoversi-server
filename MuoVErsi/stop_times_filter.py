@@ -120,8 +120,11 @@ class StopTimesFilter:
 
                 if result.arr_delay > 0:
                     time_format += f'+{result.arr_delay}m'
-            
-            line = f'{time_format} {line} {headsign}'
+
+            if result.platform:
+                line = f'<b>{time_format}</b> {headsign}\n⎿ {line} BIN. {result.platform}'
+            else:
+                line = f'{time_format} {line} {headsign}'
 
             if dep_time < datetime.now():
                 line = f'<del>{line}</del>'
