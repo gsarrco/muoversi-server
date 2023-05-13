@@ -4,7 +4,6 @@ from datetime import datetime, time, date, timedelta
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from MuoVErsi.helpers import time_25_to_1
 from MuoVErsi.sources.base import StopTime, Source
 
 logging.basicConfig(
@@ -106,17 +105,15 @@ class StopTimesFilter:
         for result in results:
             line, headsign, trip_id, stop_sequence = result.route_name, result.headsign, \
                                                                   result.trip_id, result.stop_sequence
-            time_raw = result.dep_time.strftime('%H:%M:%S')
-            dep_time = time_25_to_1(self.day, time_raw)
-            time_format = dep_time.time().isoformat(timespec="minutes")
+
+            time_format = result.dep_time.strftime('%H:%M')
 
             if result.dep_delay > 0:
                 time_format += f'+{result.dep_delay}m'
 
             if result.arr_time:
-                arr_time = time_25_to_1(self.day, result.arr_time.strftime('%H:%M:%S'))
-                arr_time_format = arr_time.time().isoformat(timespec="minutes")
-                time_format += f'->{arr_time_format}'
+                arr_time = result.arr_time.strftime('%H:%M')
+                time_format += f'->{arr_time}'
 
                 if result.arr_delay > 0:
                     time_format += f'+{result.arr_delay}m'
@@ -126,7 +123,7 @@ class StopTimesFilter:
             else:
                 line = f'<b>{time_format}</b> {line} {headsign}'
 
-            if dep_time < datetime.now():
+            if result.dep_time < datetime.now():
                 line = f'<del>{line}</del>'
 
             text += f'\n{line}'
