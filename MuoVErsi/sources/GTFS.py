@@ -13,7 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 from geopy.distance import distance
 
-from MuoVErsi.helpers import cluster_strings, get_active_service_ids
+from MuoVErsi.helpers import cluster_strings, get_active_service_ids, time_25_to_1
 from MuoVErsi.sources.base import Source, Stop, StopTime
 
 logging.basicConfig(
@@ -259,8 +259,8 @@ class GTFS(Source):
 
         stop_times = []
         for result in results:
-            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
-            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4]))
+            dep_dt = time_25_to_1(day, result[0])
+            stop_times.append(StopTime(dep_dt, result[1], result[2], result[3], result[4]))
 
         return stop_times
 
@@ -322,8 +322,8 @@ class GTFS(Source):
         stop_times = []
 
         for result in results:
-            dep_time = datetime.combine(day, datetime.strptime(result[0], '%H:%M:%S').time())
-            arr_time = datetime.combine(day, datetime.strptime(result[5], '%H:%M:%S').time())
+            dep_time = time_25_to_1(day, result[0])
+            arr_time = time_25_to_1(day, result[5])
             stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4], arr_time))
 
         return stop_times
