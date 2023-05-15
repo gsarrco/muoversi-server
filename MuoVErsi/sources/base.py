@@ -31,26 +31,43 @@ class Route(Liner):
         self.headsign = headsign
         self.trip_id = trip_id
 
-    def format(self):
+    def format(self, left_time_bold=True, right_time_bold=True):
         line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
             self.trip_id, self.dep_stop_time.stop_sequence
 
-        time_format = self.dep_stop_time.dt.strftime('%H:%M')
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dt.strftime('%H:%M')
 
         if self.dep_stop_time.delay > 0:
             time_format += f'+{self.dep_stop_time.delay}m'
 
+        if left_time_bold:
+            time_format += "</b>"
+
         if self.arr_stop_time:
             arr_time = self.arr_stop_time.dt.strftime('%H:%M')
-            time_format += f'->{arr_time}'
+
+            time_format += "->"
+
+            if right_time_bold:
+                time_format += "<b>"
+
+            time_format += arr_time
 
             if self.arr_stop_time.delay > 0:
                 time_format += f'+{self.arr_stop_time.delay}m'
 
+            if right_time_bold:
+                time_format += "</b>"
+
         if self.dep_stop_time.platform:
-            line = f'<b>{time_format}</b> {headsign}\n⎿ {line} BIN. {self.dep_stop_time.platform}'
+            line = f'{time_format} {headsign}\n⎿ {line} BIN. {self.dep_stop_time.platform}'
         else:
-            line = f'<b>{time_format}</b> {line} {headsign}'
+            line = f'{time_format} {line} {headsign}'
 
         if self.dep_stop_time.dt < datetime.now():
             line = f'<del>{line}</del>'
@@ -63,7 +80,10 @@ class Direction(Liner):
         self.routes = routes
 
     def format(self):
-        return ''.join(route.format() for route in self.routes)
+        text = ""
+        for i, route in enumerate(self.routes):
+            text += route.format(left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
+        return text
 
 
 class Source:
