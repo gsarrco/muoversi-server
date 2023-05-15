@@ -11,17 +11,20 @@ class Stop:
 
 
 class StopTime:
-    def __init__(self, dep_time: datetime, route_name, headsign, trip_id, stop_sequence, arr_time=None, dep_delay=0,
-                 arr_delay=0, platform=None):
-        self.dep_time = dep_time
+    def __init__(self, dt: datetime, stop_sequence, delay: int, platform):
+        self.dt = dt
+        self.stop_sequence = stop_sequence
+        self.delay = delay
+        self.platform = platform
+
+
+class Route:
+    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None, route_name, headsign, trip_id):
+        self.dep_stop_time = dep_stop_time
+        self.arr_stop_time = arr_stop_time
         self.route_name = route_name
         self.headsign = headsign
         self.trip_id = trip_id
-        self.stop_sequence = stop_sequence
-        self.arr_time = arr_time
-        self.dep_delay = dep_delay
-        self.arr_delay = arr_delay
-        self.platform = platform
 
 
 class Source:
@@ -32,11 +35,11 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[StopTime]:
+                                     offset_times, limit, day) -> list[Route]:
         raise NotImplementedError
 
     def get_service_ids(self, day, service_ids) -> tuple:
