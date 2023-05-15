@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from geopy.distance import distance
 
 from MuoVErsi.helpers import cluster_strings, get_active_service_ids, time_25_to_1
-from MuoVErsi.sources.base import Source, Stop, StopTime, Route
+from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -267,7 +267,7 @@ class GTFS(Source):
         return routes
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[Route]:
+                                     offset_times, limit, day) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -321,16 +321,17 @@ class GTFS(Source):
 
         results = cur.execute(query, params).fetchall()
 
-        routes = []
+        directions = []
 
         for result in results:
             dep_time = time_25_to_1(day, result[0])
             arr_time = time_25_to_1(day, result[5])
             dep_stop_time = StopTime(dep_time, result[4], 0, None)
             arr_stop_time = StopTime(arr_time, result[4], 0, None)
-            routes.append(Route(dep_stop_time, arr_stop_time, result[1], result[2], result[3]))
+            route = Route(dep_stop_time, arr_stop_time, result[1], result[2], result[3])
+            directions.append(Direction([route]))
 
-        return routes
+        return directions
 
     def get_stop_from_ref(self, ref) -> Stop:
         # get stop name
