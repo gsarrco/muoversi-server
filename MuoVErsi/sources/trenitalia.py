@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import requests
 
-from MuoVErsi.sources.base import Source, Stop, StopTime
+from MuoVErsi.sources.base import Source, Stop, StopTime, Route
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -95,7 +95,7 @@ class Trenitalia(Source):
         result = cur.execute(query, (ref,)).fetchone()
         return Stop(ref, result[0], [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
         if start_time == '':
             start_dt = datetime.combine(day, time(5))
         else:
@@ -106,28 +106,28 @@ class Trenitalia(Source):
 
         return self.loop_get_times(LIMIT, station_id, dt)
 
-    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[StopTime]:
-        stop_times: list[StopTime] = []
+    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[Route]:
+        routes: list[Route] = []
 
         notimes = 0
 
-        while len(stop_times) < limit:
-            stop_times += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
-            stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
-            if len(stop_times) == 0:
+        while len(routes) < limit:
+            routes += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
+            routes = list({route.trip_id: route for route in routes}.values())
+            if len(routes) == 0:
                 dt = dt + timedelta(hours=1)
                 notimes += 1
                 if notimes > 4:
                     break
                 continue
-            new_start_dt = stop_times[-1].dep_time
+            new_start_dt = routes[-1].dep_stop_time.dt
             if new_start_dt == dt:
                 break
             dt = new_start_dt
 
-        return stop_times[:limit]
+        return routes[:limit]
 
-    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids) -> list[StopTime]:
+    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids) -> list[Route]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
@@ -137,7 +137,7 @@ class Trenitalia(Source):
 
         logger.info('URL: %s', url)
 
-        stop_times = []
+        routes = []
         for departure in r.json():
             if departure['categoria'] != 'REG':
                 continue
@@ -168,13 +168,14 @@ class Trenitalia(Source):
             else:
                 platform = departure['binarioProgrammatoPartenzaDescrizione']
 
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, dep_delay=delay,
-                                       platform=platform))
+            dep_stop_time = StopTime(dep_time, 0, delay, platform)
+            route = Route(dep_stop_time, None, route_name, headsign, trip_id)
+            routes.append(route)
 
-        return stop_times
+        return routes
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[StopTime]:
+                                     offset_times, limit, day) -> list[Route]:
         if start_time == '':
             date = datetime.combine(day, time(5))
         else:
@@ -208,8 +209,6 @@ class Trenitalia(Source):
         if r.status_code != 200:
             return []
 
-        stop_times = []
-
         solutions = r.json()['solutions']
 
         train_ids = [int(solution['solution']['trains'][0]['name']) for solution in solutions]
@@ -217,15 +216,15 @@ class Trenitalia(Source):
             .strptime(solutions[0]['solution']['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z')\
             .replace(tzinfo=None)
 
-        stop_times = self.loop_get_times(10, dep_station_id_raw, first_train_dep_time, train_ids)
+        routes = self.loop_get_times(10, dep_station_id_raw, first_train_dep_time, train_ids)
 
         # loop over solutions and stop times together
-        for solution, stop_time in zip(solutions, stop_times):
+        for solution, route in zip(solutions, routes):
             solution = solution['solution']
             arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
-            stop_time.arr_time = arr_time
+            route.arr_stop_time = StopTime(arr_time, 0, 0, None)
 
-        return stop_times
+        return routes
 
     def get_andamento_treno(self, train_id, dep_station_id, arr_station_id) -> tuple[int, int]:
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/' \
