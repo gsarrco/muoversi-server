@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import requests
 
-from MuoVErsi.sources.base import Source, Stop, StopTime, Route
+from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -175,7 +175,7 @@ class Trenitalia(Source):
         return routes
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[Route]:
+                                     offset_times, limit, day) -> list[Direction]:
         if start_time == '':
             date = datetime.combine(day, time(5))
         else:
@@ -218,13 +218,16 @@ class Trenitalia(Source):
 
         routes = self.loop_get_times(10, dep_station_id_raw, first_train_dep_time, train_ids)
 
+        directions = []
+
         # loop over solutions and stop times together
         for solution, route in zip(solutions, routes):
             solution = solution['solution']
             arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
             route.arr_stop_time = StopTime(arr_time, 0, 0, None)
+            directions.append(Direction([route]))
 
-        return routes
+        return directions
 
     def get_andamento_treno(self, train_id, dep_station_id, arr_station_id) -> tuple[int, int]:
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/' \
