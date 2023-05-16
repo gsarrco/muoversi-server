@@ -11,11 +11,12 @@ class Stop:
 
 
 class StopTime:
-    def __init__(self, dt: datetime, stop_sequence, delay: int, platform):
+    def __init__(self, dt: datetime, stop_sequence, delay: int, platform, stop_name: str = None):
         self.dt = dt
         self.stop_sequence = stop_sequence
         self.delay = delay
         self.platform = platform
+        self.stop_name = stop_name
 
 
 class Liner:
@@ -87,6 +88,13 @@ class Direction(Liner):
         for i, route in enumerate(self.routes):
             number = number if i == 0 else None
             text += route.format(number, left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
+
+            if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
+                next_route = self.routes[i + 1]
+                print(route.arr_stop_time.dt, next_route.dep_stop_time.dt)
+                duration_in_minutes = (next_route.dep_stop_time.dt - route.arr_stop_time.dt).seconds // 60
+                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop_name} ({duration_in_minutes}min)</i>'
+
         return text
 
 

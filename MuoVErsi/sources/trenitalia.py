@@ -263,13 +263,14 @@ class Trenitalia(Source):
         data = {}
         for solution_index, solution in enumerate(resp['solutions']):
             for train in solution['solution']['nodes']:
-                station_name = train['origin']
+                origin = train['origin']
+                destination = train['destination']
                 train_id = int(train['train']['name'])
                 dep_time = datetime.strptime(train['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
                     tzinfo=None)
                 arr_time = datetime.strptime(train['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
                     tzinfo=None)
-                data.setdefault(station_name, []).append((train_id, dep_time, arr_time, solution_index))
+                data.setdefault(origin, []).append((train_id, dep_time, arr_time, solution_index, destination))
 
         solutions = {}
 
@@ -286,9 +287,11 @@ class Trenitalia(Source):
             train_ids = [train[0] for train in trains]
             first_train_dep_time = trains[0][1]
             routes = self.loop_get_times(10, station_id, first_train_dep_time, train_ids)
+            for route in routes:
+                route.dep_stop_time.stop_name = station_name
 
             for train, route in zip(trains, routes):
-                route.arr_stop_time = StopTime(train[2], 0, 0, None)
+                route.arr_stop_time = StopTime(train[2], 0, 0, None, train[4])
                 solutions.setdefault(train[3], []).append(route)
 
         solutions = dict(sorted(solutions.items()))
