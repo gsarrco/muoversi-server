@@ -19,7 +19,7 @@ class StopTime:
 
 
 class Liner:
-    def format(self):
+    def format(self, number):
         raise NotImplementedError
 
 
@@ -31,7 +31,7 @@ class Route(Liner):
         self.headsign = headsign
         self.trip_id = trip_id
 
-    def format(self, left_time_bold=True, right_time_bold=True):
+    def format(self, number, left_time_bold=True, right_time_bold=True):
         line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
             self.trip_id, self.dep_stop_time.stop_sequence
 
@@ -65,24 +65,28 @@ class Route(Liner):
                 time_format += "</b>"
 
         if self.dep_stop_time.platform:
-            line = f'{time_format} {headsign}\n⎿ {line} BIN. {self.dep_stop_time.platform}'
+            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}</i>'
         else:
             line = f'{time_format} {line} {headsign}'
 
         if self.dep_stop_time.dt < datetime.now():
             line = f'<del>{line}</del>'
 
-        return f'\n{line}'
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
 
 
 class Direction(Liner):
     def __init__(self, routes: list[Route]):
         self.routes = routes
 
-    def format(self):
+    def format(self, number):
         text = ""
         for i, route in enumerate(self.routes):
-            text += route.format(left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
+            number = number if i == 0 else None
+            text += route.format(number, left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
         return text
 
 

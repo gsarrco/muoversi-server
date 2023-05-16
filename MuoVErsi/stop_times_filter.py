@@ -102,8 +102,8 @@ class StopTimesFilter:
         if results_len == 0:
             text += '\n' + _('no_times')
 
-        for result in results:
-            text += result.format()
+        for i, result in enumerate(results):
+            text += result.format(i+1)
 
         keyboard = []
 
