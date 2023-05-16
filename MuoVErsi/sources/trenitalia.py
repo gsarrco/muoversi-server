@@ -15,6 +15,54 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+class TrenitaliaRoute(Route):
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
+            self.trip_id, self.dep_stop_time.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dt.strftime('%H:%M')
+
+        if self.dep_stop_time.delay > 0:
+            time_format += f'+{self.dep_stop_time.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        if self.arr_stop_time:
+            arr_time = self.arr_stop_time.dt.strftime('%H:%M')
+
+            time_format += "->"
+
+            if right_time_bold:
+                time_format += "<b>"
+
+            time_format += arr_time
+
+            if self.arr_stop_time.delay > 0:
+                time_format += f'+{self.arr_stop_time.delay}m'
+
+            if right_time_bold:
+                time_format += "</b>"
+
+        line = f'{time_format} {headsign}'
+
+        if self.dep_stop_time.platform:
+            line += f' bin.{self.dep_stop_time.platform}'
+
+        if self.dep_stop_time.dt < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
+
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
@@ -95,7 +143,8 @@ class Trenitalia(Source):
         result = cur.execute(query, (ref,)).fetchone()
         return Stop(ref, result[0], [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times)\
+            -> list[TrenitaliaRoute]:
         if start_time == '':
             start_dt = datetime.combine(day, time(5))
         else:
@@ -106,8 +155,8 @@ class Trenitalia(Source):
 
         return self.loop_get_times(LIMIT, station_id, dt)
 
-    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[Route]:
-        routes: list[Route] = []
+    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[TrenitaliaRoute]:
+        routes: list[TrenitaliaRoute] = []
 
         notimes = 0
 
@@ -127,7 +176,7 @@ class Trenitalia(Source):
 
         return routes[:limit]
 
-    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> list[Route]:
+    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> list[TrenitaliaRoute]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
@@ -169,7 +218,7 @@ class Trenitalia(Source):
                 platform = departure['binarioProgrammatoPartenzaDescrizione']
 
             dep_stop_time = StopTime(dep_time, 0, delay, platform)
-            route = Route(dep_stop_time, None, route_name, headsign, trip_id)
+            route = TrenitaliaRoute(dep_stop_time, None, route_name, headsign, trip_id)
             routes.append(route)
 
         return routes
