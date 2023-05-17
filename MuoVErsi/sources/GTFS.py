@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from geopy.distance import distance
 
 from MuoVErsi.helpers import cluster_strings, get_active_service_ids, time_25_to_1
-from MuoVErsi.sources.base import Source, Stop, StopTime
+from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -223,7 +223,7 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
 
@@ -257,15 +257,17 @@ class GTFS(Source):
         cur = self.con.cursor()
         results = cur.execute(query, params).fetchall()
 
-        stop_times = []
+        routes = []
         for result in results:
             dep_dt = time_25_to_1(day, result[0])
-            stop_times.append(StopTime(dep_dt, result[1], result[2], result[3], result[4]))
+            dep_stop_time = StopTime(dep_dt, result[4], 0, None)
+            route = Route(dep_stop_time, None, result[1], result[2], result[3])
+            routes.append(route)
 
-        return stop_times
+        return routes
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[StopTime]:
+                                     offset_times, limit, day) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -319,14 +321,17 @@ class GTFS(Source):
 
         results = cur.execute(query, params).fetchall()
 
-        stop_times = []
+        directions = []
 
         for result in results:
             dep_time = time_25_to_1(day, result[0])
             arr_time = time_25_to_1(day, result[5])
-            stop_times.append(StopTime(dep_time, result[1], result[2], result[3], result[4], arr_time))
+            dep_stop_time = StopTime(dep_time, result[4], 0, None)
+            arr_stop_time = StopTime(arr_time, result[4], 0, None)
+            route = Route(dep_stop_time, arr_stop_time, result[1], result[2], result[3])
+            directions.append(Direction([route]))
 
-        return stop_times
+        return directions
 
     def get_stop_from_ref(self, ref) -> Stop:
         # get stop name

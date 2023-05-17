@@ -4,7 +4,7 @@ from datetime import datetime, time, date, timedelta
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from MuoVErsi.sources.base import StopTime, Source
+from MuoVErsi.sources.base import Source, Liner
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -72,7 +72,7 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, db_file: Source, service_ids) -> tuple[list[StopTime], tuple]:
+    def get_times(self, db_file: Source, service_ids) -> tuple[list[Liner], tuple]:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
@@ -90,7 +90,7 @@ class StopTimesFilter:
 
         return results, service_ids
 
-    def format_times_text(self, results: list[StopTime], _, lang):
+    def format_times_text(self, results: list[Liner], _, lang):
         text = f'{self.title(_, lang)}'
 
         if self.day < date.today():
@@ -102,31 +102,8 @@ class StopTimesFilter:
         if results_len == 0:
             text += '\n' + _('no_times')
 
-        for result in results:
-            line, headsign, trip_id, stop_sequence = result.route_name, result.headsign, \
-                                                                  result.trip_id, result.stop_sequence
-
-            time_format = result.dep_time.strftime('%H:%M')
-
-            if result.dep_delay > 0:
-                time_format += f'+{result.dep_delay}m'
-
-            if result.arr_time:
-                arr_time = result.arr_time.strftime('%H:%M')
-                time_format += f'->{arr_time}'
-
-                if result.arr_delay > 0:
-                    time_format += f'+{result.arr_delay}m'
-
-            if result.platform:
-                line = f'<b>{time_format}</b> {headsign}\n⎿ {line} BIN. {result.platform}'
-            else:
-                line = f'<b>{time_format}</b> {line} {headsign}'
-
-            if result.dep_time < datetime.now():
-                line = f'<del>{line}</del>'
-
-            text += f'\n{line}'
+        for i, result in enumerate(results):
+            text += result.format(i+1)
 
         keyboard = []
 
