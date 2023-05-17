@@ -8,12 +8,60 @@ from urllib.parse import quote
 
 import requests
 
-from MuoVErsi.sources.base import Source, Stop, StopTime
+from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+
+class TrenitaliaRoute(Route):
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
+            self.trip_id, self.dep_stop_time.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dt.strftime('%H:%M')
+
+        if self.dep_stop_time.delay > 0:
+            time_format += f'+{self.dep_stop_time.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        if self.arr_stop_time:
+            arr_time = self.arr_stop_time.dt.strftime('%H:%M')
+
+            time_format += "->"
+
+            if right_time_bold:
+                time_format += "<b>"
+
+            time_format += arr_time
+
+            if self.arr_stop_time.delay > 0:
+                time_format += f'+{self.arr_stop_time.delay}m'
+
+            if right_time_bold:
+                time_format += "</b>"
+
+        line = f'{time_format} {headsign}'
+
+        if self.dep_stop_time.platform:
+            line += f' bin.{self.dep_stop_time.platform}'
+
+        if self.dep_stop_time.dt < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
 
 class Trenitalia(Source):
     def __init__(self, location=''):
@@ -95,7 +143,8 @@ class Trenitalia(Source):
         result = cur.execute(query, (ref,)).fetchone()
         return Stop(ref, result[0], [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times)\
+            -> list[TrenitaliaRoute]:
         if start_time == '':
             start_dt = datetime.combine(day, time(5))
         else:
@@ -106,28 +155,28 @@ class Trenitalia(Source):
 
         return self.loop_get_times(LIMIT, station_id, dt)
 
-    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[StopTime]:
-        stop_times: list[StopTime] = []
+    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[TrenitaliaRoute]:
+        routes: list[TrenitaliaRoute] = []
 
         notimes = 0
 
-        while len(stop_times) < limit:
-            stop_times += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
-            stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
-            if len(stop_times) == 0:
+        while len(routes) < limit:
+            routes += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
+            routes = list({route.trip_id: route for route in routes}.values())
+            if len(routes) == 0:
                 dt = dt + timedelta(hours=1)
                 notimes += 1
                 if notimes > 4:
                     break
                 continue
-            new_start_dt = stop_times[-1].dep_time
+            new_start_dt = routes[-1].dep_stop_time.dt
             if new_start_dt == dt:
                 break
             dt = new_start_dt
 
-        return stop_times[:limit]
+        return routes[:limit]
 
-    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids) -> list[StopTime]:
+    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> list[TrenitaliaRoute]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
@@ -137,7 +186,7 @@ class Trenitalia(Source):
 
         logger.info('URL: %s', url)
 
-        stop_times = []
+        routes = []
         for departure in r.json():
             if departure['categoria'] != 'REG':
                 continue
@@ -168,13 +217,14 @@ class Trenitalia(Source):
             else:
                 platform = departure['binarioProgrammatoPartenzaDescrizione']
 
-            stop_times.append(StopTime(dep_time, route_name, headsign, trip_id, stop_sequence, dep_delay=delay,
-                                       platform=platform))
+            dep_stop_time = StopTime(dep_time, 0, delay, platform)
+            route = TrenitaliaRoute(dep_stop_time, None, route_name, headsign, trip_id)
+            routes.append(route)
 
-        return stop_times
+        return routes
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[StopTime]:
+                                     offset_times, limit, day) -> list[Direction]:
         if start_time == '':
             date = datetime.combine(day, time(5))
         else:
@@ -195,9 +245,9 @@ class Trenitalia(Source):
             "criteria": {
                 "frecceOnly": False,
                 "regionalOnly": True,
-                "noChanges": True,
+                "noChanges": False,
                 "order": "DEPARTURE_DATE",
-                "limit": limit,
+                "limit": 5,
                 "offset": offset_times
             },
             "advancedSearchRequest": {
@@ -208,24 +258,46 @@ class Trenitalia(Source):
         if r.status_code != 200:
             return []
 
-        stop_times = []
+        resp = r.json()
 
-        solutions = r.json()['solutions']
+        data = {}
+        for solution_index, solution in enumerate(resp['solutions']):
+            for train in solution['solution']['nodes']:
+                origin = train['origin']
+                destination = train['destination']
+                train_id = int(train['train']['name'])
+                dep_time = datetime.strptime(train['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
+                    tzinfo=None)
+                arr_time = datetime.strptime(train['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
+                    tzinfo=None)
+                data.setdefault(origin, []).append((train_id, dep_time, arr_time, solution_index, destination))
 
-        train_ids = [int(solution['solution']['trains'][0]['name']) for solution in solutions]
-        first_train_dep_time = datetime\
-            .strptime(solutions[0]['solution']['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z')\
-            .replace(tzinfo=None)
+        solutions = {}
 
-        stop_times = self.loop_get_times(10, dep_station_id_raw, first_train_dep_time, train_ids)
+        for station_name, trains in data.items():
+            r = requests.get('https://www.lefrecce.it/Channels.Website.BFF.WEB/website/locations/search', params={
+                'name': station_name,
+                'limit': 1
+            })
 
-        # loop over solutions and stop times together
-        for solution, stop_time in zip(solutions, stop_times):
-            solution = solution['solution']
-            arr_time = datetime.strptime(solution['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(tzinfo=None)
-            stop_time.arr_time = arr_time
+            logger.info('URL: %s', r.url)
 
-        return stop_times
+            station_id = 'S' + str(r.json()[0]['id'])[4:]
+
+            train_ids = [train[0] for train in trains]
+            first_train_dep_time = trains[0][1]
+            routes = self.loop_get_times(10, station_id, first_train_dep_time, train_ids)
+            for route in routes:
+                route.dep_stop_time.stop_name = station_name
+
+            for train, route in zip(trains, routes):
+                route.arr_stop_time = StopTime(train[2], 0, 0, None, train[4])
+                solutions.setdefault(train[3], []).append(route)
+
+        solutions = dict(sorted(solutions.items()))
+        directions = [Direction(routes) for routes in solutions.values()]
+
+        return directions
 
     def get_andamento_treno(self, train_id, dep_station_id, arr_station_id) -> tuple[int, int]:
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/cercaNumeroTrenoTrenoAutocomplete/' \

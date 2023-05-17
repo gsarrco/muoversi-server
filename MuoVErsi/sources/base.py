@@ -11,17 +11,91 @@ class Stop:
 
 
 class StopTime:
-    def __init__(self, dep_time: datetime, route_name, headsign, trip_id, stop_sequence, arr_time=None, dep_delay=0,
-                 arr_delay=0, platform=None):
-        self.dep_time = dep_time
+    def __init__(self, dt: datetime, stop_sequence, delay: int, platform, stop_name: str = None):
+        self.dt = dt
+        self.stop_sequence = stop_sequence
+        self.delay = delay
+        self.platform = platform
+        self.stop_name = stop_name
+
+
+class Liner:
+    def format(self, number):
+        raise NotImplementedError
+
+
+class Route(Liner):
+    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None, route_name, headsign, trip_id):
+        self.dep_stop_time = dep_stop_time
+        self.arr_stop_time = arr_stop_time
         self.route_name = route_name
         self.headsign = headsign
         self.trip_id = trip_id
-        self.stop_sequence = stop_sequence
-        self.arr_time = arr_time
-        self.dep_delay = dep_delay
-        self.arr_delay = arr_delay
-        self.platform = platform
+
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
+            self.trip_id, self.dep_stop_time.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dt.strftime('%H:%M')
+
+        if self.dep_stop_time.delay > 0:
+            time_format += f'+{self.dep_stop_time.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        if self.arr_stop_time:
+            arr_time = self.arr_stop_time.dt.strftime('%H:%M')
+
+            time_format += "->"
+
+            if right_time_bold:
+                time_format += "<b>"
+
+            time_format += arr_time
+
+            if self.arr_stop_time.delay > 0:
+                time_format += f'+{self.arr_stop_time.delay}m'
+
+            if right_time_bold:
+                time_format += "</b>"
+
+        if self.dep_stop_time.platform:
+            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}</i>'
+        else:
+            line = f'{time_format} {line} {headsign}'
+
+        if self.dep_stop_time.dt < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
+
+
+class Direction(Liner):
+    def __init__(self, routes: list[Route]):
+        self.routes = routes
+
+    def format(self, number):
+        text = ""
+        for i, route in enumerate(self.routes):
+            number = number if i == 0 else None
+            text += route.format(number, left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
+
+            if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
+                next_route = self.routes[i + 1]
+                print(route.arr_stop_time.dt, next_route.dep_stop_time.dt)
+                duration_in_minutes = (next_route.dep_stop_time.dt - route.arr_stop_time.dt).seconds // 60
+                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop_name} ({duration_in_minutes}min)</i>'
+
+        return text
 
 
 class Source:
@@ -32,11 +106,11 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[StopTime]:
+                                     offset_times, limit, day) -> list[Route]:
         raise NotImplementedError
 
     def get_service_ids(self, day, service_ids) -> tuple:
