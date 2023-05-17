@@ -137,7 +137,7 @@ class Trenitalia(Source):
 
         return stops
 
-    def get_stop_from_ref(self, ref) -> Stop:
+    def get_stop_from_ref(self, ref) -> Stop | None:
         cur = self.con.cursor()
         query = 'SELECT name FROM stations WHERE id = ?'
         result = cur.execute(query, (ref,)).fetchone()
