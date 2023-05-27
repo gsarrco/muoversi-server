@@ -10,38 +10,69 @@ class Stop:
         self.ids = ids
 
 
-class StopTime:
-    def __init__(self, dt: datetime, stop_sequence, delay: int, platform, stop_name: str = None):
-        self.dt = dt
-        self.stop_sequence = stop_sequence
-        self.delay = delay
-        self.platform = platform
-        self.stop_name = stop_name
-
-
 class Liner:
     def format(self, number):
         raise NotImplementedError
 
-
-class Route(Liner):
-    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None, route_name, headsign, trip_id):
-        self.dep_stop_time = dep_stop_time
-        self.arr_stop_time = arr_stop_time
-        self.route_name = route_name
+class StopTime(Liner):
+    def __init__(self, dep_time: datetime, arr_time: datetime, stop_sequence, delay: int, platform, headsign, trip_id,
+                 route_name, stop_name: str = None):
+        self.dep_time = dep_time
+        self.arr_time = arr_time
+        self.stop_sequence = stop_sequence
+        self.delay = delay
+        self.platform = platform
         self.headsign = headsign
         self.trip_id = trip_id
+        self.route_name = route_name
+        self.stop_name = stop_name
 
     def format(self, number, left_time_bold=True, right_time_bold=True):
         line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
-            self.trip_id, self.dep_stop_time.stop_sequence
+            self.trip_id, self.stop_sequence
 
         time_format = ""
 
         if left_time_bold:
             time_format += "<b>"
 
-        time_format += self.dep_stop_time.dt.strftime('%H:%M')
+        time_format += self.dep_time.strftime('%H:%M')
+
+        if self.delay > 0:
+            time_format += f'+{self.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        if self.platform:
+            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.platform}</i>'
+        else:
+            line = f'{time_format} {line} {headsign}'
+
+        if self.dep_time < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
+
+
+class Route(Liner):
+    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None):
+        self.dep_stop_time = dep_stop_time
+        self.arr_stop_time = arr_stop_time
+
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
+            self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dep_time.strftime('%H:%M')
 
         if self.dep_stop_time.delay > 0:
             time_format += f'+{self.dep_stop_time.delay}m'
@@ -50,7 +81,7 @@ class Route(Liner):
             time_format += "</b>"
 
         if self.arr_stop_time:
-            arr_time = self.arr_stop_time.dt.strftime('%H:%M')
+            arr_time = self.arr_stop_time.dep_time.strftime('%H:%M')
 
             time_format += "->"
 
@@ -70,7 +101,7 @@ class Route(Liner):
         else:
             line = f'{time_format} {line} {headsign}'
 
-        if self.dep_stop_time.dt < datetime.now():
+        if self.dep_stop_time.dep_time < datetime.now():
             line = f'<del>{line}</del>'
 
         if number:
@@ -91,8 +122,8 @@ class Direction(Liner):
 
             if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
                 next_route = self.routes[i + 1]
-                print(route.arr_stop_time.dt, next_route.dep_stop_time.dt)
-                duration_in_minutes = (next_route.dep_stop_time.dt - route.arr_stop_time.dt).seconds // 60
+                print(route.arr_stop_time.dep_time, next_route.dep_stop_time.dep_time)
+                duration_in_minutes = (next_route.dep_stop_time.dep_time - route.arr_stop_time.dep_time).seconds // 60
                 text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop_name} ({duration_in_minutes}min)</i>'
 
         return text
@@ -106,7 +137,7 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,

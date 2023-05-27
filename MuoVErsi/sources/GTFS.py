@@ -75,6 +75,11 @@ def get_clusters_of_stops(stops):
     return clusters
 
 
+class GTFSStopTime(StopTime):
+    def __init__(self, dt: datetime, stop_sequence, headsign, trip_id, route_name):
+        super().__init__(dt, dt, stop_sequence, 0, None, headsign, trip_id, route_name)
+
+
 class GTFS(Source):
     def __init__(self, transport_type, gtfs_version=None, location=''):
         super().__init__(transport_type, True)
@@ -223,7 +228,7 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[Route]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[GTFSStopTime]:
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
 
@@ -257,14 +262,13 @@ class GTFS(Source):
         cur = self.con.cursor()
         results = cur.execute(query, params).fetchall()
 
-        routes = []
+        stop_times = []
         for result in results:
             dep_dt = time_25_to_1(day, result[0])
-            dep_stop_time = StopTime(dep_dt, result[4], 0, None)
-            route = Route(dep_stop_time, None, result[1], result[2], result[3])
-            routes.append(route)
+            stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1])
+            stop_times.append(stop_time)
 
-        return routes
+        return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, limit, day) -> list[Direction]:
@@ -326,9 +330,9 @@ class GTFS(Source):
         for result in results:
             dep_time = time_25_to_1(day, result[0])
             arr_time = time_25_to_1(day, result[5])
-            dep_stop_time = StopTime(dep_time, result[4], 0, None)
-            arr_stop_time = StopTime(arr_time, result[4], 0, None)
-            route = Route(dep_stop_time, arr_stop_time, result[1], result[2], result[3])
+            dep_stop_time = GTFSStopTime(dep_time, result[4], result[2], result[3], result[1])
+            arr_stop_time = GTFSStopTime(arr_time, result[4], result[2], result[3], result[1])
+            route = Route(dep_stop_time, arr_stop_time)
             directions.append(Direction([route]))
 
         return directions
