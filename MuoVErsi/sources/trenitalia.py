@@ -390,7 +390,7 @@ class Trenitalia(Source):
                                 binario
                             FROM stop_times
                             WHERE stop_times.idFermata = ?
-                            ORDER BY stop_times.partenza_teorica
+                            ORDER BY stop_times.arrivo_teorico
                         ) a ON d.train_id = a.train_id
                         INNER JOIN trains t ON d.train_id = t.id
                     WHERE d.idFermata = ? AND d.partenza_teorica BETWEEN ? AND ?
