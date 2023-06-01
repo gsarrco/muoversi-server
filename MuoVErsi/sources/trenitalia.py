@@ -83,7 +83,7 @@ class TrenitaliaRoute(Route):
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
-        super().__init__('treni', False)
+        super().__init__('treni', True)
 
         if os.path.exists(self.file_path()):
             self.con = self.connect_to_database()
@@ -271,7 +271,37 @@ class Trenitalia(Source):
         dt = start_dt
         station_id = dep_stop_ids[0]
 
-        return self.loop_get_times(LIMIT, station_id, dt)
+        # get stop_times from db
+        cur = self.con.cursor()
+        cur.row_factory = sqlite3.Row
+        raw_stop_times = cur.execute("""
+            SELECT
+                s.arrivo_teorico as arr_time,
+                s.partenza_teorica as dep_time,
+                t.codOrigine as origin_id,
+                t.destinazione as destination,
+                t.numeroTreno as trip_id,
+                t.dataPartenzaTreno as origin_dep_time,
+                s.binario as platform
+            FROM stop_times s
+            INNER JOIN trains t ON s.train_id = t.id
+            WHERE s.idFermata = ? AND s.partenza_teorica > ?
+            ORDER BY s.partenza_teorica
+            LIMIT ? OFFSET ?
+            """, (station_id, dt, LIMIT, offset_times)).fetchall()
+
+        stop_times = []
+
+        for raw_stop_time in raw_stop_times:
+            dep_time = datetime.strptime(raw_stop_time['dep_time'], '%Y-%m-%d %H:%M:%S')
+            arr_time = datetime.strptime(raw_stop_time['arr_time'], '%Y-%m-%d %H:%M:%S')
+            stop_time = TrenitaliaStopTime(raw_stop_time['origin_id'], dep_time, None, 0, raw_stop_time['platform'],
+                                           raw_stop_time['destination'], raw_stop_time['trip_id'],
+                                           raw_stop_time['trip_id'], arr_time=arr_time,
+                                           origin_dep_time=raw_stop_time['origin_dep_time'])
+            stop_times.append(stop_time)
+
+        return stop_times
 
     def loop_get_times(self, limit, station_id, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
         results: list[TrenitaliaStopTime] = []
@@ -373,77 +403,64 @@ class Trenitalia(Source):
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[Direction]:
+                                     offset_times, LIMIT, day) -> list[Direction]:
         if start_time == '':
-            date = datetime.combine(day, time(5))
+            dt = datetime.combine(day, time(5))
         else:
-            date = datetime.combine(day, start_time) - timedelta(minutes=5)
+            dt = datetime.combine(day, start_time) - timedelta(minutes=5)
 
-        # S02512 to 2512
-        dep_station_id_raw = list(dep_stop_ids)[0]
-        dep_station_id = int('8300' + dep_station_id_raw[1:])
-        arr_station_id_raw = list(arr_stop_ids)[0]
-        arr_station_id = int('8300' + arr_station_id_raw[1:])
-        url = 'https://www.lefrecce.it/Channels.Website.BFF.WEB/website/ticket/solutions'
-        r = requests.post(url, json={
-            "departureLocationId": dep_station_id,
-            "arrivalLocationId": arr_station_id,
-            "departureTime": date.isoformat(),
-            "adults": 1,
-            "children": 0,
-            "criteria": {
-                "frecceOnly": False,
-                "regionalOnly": True,
-                "noChanges": False,
-                "order": "DEPARTURE_DATE",
-                "limit": 5,
-                "offset": offset_times
-            },
-            "advancedSearchRequest": {
-                "bestFare": False
-            }
-        })
+        dep_station_id = next(iter(dep_stop_ids))
+        arr_station_id = next(iter(arr_stop_ids))
 
-        if r.status_code != 200:
-            return []
+        cur = self.con.cursor()
+        cur.row_factory = sqlite3.Row
+        raw_stop_times = cur.execute("""
+                    SELECT
+                        d.arrivo_teorico as d_arr_time,
+                        d.partenza_teorica as d_dep_time,
+                        t.codOrigine as origin_id,
+                        t.destinazione as destination,
+                        t.numeroTreno as trip_id,
+                        t.dataPartenzaTreno as origin_dep_time,
+                        d.binario as d_platform,
+                        a.partenza_teorica as a_dep_time,
+                        a.arrivo_teorico as a_arr_time,
+                        a.binario as a_platform
+                    FROM stop_times d
+                        INNER JOIN (
+                            SELECT
+                                train_id,
+                                arrivo_teorico,
+                                partenza_teorica,
+                                binario
+                            FROM stop_times
+                            WHERE stop_times.idFermata = ?
+                            ORDER BY stop_times.partenza_teorica
+                        ) a ON d.train_id = a.train_id
+                        INNER JOIN trains t ON d.train_id = t.id
+                    WHERE d.idFermata = ? AND d.partenza_teorica > ?
+                        AND d_dep_time < a_arr_time
+                    ORDER BY d.partenza_teorica
+                    LIMIT ? OFFSET ?
+                    """, (arr_station_id, dep_station_id, dt, LIMIT, offset_times)).fetchall()
 
-        resp = r.json()
+        directions = []
 
-        data = {}
-        for solution_index, solution in enumerate(resp['solutions']):
-            for train in solution['solution']['nodes']:
-                origin = train['origin']
-                destination = train['destination']
-                train_id = int(train['train']['name'])
-                dep_time = datetime.strptime(train['departureTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
-                    tzinfo=None)
-                arr_time = datetime.strptime(train['arrivalTime'], '%Y-%m-%dT%H:%M:%S.%f%z').replace(
-                    tzinfo=None)
-                data.setdefault(origin, []).append((train_id, dep_time, arr_time, solution_index, destination))
-
-        solutions = {}
-
-        for station_name, trains in data.items():
-            r = requests.get('https://www.lefrecce.it/Channels.Website.BFF.WEB/website/locations/search', params={
-                'name': station_name,
-                'limit': 1
-            })
-
-            logger.info('URL: %s', r.url)
-
-            station_id = 'S' + str(r.json()[0]['id'])[4:]
-
-            train_ids = [train[0] for train in trains]
-            first_train_dep_time = trains[0][1]
-            dep_stop_times = self.loop_get_times(10, station_id, first_train_dep_time, train_ids)
-
-            for train, dep_stop_time in zip(trains, dep_stop_times):
-                arr_stop_time = TrenitaliaStopTime(dep_stop_time.origin_id, train[2], None, 0, None, train[4], train[0], train[0])
-                route = TrenitaliaRoute(dep_stop_time, arr_stop_time)
-                solutions.setdefault(train[3], []).append(route)
-
-        solutions = dict(sorted(solutions.items()))
-        directions = [Direction(routes) for routes in solutions.values()]
+        for raw_stop_time in raw_stop_times:
+            d_dep_time = datetime.strptime(raw_stop_time['d_dep_time'], '%Y-%m-%d %H:%M:%S')
+            d_arr_time = datetime.strptime(raw_stop_time['d_arr_time'], '%Y-%m-%d %H:%M:%S')
+            a_dep_time = datetime.strptime(raw_stop_time['a_dep_time'], '%Y-%m-%d %H:%M:%S')
+            a_arr_time = datetime.strptime(raw_stop_time['a_arr_time'], '%Y-%m-%d %H:%M:%S')
+            d_stop_time = TrenitaliaStopTime(raw_stop_time['origin_id'], d_dep_time, None, 0, raw_stop_time['d_platform'],
+                                           raw_stop_time['destination'], raw_stop_time['trip_id'],
+                                           raw_stop_time['trip_id'], arr_time=d_arr_time,
+                                           origin_dep_time=raw_stop_time['origin_dep_time'])
+            a_stop_time = TrenitaliaStopTime(raw_stop_time['origin_id'], a_dep_time, None, 0, raw_stop_time['a_platform'],
+                                             raw_stop_time['destination'], raw_stop_time['trip_id'],
+                                             raw_stop_time['trip_id'], arr_time=a_arr_time,
+                                             origin_dep_time=raw_stop_time['origin_dep_time'])
+            route = Route(d_stop_time, a_stop_time)
+            directions.append(Direction([route]))
 
         return directions
 
