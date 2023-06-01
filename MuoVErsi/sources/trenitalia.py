@@ -145,12 +145,20 @@ class Trenitalia(Source):
                                 )
                     train_id = cur.lastrowid
 
-                # insert stop_time
-                cur.execute(
-                    'INSERT OR IGNORE INTO stop_times (train_id, idFermata, arrivo_teorico, partenza_teorica, binario) '
-                    'VALUES (?, ?, ?, ?, ?)',
-                    (train_id, station[0], stop_time.arr_time, stop_time.dep_time, stop_time.platform)
-                    )
+                # select stop_time if exists
+                db_stop_time = cur.execute('SELECT id FROM stop_times WHERE train_id = ? AND idFermata = ?',
+                            (train_id, station[0])
+                            ).fetchone()
+
+                if db_stop_time:
+                    cur.execute('UPDATE stop_times SET binario = ? WHERE id = ?',
+                                (stop_time.platform, db_stop_time[0]))
+                else:
+                    cur.execute(
+                        'INSERT OR IGNORE INTO stop_times (train_id, idFermata, arrivo_teorico, partenza_teorica, binario) '
+                        'VALUES (?, ?, ?, ?, ?)',
+                        (train_id, station[0], stop_time.arr_time, stop_time.dep_time, stop_time.platform)
+                        )
 
                 self.con.commit()
 
