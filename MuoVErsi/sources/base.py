@@ -135,17 +135,19 @@ class Direction(Liner):
 
 
 class Source:
+    LIMIT = 10
+
     def __init__(self, name):
         self.name = name
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times) -> list[StopTime]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[Route]:
+                                     offset_times, day) -> list[Direction]:
         raise NotImplementedError
 
     def get_service_ids(self, day, service_ids) -> tuple:

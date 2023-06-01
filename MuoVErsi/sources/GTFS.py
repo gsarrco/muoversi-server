@@ -228,7 +228,7 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times) -> list[GTFSStopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times) -> list[GTFSStopTime]:
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND departure_time >= ?' if start_time != '' else ''
 
@@ -257,7 +257,7 @@ class GTFS(Source):
             minutes_5 = start_datetime - timedelta(minutes=5)
             params += (minutes_5.strftime('%H:%M'),)
 
-        params += (LIMIT, offset_times)
+        params += (self.LIMIT, offset_times)
 
         cur = self.con.cursor()
         results = cur.execute(query, params).fetchall()
@@ -271,7 +271,7 @@ class GTFS(Source):
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, limit, day) -> list[Direction]:
+                                     offset_times, day) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -321,7 +321,7 @@ class GTFS(Source):
             minutes_5 = start_datetime - timedelta(minutes=5)
             params += (minutes_5.strftime('%H:%M'),)
 
-        params += (limit, offset_times)
+        params += (self.LIMIT, offset_times)
 
         results = cur.execute(query, params).fetchall()
 

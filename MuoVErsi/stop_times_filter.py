@@ -11,12 +11,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LIMIT = 10
-MAX_CHOICE_BUTTONS_PER_ROW = LIMIT // 2
-
 
 class StopTimesFilter:
-    def __init__(self, source: Source, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0, offset_lines=0,
+    def __init__(self, source: Source, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0,
+                 offset_lines=0,
                  query_data=None, arr_stop_ids=None, dep_cluster_name=None, arr_cluster_name=None, first_time=False):
 
         if query_data:
@@ -80,10 +78,10 @@ class StopTimesFilter:
 
         if self.arr_stop_ids:
             results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
-                                                        line, start_time, self.offset_times, LIMIT, day)
+                                                           line, start_time, self.offset_times, day)
             return results, service_ids
 
-        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, LIMIT, day, self.offset_times)
+        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, day, self.offset_times)
 
         if self.lines is None:
             self.lines = db_file.get_lines_from_stops(service_ids, dep_stop_ids)
@@ -103,7 +101,7 @@ class StopTimesFilter:
             text += '\n' + _('no_times')
 
         for i, result in enumerate(results):
-            text += result.format(i+1)
+            text += result.format(i + 1)
 
         keyboard = []
 
@@ -114,9 +112,9 @@ class StopTimesFilter:
             paging_buttons.append(self.inline_button('<<', start_time=''))
         if results_len > 0:
             if self.offset_times > 0:
-                paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - LIMIT))
-            if results_len == LIMIT:
-                paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + LIMIT))
+                paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - self.source.LIMIT))
+            if results_len == self.source.LIMIT:
+                paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + self.source.LIMIT))
 
         keyboard.append(paging_buttons)
 
