@@ -107,9 +107,9 @@ class Trenitalia(Source):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 train_id INTEGER,
                 idFermata TEXT,
-                arrivo_teorico TEXT NOT NULL,
+                arrivo_teorico TEXT,
                 arrivo_reale TEXT,
-                partenza_teorica TEXT NOT NULL,
+                partenza_teorica TEXT,
                 partenza_reale TEXT,
                 ritardo_arrivo TEXT,
                 ritardo_partenza TEXT,
@@ -403,8 +403,8 @@ class Trenitalia(Source):
 
         for raw_stop_time in raw_stop_times:
             d_dep_time = datetime.strptime(raw_stop_time['d_dep_time'], '%Y-%m-%d %H:%M:%S')
-            d_arr_time = datetime.strptime(raw_stop_time['d_arr_time'], '%Y-%m-%d %H:%M:%S')
-            a_dep_time = datetime.strptime(raw_stop_time['a_dep_time'], '%Y-%m-%d %H:%M:%S')
+            d_arr_time = datetime.strptime(raw_stop_time['d_arr_time'], '%Y-%m-%d %H:%M:%S') if raw_stop_time['d_arr_time'] else None
+            a_dep_time = datetime.strptime(raw_stop_time['a_dep_time'], '%Y-%m-%d %H:%M:%S') if raw_stop_time['a_dep_time'] else None
             a_arr_time = datetime.strptime(raw_stop_time['a_arr_time'], '%Y-%m-%d %H:%M:%S')
             d_stop_time = TrenitaliaStopTime(raw_stop_time['origin_id'], d_dep_time, None, 0, raw_stop_time['d_platform'],
                                            raw_stop_time['destination'], raw_stop_time['trip_id'],
