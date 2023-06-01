@@ -160,6 +160,7 @@ class Trenitalia(Source):
                 partenza_reale TEXT,
                 ritardo_arrivo TEXT,
                 ritardo_partenza TEXT,
+                binario TEXT,
                 UNIQUE(train_id, idFermata),
                 FOREIGN KEY(train_id) REFERENCES trains(id),
                 FOREIGN KEY(idFermata) REFERENCES stations(id)
@@ -192,10 +193,11 @@ class Trenitalia(Source):
                     train_id = cur.lastrowid
 
                 # insert stop_time
-                cur.execute('INSERT OR IGNORE INTO stop_times (train_id, idFermata, arrivo_teorico, partenza_teorica) '
-                            'VALUES (?, ?, ?, ?)',
-                            (train_id, station[0], stop_time.arr_time, stop_time.dep_time)
-                            )
+                cur.execute(
+                    'INSERT OR IGNORE INTO stop_times (train_id, idFermata, arrivo_teorico, partenza_teorica, binario) '
+                    'VALUES (?, ?, ?, ?, ?)',
+                    (train_id, station[0], stop_time.arr_time, stop_time.dep_time, stop_time.platform)
+                    )
 
                 self.con.commit()
 
@@ -352,10 +354,13 @@ class Trenitalia(Source):
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
 
-            if departure['binarioEffettivoPartenzaDescrizione']:
-                platform = departure['binarioEffettivoPartenzaDescrizione']
-            else:
-                platform = departure['binarioProgrammatoPartenzaDescrizione']
+            type_text = 'Partenza' if type == 'partenze' else 'Arrivo'
+
+            platform = departure[f'binarioProgrammato{type_text}Descrizione']
+
+            if departure[f'binarioEffettivo{type_text}Descrizione']:
+                if departure[f'binarioEffettivo{type_text}Descrizione'] != '':
+                    platform = departure[f'binarioEffettivo{type_text}Descrizione']
 
             origin_dep_time = departure['dataPartenzaTreno']
             origin_id = departure['codOrigine']
