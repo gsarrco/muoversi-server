@@ -97,7 +97,12 @@ class Route(Liner):
                 time_format += "</b>"
 
         if self.dep_stop_time.platform:
-            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}</i>'
+            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}'
+
+            if self.arr_stop_time.platform:
+                line += f' -> {self.arr_stop_time.platform}'
+
+            line += '</i>'
         else:
             line = f'{time_format} {line} {headsign}'
 

@@ -33,54 +33,6 @@ class TrenitaliaStopTime(StopTime):
         self.arr_time = arr_stop_time.arr_time
 
 
-class TrenitaliaRoute(Route):
-    def format(self, number, left_time_bold=True, right_time_bold=True):
-        line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
-            self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
-
-        time_format = ""
-
-        if left_time_bold:
-            time_format += "<b>"
-
-        time_format += self.dep_stop_time.dep_time.strftime('%H:%M')
-
-        if self.dep_stop_time.delay > 0:
-            time_format += f'+{self.dep_stop_time.delay}m'
-
-        if left_time_bold:
-            time_format += "</b>"
-
-        if self.arr_stop_time:
-            arr_time = self.arr_stop_time.dep_time.strftime('%H:%M')
-
-            time_format += "->"
-
-            if right_time_bold:
-                time_format += "<b>"
-
-            time_format += arr_time
-
-            if self.arr_stop_time.delay > 0:
-                time_format += f'+{self.arr_stop_time.delay}m'
-
-            if right_time_bold:
-                time_format += "</b>"
-
-        line = f'{time_format} {headsign}'
-
-        if self.dep_stop_time.platform:
-            line += f' bin.{self.dep_stop_time.platform}'
-
-        if self.dep_stop_time.dep_time < datetime.now():
-            line = f'<del>{line}</del>'
-
-        if number:
-            return f'\n{number}. {line}'
-        else:
-            return f'\n⎿ {line}'
-
-
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
