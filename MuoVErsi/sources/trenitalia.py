@@ -97,6 +97,7 @@ class TrenitaliaRoute(Route):
 
         dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
         arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
+        headsign = headsign[:17]
         line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {dep_platform} -> {arr_platform}</i>'
 
         if self.dep_stop_time.dep_time < datetime.now():
@@ -109,6 +110,8 @@ class TrenitaliaRoute(Route):
 
 
 class Trenitalia(Source):
+    LIMIT = 7
+
     def __init__(self, location=''):
         self.location = location
         super().__init__('treni')
@@ -295,7 +298,7 @@ class Trenitalia(Source):
         result = cur.execute(query, (ref,)).fetchone()
         return Stop(ref, result[0], [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times)\
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times)\
             -> list[TrenitaliaStopTime]:
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
@@ -324,7 +327,7 @@ class Trenitalia(Source):
             WHERE s.idFermata = ? AND s.partenza_teorica BETWEEN ? AND ?
             ORDER BY s.partenza_teorica
             LIMIT ? OFFSET ?
-            """, (station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
+            """, (station_id, start_dt, end_dt, self.LIMIT, offset_times)).fetchall()
 
         stop_times = []
 
@@ -439,7 +442,7 @@ class Trenitalia(Source):
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, LIMIT, day) -> list[Direction]:
+                                     offset_times, day) -> list[Direction]:
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
@@ -480,7 +483,7 @@ class Trenitalia(Source):
                         AND d_dep_time < a_arr_time
                     ORDER BY d.partenza_teorica
                     LIMIT ? OFFSET ?
-                    """, (arr_station_id, dep_station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
+                    """, (arr_station_id, dep_station_id, start_dt, end_dt, self.LIMIT, offset_times)).fetchall()
 
         directions = []
 
