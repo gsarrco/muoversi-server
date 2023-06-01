@@ -76,7 +76,7 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     inline_keyboard = [[]]
 
     for source in thismodule.sources:
-        inline_keyboard[0].append(InlineKeyboardButton(_(source), callback_data="0" + source))
+        inline_keyboard[0].append(InlineKeyboardButton(_(source), callback_data="T0" + source))
 
     await update.message.reply_text(
         _('choose_service'),
@@ -93,10 +93,10 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
     send_second_message = True
     if update.callback_query:
         query = update.callback_query
-        if query.data[0] == '1':
+        if query.data[1] == '1':
             send_second_message = False
         chat_id = query.message.chat_id
-        short_transport_type = query.data[1:]
+        short_transport_type = query.data[2:]
         context.user_data['transport_type'] = short_transport_type
         bot = query.get_bot()
         await query.answer('')
@@ -114,7 +114,7 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
     inline_keyboard = [[]]
 
     for source in others_sources:
-        inline_keyboard[0].append(InlineKeyboardButton(_('change_service') % _(source), callback_data="1" + source))
+        inline_keyboard[0].append(InlineKeyboardButton(_('change_service') % _(source), callback_data="T1" + source))
 
     transport_type = _(short_transport_type)
 
@@ -447,20 +447,20 @@ def main() -> None:
         name='orari',
         entry_points=[MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         states={
-            SPECIFY_STOP: [CallbackQueryHandler(specify_stop)],
+            SPECIFY_STOP: [CallbackQueryHandler(specify_stop, r'^T')],
             SEARCH_STOP: [
                 MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
-                CallbackQueryHandler(specify_stop)
+                CallbackQueryHandler(specify_stop, r'^T'),
             ],
-            SPECIFY_LINE: [CallbackQueryHandler(specify_line)],
+            SPECIFY_LINE: [CallbackQueryHandler(specify_line, r'^T')],
             SEARCH_LINE: [
                 MessageHandler(filters.TEXT & (~filters.COMMAND), search_line),
-                CallbackQueryHandler(specify_line)
+                CallbackQueryHandler(specify_line, r'^T')
             ],
             SHOW_LINE: [CallbackQueryHandler(show_line)],
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
-                CallbackQueryHandler(filter_show_stop, r'^\d'),
+                CallbackQueryHandler(filter_show_stop, r'^Q'),
                 CallbackQueryHandler(ride_view_show_stop, r'^R'),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
