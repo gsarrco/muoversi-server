@@ -33,6 +33,53 @@ class TrenitaliaStopTime(StopTime):
         self.arr_time = arr_stop_time.arr_time
 
 
+class TrenitaliaRoute(Route):
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
+            self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_stop_time.dep_time.strftime('%H:%M')
+
+        if self.dep_stop_time.delay > 0:
+            time_format += f'+{self.dep_stop_time.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        if self.arr_stop_time:
+            arr_time = self.arr_stop_time.arr_time.strftime('%H:%M')
+
+            time_format += "->"
+
+            if right_time_bold:
+                time_format += "<b>"
+
+            time_format += arr_time
+
+            if self.arr_stop_time.delay > 0:
+                time_format += f'+{self.arr_stop_time.delay}m'
+
+            if right_time_bold:
+                time_format += "</b>"
+
+        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
+        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
+        line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {dep_platform} -> {arr_platform}</i>'
+
+        if self.dep_stop_time.dep_time < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
+
+
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
@@ -422,7 +469,7 @@ class Trenitalia(Source):
                                              raw_stop_time['destination'], raw_stop_time['trip_id'],
                                              raw_stop_time['trip_id'], arr_time=a_arr_time,
                                              origin_dep_time=raw_stop_time['origin_dep_time'])
-            route = Route(d_stop_time, a_stop_time)
+            route = TrenitaliaRoute(d_stop_time, a_stop_time)
             directions.append(Direction([route]))
 
         return directions
