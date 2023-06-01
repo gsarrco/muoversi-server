@@ -39,7 +39,7 @@ SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = ran
 localedir = os.path.join(parent_dir, 'locales')
 
 
-def clean_user_data(context):
+def clean_user_data(context, keep_transport_type=True):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
     context.user_data.pop('service_ids', None)
@@ -47,12 +47,15 @@ def clean_user_data(context):
     context.user_data.pop('arr_stop_ids', None)
     context.user_data.pop('dep_cluster_name', None)
     context.user_data.pop('arr_cluster_name', None)
+    if not keep_transport_type:
+        context.user_data.pop('transport_type', None)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
+    clean_user_data(context, False)
     await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
 
 
