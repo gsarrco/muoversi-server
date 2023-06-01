@@ -15,7 +15,7 @@ class Liner:
         raise NotImplementedError
 
 class StopTime(Liner):
-    def __init__(self, dep_time: datetime, arr_time: datetime, stop_sequence, delay: int, platform, headsign, trip_id,
+    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform, headsign, trip_id,
                  route_name, stop_name: str = None):
         self.dep_time = dep_time
         self.arr_time = arr_time
@@ -81,7 +81,7 @@ class Route(Liner):
             time_format += "</b>"
 
         if self.arr_stop_time:
-            arr_time = self.arr_stop_time.dep_time.strftime('%H:%M')
+            arr_time = self.arr_stop_time.arr_time.strftime('%H:%M')
 
             time_format += "->"
 
@@ -97,7 +97,12 @@ class Route(Liner):
                 time_format += "</b>"
 
         if self.dep_stop_time.platform:
-            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}</i>'
+            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}'
+
+            if self.arr_stop_time.platform:
+                line += f' -> {self.arr_stop_time.platform}'
+
+            line += '</i>'
         else:
             line = f'{time_format} {line} {headsign}'
 
@@ -130,9 +135,8 @@ class Direction(Liner):
 
 
 class Source:
-    def __init__(self, name, allow_offset_buttons_single_stop):
+    def __init__(self, name):
         self.name = name
-        self.allow_offset_buttons_single_stop = allow_offset_buttons_single_stop
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
