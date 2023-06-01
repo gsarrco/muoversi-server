@@ -21,7 +21,7 @@ class StopTimesFilter:
 
         if query_data:
             day_raw, line, start_time_raw, offset_times, offset_lines = \
-                query_data.split('/')
+                query_data[1:].split('/')
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
@@ -47,7 +47,7 @@ class StopTimesFilter:
         to_print['start_time'] = to_print['start_time'].isoformat(timespec='minutes') if to_print[
                                                                                              'start_time'] != '' else ''
 
-        result = f'{to_print["day"]}/{to_print["line"]}/' \
+        result = f'Q{to_print["day"]}/{to_print["line"]}/' \
                  f'{to_print["start_time"]}/{to_print["offset_times"]}/{to_print["offset_lines"]}'
         logger.info(result)
         return result
