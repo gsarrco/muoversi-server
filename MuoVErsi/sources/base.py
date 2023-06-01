@@ -81,7 +81,7 @@ class Route(Liner):
             time_format += "</b>"
 
         if self.arr_stop_time:
-            arr_time = self.arr_stop_time.dep_time.strftime('%H:%M')
+            arr_time = self.arr_stop_time.arr_time.strftime('%H:%M')
 
             time_format += "->"
 
