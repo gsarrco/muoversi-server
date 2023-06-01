@@ -135,9 +135,8 @@ class Direction(Liner):
 
 
 class Source:
-    def __init__(self, name, allow_offset_buttons_single_stop):
+    def __init__(self, name):
         self.name = name
-        self.allow_offset_buttons_single_stop = allow_offset_buttons_single_stop
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
