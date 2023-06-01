@@ -32,6 +32,34 @@ class TrenitaliaStopTime(StopTime):
     def merge(self, arr_stop_time: 'TrenitaliaStopTime'):
         self.arr_time = arr_stop_time.arr_time
 
+    def format(self, number, left_time_bold=True, right_time_bold=True):
+        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
+            self.trip_id, self.stop_sequence
+
+        time_format = ""
+
+        if left_time_bold:
+            time_format += "<b>"
+
+        time_format += self.dep_time.strftime('%H:%M')
+
+        if self.delay > 0:
+            time_format += f'+{self.delay}m'
+
+        if left_time_bold:
+            time_format += "</b>"
+
+        platform = self.platform if self.platform else '/'
+        line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {platform}</i>'
+
+        if self.dep_time < datetime.now():
+            line = f'<del>{line}</del>'
+
+        if number:
+            return f'\n{number}. {line}'
+        else:
+            return f'\n⎿ {line}'
+
 
 class TrenitaliaRoute(Route):
     def format(self, number, left_time_bold=True, right_time_bold=True):
