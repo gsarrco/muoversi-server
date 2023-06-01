@@ -445,7 +445,7 @@ class Trenitalia(Source):
                         AND d_dep_time < a_arr_time
                     ORDER BY d.partenza_teorica
                     LIMIT ? OFFSET ?
-                    """, (dep_station_id, arr_station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
+                    """, (arr_station_id, dep_station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
 
         directions = []
 
