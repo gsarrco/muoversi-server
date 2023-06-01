@@ -118,8 +118,7 @@ class StopTimesFilter:
             if results_len == LIMIT:
                 paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + LIMIT))
 
-        if self.source.allow_offset_buttons_single_stop:
-            keyboard.append(paging_buttons)
+        keyboard.append(paging_buttons)
 
         # Lines buttons
         if self.line == '':

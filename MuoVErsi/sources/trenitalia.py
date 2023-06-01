@@ -36,7 +36,7 @@ class TrenitaliaStopTime(StopTime):
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
-        super().__init__('treni', True)
+        super().__init__('treni')
 
         if os.path.exists(self.file_path()):
             self.con = self.connect_to_database()
