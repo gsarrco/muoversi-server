@@ -15,7 +15,7 @@ class Liner:
         raise NotImplementedError
 
 class StopTime(Liner):
-    def __init__(self, dep_time: datetime, arr_time: datetime, stop_sequence, delay: int, platform, headsign, trip_id,
+    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform, headsign, trip_id,
                  route_name, stop_name: str = None):
         self.dep_time = dep_time
         self.arr_time = arr_time

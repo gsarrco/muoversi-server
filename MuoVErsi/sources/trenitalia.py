@@ -7,6 +7,7 @@ from sqlite3 import Connection
 from urllib.parse import quote
 
 import requests
+from tqdm import tqdm
 
 from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
@@ -17,12 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 class TrenitaliaStopTime(StopTime):
-    def __init__(self, dep_time: datetime, stop_sequence, delay: int, platform, headsign, trip_id, route_name,
+    def __init__(self, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform, headsign, trip_id, route_name,
                  stop_name: str = None,
-                 arr_time: datetime = None):
+                 arr_time: datetime = None,
+                 origin_dep_time: int = None, destination: str = None):
         if arr_time is None:
             arr_time = dep_time
         super().__init__(dep_time, arr_time, stop_sequence, delay, platform, headsign, trip_id, route_name, stop_name)
+        self.origin_dep_time = origin_dep_time
+        self.destination = destination
+        self.origin_id = origin_id
+
+    def merge(self, arr_stop_time: 'TrenitaliaStopTime'):
+        self.arr_time = arr_stop_time.arr_time
 
 
 class TrenitaliaRoute(Route):
@@ -123,6 +131,105 @@ class Trenitalia(Source):
 
         self.con.commit()
 
+    def save_trains(self):
+        cur = self.con.cursor()
+
+        # create table "trains" in database if not exists
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS trains (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codOrigine TEXT,
+                destinazione TEXT,
+                numeroTreno INTEGER,
+                dataPartenzaTreno INTEGER,
+                statoTreno TEXT DEFAULT 'regol.',
+                FOREIGN KEY (codOrigine) REFERENCES stations(id),
+                UNIQUE(codOrigine, numeroTreno, dataPartenzaTreno)
+            )
+            """
+        )
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stop_times (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                train_id INTEGER,
+                idFermata TEXT,
+                arrivo_teorico TEXT NOT NULL,
+                arrivo_reale TEXT,
+                partenza_teorica TEXT NOT NULL,
+                partenza_reale TEXT,
+                ritardo_arrivo TEXT,
+                ritardo_partenza TEXT,
+                UNIQUE(train_id, idFermata),
+                FOREIGN KEY(train_id) REFERENCES trains(id),
+                FOREIGN KEY(idFermata) REFERENCES stations(id)
+            )
+            """
+        )
+
+        query = 'SELECT id, name FROM stations WHERE region_code = 12'
+        stations = cur.execute(query).fetchall()
+
+        pbar = tqdm(stations)
+        for station in pbar:
+            pbar.set_description("Processing %s" % station[1])
+            stop_times = self.get_stop_times_from_station(station)
+            for stop_time in stop_times:
+                cur = self.con.cursor()
+                # insert or select train
+                cur.execute('SELECT id FROM trains WHERE codOrigine = ? AND numeroTreno = ? AND dataPartenzaTreno = ?',
+                            (stop_time.origin_id, stop_time.trip_id, stop_time.origin_dep_time)
+                            )
+                train_id = cur.fetchone()
+
+                if train_id:
+                    train_id = train_id[0]
+                else:
+                    cur.execute('INSERT OR IGNORE INTO trains (codOrigine, destinazione, numeroTreno, dataPartenzaTreno) '
+                                'VALUES (?, ?, ?, ?)',
+                                (stop_time.origin_id, stop_time.destination, stop_time.trip_id, stop_time.origin_dep_time)
+                                )
+                    train_id = cur.lastrowid
+
+                # insert stop_time
+                cur.execute('INSERT OR IGNORE INTO stop_times (train_id, idFermata, arrivo_teorico, partenza_teorica) '
+                            'VALUES (?, ?, ?, ?)',
+                            (train_id, station[0], stop_time.arr_time, stop_time.dep_time)
+                            )
+
+                self.con.commit()
+
+
+
+    def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
+        now = datetime.now()
+        departures = self.loop_get_times(10000, station[0], now, type='partenze')
+        arrivals = self.loop_get_times(10000, station[0], now, type='arrivi')
+
+        departures_arrivals = departures + arrivals
+
+        # merge departures and arrivals StopTime when they have the same trip_id and origin_dep_time
+        departures_arrivals.sort(key=lambda x: (x.trip_id, x.origin_dep_time))
+        merged = []
+        for i, stop_time in enumerate(departures_arrivals):
+            if i == 0:
+                merged.append(stop_time)
+            else:
+                if stop_time.trip_id == merged[-1].trip_id and stop_time.origin_dep_time == merged[-1].origin_dep_time:
+                    if stop_time.dep_time:
+                        stop_time.merge(merged[-1])
+                    else:
+                        merged[-1].merge(stop_time)
+                else:
+                    merged.append(stop_time)
+
+        for stop_time in merged:
+            if not stop_time.destination:
+                stop_time.destination = station[1].upper()
+
+        return merged
+
+
     def file_path(self):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
@@ -164,36 +271,48 @@ class Trenitalia(Source):
 
         return self.loop_get_times(LIMIT, station_id, dt)
 
-    def loop_get_times(self, limit, station_id, dt, train_ids=None) -> list[TrenitaliaStopTime]:
-        stop_times: list[TrenitaliaStopTime] = []
+    def loop_get_times(self, limit, station_id, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
+        results: list[TrenitaliaStopTime] = []
 
         notimes = 0
 
-        while len(stop_times) < limit:
-            stop_times += self.get_stop_times_from_start_dt(station_id, dt, train_ids)
-            stop_times = list({stop_time.trip_id: stop_time for stop_time in stop_times}.values())
+        while len(results) < limit:
+            stop_times = self.get_stop_times_from_start_dt(type, station_id, dt, train_ids)
             if len(stop_times) == 0:
                 dt = dt + timedelta(hours=1)
-                notimes += 1
-                if notimes > 4:
+                if notimes > 7:
                     break
+                notimes += 1
                 continue
-            new_start_dt = stop_times[-1].dep_time
+
+            for result in results:
+                # remove stop_times with the same trip_id and dep_time/arr_time
+                if type == 'partenze':
+                    stop_times = [x for x in stop_times if (x.trip_id, x.dep_time) != (result.trip_id, result.dep_time)]
+                else:
+                    stop_times = [x for x in stop_times if (x.trip_id, x.arr_time) != (result.trip_id, result.arr_time)]
+
+            results.extend(stop_times)
+
+            if type == 'partenze':
+                new_start_dt = results[-1].dep_time
+            else:
+                new_start_dt = results[-1].arr_time
             if new_start_dt == dt:
-                break
-            dt = new_start_dt
+                dt = dt + timedelta(hours=1)
+            else:
+                dt = new_start_dt
+            notimes = 0
 
-        return stop_times[:limit]
+        return results[:limit]
 
-    def get_stop_times_from_start_dt(self, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> list[TrenitaliaStopTime]:
+    def get_stop_times_from_start_dt(self, type, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> list[TrenitaliaStopTime]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
-        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/partenze/{station_id}/{quote(date)}'
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{station_id}/{quote(date)}'
         r = requests.get(url)
         if r.status_code != 200:
             return []
-
-        logger.info('URL: %s', url)
 
         stop_times = []
         for departure in r.json():
@@ -206,9 +325,21 @@ class Trenitalia(Source):
                 if trip_id not in train_ids:
                     continue
 
-            dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000)
+            try:
+                dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000) if departure['orarioPartenza'] else None
+            except ValueError:
+                dep_time = None
 
-            if dep_time < start_dt - timedelta(minutes=5):
+            if dep_time:
+                if dep_time < start_dt - timedelta(minutes=5):
+                    continue
+
+            try:
+                arr_time = datetime.fromtimestamp(departure['orarioArrivo'] / 1000) if departure['orarioArrivo'] else None
+            except ValueError:
+                arr_time = None
+
+            if not dep_time and not arr_time:
                 continue
 
             if 3000 <= trip_id < 4000:
@@ -216,7 +347,7 @@ class Trenitalia(Source):
             else:
                 acronym = 'R'
 
-            route_name = acronym + str(trip_id)
+            route_name = acronym + str(departure['numeroTreno'])
             headsign = departure['destinazione']
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
@@ -226,7 +357,12 @@ class Trenitalia(Source):
             else:
                 platform = departure['binarioProgrammatoPartenzaDescrizione']
 
-            stop_time = TrenitaliaStopTime(dep_time, stop_sequence, delay, platform, headsign, trip_id, route_name)
+            origin_dep_time = departure['dataPartenzaTreno']
+            origin_id = departure['codOrigine']
+            destination = departure.get('destinazione')
+
+            stop_time = TrenitaliaStopTime(origin_id, dep_time, stop_sequence, delay, platform, headsign, trip_id, route_name,
+                                           arr_time=arr_time, origin_dep_time=origin_dep_time, destination=destination)
             stop_times.append(stop_time)
 
         return stop_times
@@ -297,7 +433,7 @@ class Trenitalia(Source):
             dep_stop_times = self.loop_get_times(10, station_id, first_train_dep_time, train_ids)
 
             for train, dep_stop_time in zip(trains, dep_stop_times):
-                arr_stop_time = TrenitaliaStopTime(train[2], None, 0, None, train[4], train[0], train[0])
+                arr_stop_time = TrenitaliaStopTime(dep_stop_time.origin_id, train[2], None, 0, None, train[4], train[0], train[0])
                 route = TrenitaliaRoute(dep_stop_time, arr_stop_time)
                 solutions.setdefault(train[3], []).append(route)
 
