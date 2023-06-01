@@ -80,6 +80,7 @@ class TrenitaliaRoute(Route):
         else:
             return f'\n⎿ {line}'
 
+
 class Trenitalia(Source):
     def __init__(self, location=''):
         self.location = location
@@ -201,8 +202,6 @@ class Trenitalia(Source):
 
                 self.con.commit()
 
-
-
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
         departures = self.loop_get_times(10000, station[0], now, type='partenze')
@@ -264,9 +263,11 @@ class Trenitalia(Source):
     def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, LIMIT, day, offset_times)\
             -> list[TrenitaliaStopTime]:
         if start_time == '':
-            start_dt = datetime.combine(day, time(5))
+            start_dt = datetime.combine(day, time(4))
         else:
             start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+
+        end_dt = datetime.combine(day + timedelta(days=1), time(4))
 
         dt = start_dt
         station_id = dep_stop_ids[0]
@@ -285,10 +286,10 @@ class Trenitalia(Source):
                 s.binario as platform
             FROM stop_times s
             INNER JOIN trains t ON s.train_id = t.id
-            WHERE s.idFermata = ? AND s.partenza_teorica > ?
+            WHERE s.idFermata = ? AND s.partenza_teorica BETWEEN ? AND ?
             ORDER BY s.partenza_teorica
             LIMIT ? OFFSET ?
-            """, (station_id, dt, LIMIT, offset_times)).fetchall()
+            """, (station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
 
         stop_times = []
 
@@ -405,9 +406,11 @@ class Trenitalia(Source):
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
                                      offset_times, LIMIT, day) -> list[Direction]:
         if start_time == '':
-            dt = datetime.combine(day, time(5))
+            start_dt = datetime.combine(day, time(4))
         else:
-            dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+            start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+
+        end_dt = datetime.combine(day + timedelta(days=1), time(4))
 
         dep_station_id = next(iter(dep_stop_ids))
         arr_station_id = next(iter(arr_stop_ids))
@@ -438,11 +441,11 @@ class Trenitalia(Source):
                             ORDER BY stop_times.partenza_teorica
                         ) a ON d.train_id = a.train_id
                         INNER JOIN trains t ON d.train_id = t.id
-                    WHERE d.idFermata = ? AND d.partenza_teorica > ?
+                    WHERE d.idFermata = ? AND d.partenza_teorica BETWEEN ? AND ?
                         AND d_dep_time < a_arr_time
                     ORDER BY d.partenza_teorica
                     LIMIT ? OFFSET ?
-                    """, (arr_station_id, dep_station_id, dt, LIMIT, offset_times)).fetchall()
+                    """, (dep_station_id, arr_station_id, start_dt, end_dt, LIMIT, offset_times)).fetchall()
 
         directions = []
 
