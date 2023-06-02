@@ -4,6 +4,7 @@ import os
 import sqlite3
 from datetime import datetime, timedelta, time
 from sqlite3 import Connection
+from time import sleep
 from urllib.parse import quote
 
 import requests
@@ -438,6 +439,8 @@ class Trenitalia(Source):
             stop_time = TrenitaliaStopTime(origin_id, dep_time, stop_sequence, delay, platform, headsign, trip_id, route_name,
                                            arr_time=arr_time, origin_dep_time=origin_dep_time, destination=destination)
             stop_times.append(stop_time)
+
+        sleep(1)
 
         return stop_times
 
