@@ -7,7 +7,6 @@ from sqlite3 import Connection
 from urllib.parse import quote
 
 import requests
-from tqdm import tqdm
 
 from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
@@ -202,9 +201,7 @@ class Trenitalia(Source):
         query = 'SELECT id, name FROM stations WHERE region_code = 12'
         stations = cur.execute(query).fetchall()
 
-        pbar = tqdm(stations)
-        for station in pbar:
-            pbar.set_description("Processing %s" % station[1])
+        for i, station in enumerate(stations):
             stop_times = self.get_stop_times_from_station(station)
             for stop_time in stop_times:
                 cur = self.con.cursor()
@@ -239,6 +236,7 @@ class Trenitalia(Source):
                         )
 
                 self.con.commit()
+            logger.info(f'{i+1}/{len(stations)}: saved station {station[1]}, stop_times: {len(stop_times)}')
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
