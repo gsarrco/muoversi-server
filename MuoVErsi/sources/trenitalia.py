@@ -346,7 +346,6 @@ class Trenitalia(Source):
         notimes = 0
 
         while len(results) < limit:
-            logger.info(f'Getting {type} for {station_id} at {dt}')
             stop_times = self.get_stop_times_from_start_dt(type, station_id, dt, train_ids)
             if len(stop_times) == 0:
                 dt = dt + timedelta(hours=1)
