@@ -423,11 +423,17 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
-    thismodule.sources = {'aut': GTFS('automobilistico'), 'nav': GTFS('navigazione'), 'treni': Trenitalia()}
+    PGUSER = config.get('PGUSER', None)
+    PGPASSWORD = config.get('PGPASSWORD', None)
+    PGHOST = config.get('PGHOST', None)
+    PGPORT = config.get('PGPORT', 5432)
+    PGDATABASE = config.get('PGDATABASE', None)
 
-    for source in thismodule.sources.values():
-        if DEV:
-            source.con.set_trace_callback(logger.info)
+    thismodule.sources = {
+        'aut': GTFS('automobilistico', dev=DEV),
+        'nav': GTFS('navigazione', dev=DEV),
+        'treni': Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
+    }
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
 
