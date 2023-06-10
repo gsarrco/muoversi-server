@@ -9,3 +9,4 @@ geopy==2.3.0
 pytest==7.2.1
 pybabel==0.0.0.dev0
 tqdm==4.65.0
+SQLAlchemy==2.0.15
