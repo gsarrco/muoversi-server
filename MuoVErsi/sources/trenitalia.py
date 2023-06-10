@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, time
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueConstraint, ForeignKey, func, and_, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueConstraint, ForeignKey, func, and_, text, \
+    DateTime, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, aliased
 
@@ -130,7 +131,7 @@ class Train(Base):
     codOrigine = Column(String, ForeignKey('stations.id'))
     destinazione = Column(String)
     numeroTreno = Column(Integer)
-    dataPartenzaTreno = Column(Integer)
+    dataPartenzaTreno = Column(Date)
     statoTreno = Column(String, default='regol.')
     stop_times = relationship('StopTime', backref='train')
 
@@ -143,12 +144,12 @@ class StopTime(Base):
     id = Column(Integer, primary_key=True)
     train_id = Column(Integer, ForeignKey('trains.id'))
     idFermata = Column(String, ForeignKey('stations.id'))
-    arrivo_teorico = Column(String)
-    arrivo_reale = Column(String)
-    partenza_teorica = Column(String)
-    partenza_reale = Column(String)
-    ritardo_arrivo = Column(String)
-    ritardo_partenza = Column(String)
+    arrivo_teorico = Column(DateTime)
+    arrivo_reale = Column(DateTime)
+    partenza_teorica = Column(DateTime)
+    partenza_reale = Column(DateTime)
+    ritardo_arrivo = Column(Integer)
+    ritardo_partenza = Column(Integer)
     binario = Column(String)
 
     __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
@@ -157,21 +158,23 @@ class StopTime(Base):
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, location='', dev=False):
+    def __init__(self, pguser, pgpassword, pghost, pgport, pgdatabase, location='', dev=False):
         self.location = location
         super().__init__('treni')
 
-        self.engine = create_engine(f'sqlite:///{self.file_path()}', echo=dev)
+        self.engine = create_engine(f'postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}', echo=dev)
 
         Base.metadata.create_all(self.engine)
-
-        if not os.path.exists(self.file_path()):
-            self.populate_db()
 
         self.Session = sessionmaker(bind=self.engine)
         self.session = self.Session()
 
+        self.populate_db()
+
     def populate_db(self):
+        if self.session.query(Station).count() != 0:
+            return
+
         current_dir = os.path.abspath(os.path.dirname(__file__))
         datadir = os.path.abspath(current_dir + '/data')
 
@@ -182,8 +185,15 @@ class Trenitalia(Source):
             _id = station.get('code', None)
             name = station.get('long_name', None)
             region_code = station.get('region', None)
+
+            # if lat and long are empty strings, set them to None
             lat = station.get('latitude', None)
             lon = station.get('longitude', None)
+
+            if lat == '':
+                lat = None
+            if lon == '':
+                lon = None
 
             station = Station(id=_id, name=name, region_code=region_code, lat=lat, lon=lon)
             self.session.add(station)
@@ -216,8 +226,8 @@ class Trenitalia(Source):
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
-        departures = self.loop_get_times(10000, station[0], now, type='partenze')
-        arrivals = self.loop_get_times(10000, station[0], now, type='arrivi')
+        departures = self.loop_get_times(10000, station.id, now, type='partenze')
+        arrivals = self.loop_get_times(10000, station.id, now, type='arrivi')
 
         departures_arrivals = departures + arrivals
 
@@ -238,7 +248,7 @@ class Trenitalia(Source):
 
         for stop_time in merged:
             if not stop_time.destination:
-                stop_time.destination = station[1].upper()
+                stop_time.destination = station.name.upper()
 
         return merged
 
@@ -252,7 +262,7 @@ class Trenitalia(Source):
             results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None), Station.region_code == 12).order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
         else:
             lat, lon = 45.441569, 12.320882
-            results = self.session.query(Station.id, Station.name).filter(Station.name.like(f'%{name}%'), Station.region_code == 12).order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
+            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%'), Station.region_code == 12).order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
 
         stops = []
         for result in results:
@@ -294,8 +304,8 @@ class Trenitalia(Source):
         stop_times = []
 
         for raw_stop_time in raw_stop_times:
-            dep_time = datetime.strptime(raw_stop_time.dep_time, '%Y-%m-%d %H:%M:%S')
-            arr_time = datetime.strptime(raw_stop_time.arr_time, '%Y-%m-%d %H:%M:%S')
+            dep_time = raw_stop_time.dep_time
+            arr_time = raw_stop_time.arr_time
             stop_time = TrenitaliaStopTime(raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
                                            raw_stop_time.destination, raw_stop_time.trip_id,
                                            raw_stop_time.trip_id, arr_time=arr_time,
@@ -397,7 +407,9 @@ class Trenitalia(Source):
                 if departure[f'binarioEffettivo{type_text}Descrizione'] != '':
                     platform = departure[f'binarioEffettivo{type_text}Descrizione']
 
-            origin_dep_time = departure['dataPartenzaTreno']
+            # 1686434400000
+            origin_dep_time = datetime.fromtimestamp(departure['dataPartenzaTreno'] / 1000) if departure[
+                'dataPartenzaTreno'] else None
             origin_id = departure['codOrigine']
             destination = departure.get('destinazione')
 
@@ -463,10 +475,10 @@ class Trenitalia(Source):
         directions = []
 
         for raw_stop_time in raw_stop_times:
-            d_dep_time = datetime.strptime(raw_stop_time.d_dep_time, '%Y-%m-%d %H:%M:%S')
-            d_arr_time = datetime.strptime(raw_stop_time.d_arr_time, '%Y-%m-%d %H:%M:%S') if raw_stop_time.d_arr_time else None
-            a_dep_time = datetime.strptime(raw_stop_time.a_dep_time, '%Y-%m-%d %H:%M:%S') if raw_stop_time.a_dep_time else None
-            a_arr_time = datetime.strptime(raw_stop_time.a_arr_time, '%Y-%m-%d %H:%M:%S')
+            d_dep_time = raw_stop_time.d_dep_time
+            d_arr_time = raw_stop_time.d_arr_time
+            a_dep_time = raw_stop_time.a_dep_time
+            a_arr_time = raw_stop_time.a_arr_time
 
             d_stop_time = TrenitaliaStopTime(
                 raw_stop_time.origin_id, d_dep_time, None, 0, raw_stop_time.d_platform,

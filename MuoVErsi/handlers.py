@@ -423,10 +423,16 @@ def main() -> None:
 
     DEV = config.get('DEV', False)
 
+    PGUSER = config.get('PGUSER', None)
+    PGPASSWORD = config.get('PGPASSWORD', None)
+    PGHOST = config.get('PGHOST', None)
+    PGPORT = config.get('PGPORT', 5432)
+    PGDATABASE = config.get('PGDATABASE', None)
+
     thismodule.sources = {
         'aut': GTFS('automobilistico', dev=DEV),
         'nav': GTFS('navigazione', dev=DEV),
-        'treni': Trenitalia(dev=DEV)
+        'treni': Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
     }
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
