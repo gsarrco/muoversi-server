@@ -81,7 +81,7 @@ class GTFSStopTime(StopTime):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, gtfs_version=None, location=''):
+    def __init__(self, transport_type, gtfs_version=None, location='', dev=False):
         super().__init__(transport_type)
         self.transport_type = transport_type
         self.location = location
@@ -99,6 +99,8 @@ class GTFS(Source):
                     break
 
         self.con = self.connect_to_database()
+        if dev:
+            self.con.set_trace_callback(logger.info)
 
         stops_clusters_uploaded = self.upload_stops_clusters_to_db()
         logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
