@@ -216,12 +216,13 @@ class Trenitalia(Source):
                 stop_time_db = self.session.query(StopTime).filter_by(train_id=train.id, idFermata=station.id).first()
 
                 if stop_time_db:
-                    stop_time_db.binario = stop_time.platform
+                    if stop_time_db.platform != stop_time.platform:
+                        stop_time_db.binario = stop_time.platform
+                        self.session.commit()
                 else:
                     new_stop_time = StopTime(train_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time, partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
-
-                self.session.commit()
+                    self.session.commit()
             logger.info(f'{i + 1}/{len(stations)}: saved station {station.name}, stop_times: {len(stop_times)}')
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
