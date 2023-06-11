@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, time
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueConstraint, ForeignKey, func, and_, text, \
+from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueConstraint, ForeignKey, func, and_, \
     DateTime, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, aliased
@@ -431,45 +431,34 @@ class Trenitalia(Source):
         dep_station_id = next(iter(dep_stop_ids))
         arr_station_id = next(iter(arr_stop_ids))
 
-        # Define the alias for the subquery
-        arr_stop_times_alias = aliased(StopTime)
+        # Define alias for stop_times
+        a_stop_times = aliased(StopTime)
+        d_stop_times = aliased(StopTime)
 
-        # Define the subquery
-        arr_stop_times_subquery = self.session.query(
-            arr_stop_times_alias.train_id.label("a_train_id"),
-            arr_stop_times_alias.arrivo_teorico.label("a_arrivo_teorico"),
-            arr_stop_times_alias.partenza_teorica.label("a_partenza_teorica"),
-            arr_stop_times_alias.binario.label("a_binario")
-        ).filter(arr_stop_times_alias.idFermata == arr_station_id) \
-            .order_by(arr_stop_times_alias.arrivo_teorico) \
-            .subquery('a')
-
-        # Execute the main query
         raw_stop_times = self.session.query(
-            StopTime.arrivo_teorico.label('d_arr_time'),
-            StopTime.partenza_teorica.label('d_dep_time'),
+            d_stop_times.arrivo_teorico.label('d_arr_time'),
+            d_stop_times.partenza_teorica.label('d_dep_time'),
             Train.codOrigine.label('origin_id'),
             Train.destinazione.label('destination'),
             Train.numeroTreno.label('trip_id'),
             Train.dataPartenzaTreno.label('origin_dep_time'),
-            StopTime.binario.label('d_platform'),
-            arr_stop_times_subquery.c.a_partenza_teorica.label('a_dep_time'),
-            arr_stop_times_subquery.c.a_arrivo_teorico.label('a_arr_time'),
-            arr_stop_times_subquery.c.a_binario.label('a_platform')
+            d_stop_times.binario.label('d_platform'),
+            a_stop_times.partenza_teorica.label('a_dep_time'),
+            a_stop_times.arrivo_teorico.label('a_arr_time'),
+            a_stop_times.binario.label('a_platform')
         ).join(
-            arr_stop_times_subquery,
-            and_(
-                StopTime.train_id == arr_stop_times_subquery.c.a_train_id,
-                text('d_dep_time < a_arr_time')
-            )
+            a_stop_times, d_stop_times.train_id == a_stop_times.train_id
         ).join(
-            Train,
-            StopTime.train_id == Train.id
+            Train, d_stop_times.train_id == Train.id
         ).filter(
-            StopTime.idFermata == dep_station_id,
-            StopTime.partenza_teorica.between(start_dt, end_dt)
+            and_(
+                d_stop_times.idFermata == dep_station_id,
+                d_stop_times.partenza_teorica.between(start_dt, end_dt),
+                d_stop_times.partenza_teorica < a_stop_times.arrivo_teorico,
+                a_stop_times.idFermata == arr_station_id
+            )
         ).order_by(
-            StopTime.partenza_teorica
+            d_stop_times.partenza_teorica
         ).limit(self.LIMIT).offset(offset_times).all()
 
         directions = []
