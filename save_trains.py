@@ -1,4 +1,5 @@
 import logging
+import os
 
 import yaml
 
@@ -11,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 def run():
-    with open('config.yaml' , 'r') as config_file:
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+
+    with open(os.path.join(current_dir, 'config.yaml'), 'r') as config_file:
         try:
             config = yaml.safe_load(config_file)
             logger.info(config)
