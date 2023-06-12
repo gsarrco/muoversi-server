@@ -216,8 +216,7 @@ class Trenitalia(Source):
                 stop_time_db = self.session.query(StopTime).filter_by(train_id=train.id, idFermata=station.id).first()
 
                 if stop_time_db:
-                    if stop_time.platform:
-                        if stop_time_db.platform != stop_time.platform:
+                        if stop_time_db.binario != stop_time.platform:
                             stop_time_db.binario = stop_time.platform
                             self.session.commit()
                 else:
