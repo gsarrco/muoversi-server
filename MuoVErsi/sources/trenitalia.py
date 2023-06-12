@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueCons
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, aliased
 
-from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
+from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class TrenitaliaStopTime(StopTime):
+class TrenitaliaStopTime(BaseStopTime):
     def __init__(self, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform, headsign, trip_id,
                  route_name,
                  stop_name: str = None,
@@ -216,9 +216,10 @@ class Trenitalia(Source):
                 stop_time_db = self.session.query(StopTime).filter_by(train_id=train.id, idFermata=station.id).first()
 
                 if stop_time_db:
-                    if stop_time_db.platform != stop_time.platform:
-                        stop_time_db.binario = stop_time.platform
-                        self.session.commit()
+                    if stop_time.platform:
+                        if stop_time_db.platform != stop_time.platform:
+                            stop_time_db.binario = stop_time.platform
+                            self.session.commit()
                 else:
                     new_stop_time = StopTime(train_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time, partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
