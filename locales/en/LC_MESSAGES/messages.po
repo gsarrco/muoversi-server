@@ -93,3 +93,12 @@ msgstr "send the destination stop for more details"
 
 msgid "send_new_arr_stop"
 msgstr "you can also send a new destination stop"
+
+msgid "automobilistico_platform"
+msgstr "stop"
+
+msgid "navigazione_platform"
+msgstr "dock"
+
+msgid "treni_platform"
+msgstr "plat."

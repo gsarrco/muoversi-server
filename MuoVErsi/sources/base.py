@@ -11,7 +11,7 @@ class Stop:
 
 
 class Liner:
-    def format(self, number):
+    def format(self, number, _, source_name):
         raise NotImplementedError
 
 class StopTime(Liner):
@@ -27,7 +27,7 @@ class StopTime(Liner):
         self.route_name = route_name
         self.stop_name = stop_name
 
-    def format(self, number, left_time_bold=True, right_time_bold=True):
+    def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
         headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
 
         time_format = ""
@@ -45,7 +45,8 @@ class StopTime(Liner):
 
         platform = self.platform if self.platform else '/'
         route_name = f'{self.route_name} ' if self.route_name else ''
-        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{self.trip_id} BIN. {platform}</i>'
+        platform_text = _(f'{source_name}_platform')
+        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{self.trip_id} {platform_text} {platform}</i>'
 
         if self.dep_time < datetime.now():
             line = f'<del>{line}</del>'
@@ -61,7 +62,7 @@ class Route(Liner):
         self.dep_stop_time = dep_stop_time
         self.arr_stop_time = arr_stop_time
 
-    def format(self, number, left_time_bold=True, right_time_bold=True):
+    def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
         line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
             self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
 
@@ -99,7 +100,9 @@ class Route(Liner):
         headsign = headsign[:17]
         trip_id = self.dep_stop_time.trip_id
         route_name = f'{self.dep_stop_time.route_name} ' if self.dep_stop_time.route_name else ''
-        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{trip_id} BIN. {dep_platform} -> {arr_platform}</i>'
+        platform_text = _(f'{source_name}_platform')
+        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{trip_id} ' \
+               f'{platform_text} {dep_platform} -> {arr_platform}</i>'
 
         if self.dep_stop_time.dep_time < datetime.now():
             line = f'<del>{line}</del>'
@@ -114,11 +117,12 @@ class Direction(Liner):
     def __init__(self, routes: list[Route]):
         self.routes = routes
 
-    def format(self, number):
+    def format(self, number, _, source_name):
         text = ""
         for i, route in enumerate(self.routes):
             number = number if i == 0 else None
-            text += route.format(number, left_time_bold=i == 0, right_time_bold=i == len(self.routes) - 1)
+            text += route.format(number, _, source_name, left_time_bold=i == 0,
+                                 right_time_bold=i == len(self.routes) - 1)
 
             if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
                 next_route = self.routes[i + 1]

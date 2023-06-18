@@ -103,7 +103,7 @@ class StopTimesFilter:
             text += '\n' + _('no_times')
 
         for i, result in enumerate(results):
-            text += result.format(i + 1)
+            text += result.format(i + 1, _, self.source.name)
 
         keyboard = []
 
