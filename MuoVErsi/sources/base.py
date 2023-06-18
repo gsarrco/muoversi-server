@@ -28,8 +28,7 @@ class StopTime(Liner):
         self.stop_name = stop_name
 
     def format(self, number, left_time_bold=True, right_time_bold=True):
-        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
-            self.trip_id, self.stop_sequence
+        headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
 
         time_format = ""
 
@@ -44,10 +43,9 @@ class StopTime(Liner):
         if left_time_bold:
             time_format += "</b>"
 
-        if self.platform:
-            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.platform}</i>'
-        else:
-            line = f'{time_format} {line} {headsign}'
+        platform = self.platform if self.platform else '/'
+        route_name = f'{self.route_name} ' if self.route_name else ''
+        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{self.trip_id} BIN. {platform}</i>'
 
         if self.dep_time < datetime.now():
             line = f'<del>{line}</del>'
@@ -96,15 +94,12 @@ class Route(Liner):
             if right_time_bold:
                 time_format += "</b>"
 
-        if self.dep_stop_time.platform:
-            line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {self.dep_stop_time.platform}'
-
-            if self.arr_stop_time.platform:
-                line += f' -> {self.arr_stop_time.platform}'
-
-            line += '</i>'
-        else:
-            line = f'{time_format} {line} {headsign}'
+        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
+        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
+        headsign = headsign[:17]
+        trip_id = self.dep_stop_time.trip_id
+        route_name = f'{self.dep_stop_time.route_name} ' if self.dep_stop_time.route_name else ''
+        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{trip_id} BIN. {dep_platform} -> {arr_platform}</i>'
 
         if self.dep_stop_time.dep_time < datetime.now():
             line = f'<del>{line}</del>'
@@ -135,7 +130,7 @@ class Direction(Liner):
 
 
 class Source:
-    LIMIT = 10
+    LIMIT = 7
 
     def __init__(self, name):
         self.name = name
@@ -143,11 +138,12 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times) -> list[StopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name) -> list[
+        StopTime]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, day) -> list[Direction]:
+                                     offset_times, day, dep_stop_name, arr_stop_name) -> list[Direction]:
         raise NotImplementedError
 
     def get_service_ids(self, day, service_ids) -> tuple:
