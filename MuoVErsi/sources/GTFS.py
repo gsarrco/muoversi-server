@@ -307,7 +307,7 @@ class GTFS(Source):
         query = """
         SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,
-               t.trip_headsign        as headsign,
+               hs_cluster_name        as headsign,
                t.trip_id              as trip_id,
                dep.stop_sequence       as stop_sequence,
                arr_time               as arr_time,
@@ -321,6 +321,19 @@ class GTFS(Source):
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
+                 INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
+                     FROM stop_times st
+                        INNER JOIN stops ON st.stop_id = stops.stop_id
+                        INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
+                        INNER JOIN stops_clusters ON stops_stops_clusters.stop_cluster_id = stops_clusters.id
+                    WHERE st.stop_sequence = (
+                        SELECT MAX(stop_times.stop_sequence) 
+                        FROM stop_times 
+                        WHERE stop_times.trip_id = st.trip_id
+                    )
+                    ORDER BY st.departure_time
+                    )
+                 hs ON dep.trip_id = hs.trip_id
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
                  INNER JOIN stops s ON dep.stop_id = s.stop_id
