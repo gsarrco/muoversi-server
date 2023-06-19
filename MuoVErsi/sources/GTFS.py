@@ -254,7 +254,6 @@ class GTFS(Source):
                                         FROM stop_times 
                                         WHERE stop_times.trip_id = st.trip_id
                                     )
-                                    ORDER BY st.departure_time
                                     )
                                 hs ON dep.trip_id = hs.trip_id
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
@@ -331,7 +330,6 @@ class GTFS(Source):
                         FROM stop_times 
                         WHERE stop_times.trip_id = st.trip_id
                     )
-                    ORDER BY st.departure_time
                     )
                  hs ON dep.trip_id = hs.trip_id
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
