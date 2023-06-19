@@ -93,3 +93,12 @@ msgstr "invia la fermata di destinazione per maggiori dettagli"
 
 msgid "send_new_arr_stop"
 msgstr "puoi anche inviare una nuova fermata di destinazione"
+
+msgid "automobilistico_platform"
+msgstr "ferm."
+
+msgid "navigazione_platform"
+msgstr "appr."
+
+msgid "treni_platform"
+msgstr "bin."
