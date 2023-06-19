@@ -244,8 +244,7 @@ class GTFS(Source):
                        dep.stop_sequence       as stop_sequence,
                        s.stop_name          as dep_stop_name
                 FROM stop_times dep
-                         INNER JOIN (SELECT trip_id, stop_sequence, stop_name as hs_stop_name, 
-                         stops_clusters.name as hs_cluster_name
+                         INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
                                      FROM stop_times st
                                         INNER JOIN stops ON st.stop_id = stops.stop_id
                                         INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
@@ -264,7 +263,6 @@ class GTFS(Source):
                 WHERE dep.stop_id in ({dep_stop_ids})
                   AND t.service_id in ({service_ids})
                   AND dep.pickup_type = 0
-                  AND dep.stop_sequence < hs.stop_sequence
                   {route}
                   {departure_time}
                 ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
