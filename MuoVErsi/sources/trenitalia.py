@@ -34,81 +34,9 @@ class TrenitaliaStopTime(BaseStopTime):
     def merge(self, arr_stop_time: 'TrenitaliaStopTime'):
         self.arr_time = arr_stop_time.arr_time
 
-    def format(self, number, left_time_bold=True, right_time_bold=True):
-        line, headsign, trip_id, stop_sequence = self.route_name, self.headsign, \
-            self.trip_id, self.stop_sequence
-
-        time_format = ""
-
-        if left_time_bold:
-            time_format += "<b>"
-
-        time_format += self.dep_time.strftime('%H:%M')
-
-        if self.delay > 0:
-            time_format += f'+{self.delay}m'
-
-        if left_time_bold:
-            time_format += "</b>"
-
-        platform = self.platform if self.platform else '/'
-        line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {platform}</i>'
-
-        if self.dep_time < datetime.now():
-            line = f'<del>{line}</del>'
-
-        if number:
-            return f'\n{number}. {line}'
-        else:
-            return f'\n⎿ {line}'
-
 
 class TrenitaliaRoute(Route):
-    def format(self, number, left_time_bold=True, right_time_bold=True):
-        line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
-            self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
-
-        time_format = ""
-
-        if left_time_bold:
-            time_format += "<b>"
-
-        time_format += self.dep_stop_time.dep_time.strftime('%H:%M')
-
-        if self.dep_stop_time.delay > 0:
-            time_format += f'+{self.dep_stop_time.delay}m'
-
-        if left_time_bold:
-            time_format += "</b>"
-
-        if self.arr_stop_time:
-            arr_time = self.arr_stop_time.arr_time.strftime('%H:%M')
-
-            time_format += "->"
-
-            if right_time_bold:
-                time_format += "<b>"
-
-            time_format += arr_time
-
-            if self.arr_stop_time.delay > 0:
-                time_format += f'+{self.arr_stop_time.delay}m'
-
-            if right_time_bold:
-                time_format += "</b>"
-
-        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
-        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
-        headsign = headsign[:17]
-        line = f'{time_format} {headsign}\n⎿ <i>{line} BIN. {dep_platform} -> {arr_platform}</i>'
-
-        if self.dep_stop_time.dep_time < datetime.now():
-            line = f'<del>{line}</del>'
-
-        if number:
-            return f'\n{number}. {line}'
-        else:
-            return f'\n⎿ {line}'
+    pass
 
 
 Base = declarative_base()
@@ -275,7 +203,7 @@ class Trenitalia(Source):
         result = self.session.query(Station.name).filter(Station.id == ref).first()
         return Stop(ref, result.name, [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times):
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
@@ -309,7 +237,7 @@ class Trenitalia(Source):
             arr_time = raw_stop_time.arr_time
             stop_time = TrenitaliaStopTime(raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
                                            raw_stop_time.destination, raw_stop_time.trip_id,
-                                           raw_stop_time.trip_id, arr_time=arr_time,
+                                           None, arr_time=arr_time,
                                            origin_dep_time=raw_stop_time.origin_dep_time)
             stop_times.append(stop_time)
 
@@ -390,12 +318,6 @@ class Trenitalia(Source):
             if not dep_time and not arr_time:
                 continue
 
-            if 3000 <= trip_id < 4000:
-                acronym = 'RV'
-            else:
-                acronym = 'R'
-
-            route_name = acronym + str(departure['numeroTreno'])
             headsign = departure['destinazione']
             stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
@@ -415,13 +337,14 @@ class Trenitalia(Source):
             destination = departure.get('destinazione')
 
             stop_time = TrenitaliaStopTime(origin_id, dep_time, stop_sequence, delay, platform, headsign, trip_id,
-                                           route_name,
+                                           None,
                                            arr_time=arr_time, origin_dep_time=origin_dep_time, destination=destination)
             stop_times.append(stop_time)
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, service_ids, line, start_time, offset_times, day):
+    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, service_ids, line, start_time, offset_times,
+                                     day, dep_stop_name, arr_stop_name):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
@@ -472,12 +395,12 @@ class Trenitalia(Source):
 
             d_stop_time = TrenitaliaStopTime(
                 raw_stop_time.origin_id, d_dep_time, None, 0, raw_stop_time.d_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.trip_id,
+                raw_stop_time.destination, raw_stop_time.trip_id, None,
                 arr_time=d_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
 
             a_stop_time = TrenitaliaStopTime(
                 raw_stop_time.origin_id, a_dep_time, None, 0, raw_stop_time.a_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.trip_id,
+                raw_stop_time.destination, raw_stop_time.trip_id, None,
                 arr_time=a_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
 
             route = TrenitaliaRoute(d_stop_time, a_stop_time)

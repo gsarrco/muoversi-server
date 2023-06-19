@@ -78,10 +78,12 @@ class StopTimesFilter:
 
         if self.arr_stop_ids:
             results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
-                                                           line, start_time, self.offset_times, day)
+                                                           line, start_time, self.offset_times, day,
+                                                           self.dep_cluster_name, self.arr_cluster_name)
             return results, service_ids
 
-        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, day, self.offset_times)
+        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, day, self.offset_times,
+                                         self.dep_cluster_name)
 
         if self.lines is None:
             self.lines = db_file.get_lines_from_stops(service_ids, dep_stop_ids)
@@ -101,7 +103,7 @@ class StopTimesFilter:
             text += '\n' + _('no_times')
 
         for i, result in enumerate(results):
-            text += result.format(i + 1)
+            text += result.format(i + 1, _, self.source.name)
 
         keyboard = []
 
