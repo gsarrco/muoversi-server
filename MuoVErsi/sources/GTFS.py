@@ -76,8 +76,8 @@ def get_clusters_of_stops(stops):
 
 
 class GTFSStopTime(StopTime):
-    def __init__(self, dt: datetime, stop_sequence, headsign, trip_id, route_name):
-        super().__init__(dt, dt, stop_sequence, 0, None, headsign, trip_id, route_name)
+    def __init__(self, dt: datetime, stop_sequence, headsign, trip_id, route_name, location):
+        super().__init__(dt, dt, stop_sequence, 0, location, headsign, trip_id, route_name)
 
 
 class GTFS(Source):
@@ -230,24 +230,48 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times) -> list[GTFSStopTime]:
+    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_cluster_name) -> list[
+        GTFSStopTime]:
+        cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
-        departure_time = 'AND departure_time >= ?' if start_time != '' else ''
+        departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
 
-        query = """SELECT departure_time, route_short_name, trip_headsign, trips.trip_id, stop_sequence
-                            FROM stop_times
-                                     INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                                     INNER JOIN routes ON trips.route_id = routes.route_id
-                            WHERE stop_times.stop_id in ({stop_id})
-                              AND trips.service_id in ({seq})
-                              AND pickup_type = 0
-                              {route}
-                              {departure_time}
-                            ORDER BY departure_time, route_short_name, trip_headsign
-                            LIMIT ? OFFSET ?
-                            """.format(
-            seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(dep_stop_ids)), route=route,
-            departure_time=departure_time)
+        query = """
+                SELECT dep.departure_time      as dep_time,
+                       r.route_short_name     as line,
+                       hs_cluster_name        as headsign,
+                       t.trip_id              as trip_id,
+                       dep.stop_sequence       as stop_sequence,
+                       s.stop_name          as dep_stop_name
+                FROM stop_times dep
+                         INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
+                                     FROM stop_times st
+                                        INNER JOIN stops ON st.stop_id = stops.stop_id
+                                        INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
+                                        INNER JOIN stops_clusters ON stops_stops_clusters.stop_cluster_id = stops_clusters.id
+                                    WHERE st.stop_sequence = (
+                                        SELECT MAX(stop_times.stop_sequence) 
+                                        FROM stop_times 
+                                        WHERE stop_times.trip_id = st.trip_id
+                                    )
+                                    )
+                                hs ON dep.trip_id = hs.trip_id
+                         INNER JOIN trips t ON dep.trip_id = t.trip_id
+                         INNER JOIN routes r ON t.route_id = r.route_id
+                         INNER JOIN stops s ON dep.stop_id = s.stop_id
+                WHERE dep.stop_id in ({dep_stop_ids})
+                  AND t.service_id in ({service_ids})
+                  AND dep.pickup_type = 0
+                  {route}
+                  {departure_time}
+                ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
+                LIMIT ? OFFSET ?
+                """.format(
+            service_ids=','.join(['?'] * len(service_ids)),
+            dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
+            route=route,
+            departure_time=departure_time
+        )
 
         params = (*dep_stop_ids, *service_ids)
 
@@ -261,19 +285,19 @@ class GTFS(Source):
 
         params += (self.LIMIT, offset_times)
 
-        cur = self.con.cursor()
         results = cur.execute(query, params).fetchall()
 
         stop_times = []
         for result in results:
             dep_dt = time_25_to_1(day, result[0])
-            stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1])
+            location = result[5].upper().replace(dep_cluster_name.upper(), "").strip()
+            stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1], location)
             stop_times.append(stop_time)
 
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, day) -> list[Direction]:
+                                     offset_times, day, dep_cluster_name, arr_cluster_name) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -282,19 +306,35 @@ class GTFS(Source):
         query = """
         SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,
-               t.trip_headsign        as headsign,
+               hs_cluster_name        as headsign,
                t.trip_id              as trip_id,
                dep.stop_sequence       as stop_sequence,
-               arr_time               as arr_time
+               arr_time               as arr_time,
+               s.stop_name          as dep_stop_name,
+               arr_stop_name          as arr_stop_name
         FROM stop_times dep
-                 INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence
+                 INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
+                                INNER JOIN stops ON stop_times.stop_id = stops.stop_id
                              WHERE stop_times.stop_id in ({arr_stop_ids})
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
+                 INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
+                     FROM stop_times st
+                        INNER JOIN stops ON st.stop_id = stops.stop_id
+                        INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
+                        INNER JOIN stops_clusters ON stops_stops_clusters.stop_cluster_id = stops_clusters.id
+                    WHERE st.stop_sequence = (
+                        SELECT MAX(stop_times.stop_sequence) 
+                        FROM stop_times 
+                        WHERE stop_times.trip_id = st.trip_id
+                    )
+                    )
+                 hs ON dep.trip_id = hs.trip_id
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
+                 INNER JOIN stops s ON dep.stop_id = s.stop_id
         WHERE dep.stop_id in ({dep_stop_ids})
           AND t.service_id in ({service_ids})
           AND dep.pickup_type = 0
@@ -332,8 +372,10 @@ class GTFS(Source):
         for result in results:
             dep_time = time_25_to_1(day, result[0])
             arr_time = time_25_to_1(day, result[5])
-            dep_stop_time = GTFSStopTime(dep_time, result[4], result[2], result[3], result[1])
-            arr_stop_time = GTFSStopTime(arr_time, result[4], result[2], result[3], result[1])
+            dep_location = result[6].upper().replace(dep_cluster_name.upper(), "").strip()
+            dep_stop_time = GTFSStopTime(dep_time, result[4], result[2], result[3], result[1], dep_location)
+            arr_location = result[7].upper().replace(arr_cluster_name.upper(), "").strip()
+            arr_stop_time = GTFSStopTime(arr_time, result[4], result[2], result[3], result[1], arr_location)
             route = Route(dep_stop_time, arr_stop_time)
             directions.append(Direction([route]))
 
