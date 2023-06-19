@@ -30,6 +30,7 @@ class StopTime(Liner):
     def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
         headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
 
+        # First line of text
         time_format = ""
 
         if left_time_bold:
@@ -43,11 +44,21 @@ class StopTime(Liner):
         if left_time_bold:
             time_format += "</b>"
 
-        platform = self.platform if self.platform else '/'
         route_name = f'{self.route_name} ' if self.route_name else ''
-        platform_text = _(f'{source_name}_platform')
-        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{self.trip_id} {platform_text} {platform}</i>'
+        line = f'{time_format} {route_name}{headsign}'
 
+        # Second line of text
+        trip_id = self.trip_id if source_name == 'treni' else None
+        platform = self.platform
+
+        second_line_elements = [trip_id, platform]
+        if any(second_line_elements):
+            trip_id = f'{trip_id} ' if trip_id else ''
+            platform = platform if platform else '/'
+            platform_text = _(f'{source_name}_platform')
+            line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
+
+        # Modifications for all lines of text
         if self.dep_time < datetime.now():
             line = f'<del>{line}</del>'
 
@@ -66,6 +77,7 @@ class Route(Liner):
         line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
             self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
 
+        # First line of text
         time_format = ""
 
         if left_time_bold:
@@ -95,15 +107,23 @@ class Route(Liner):
             if right_time_bold:
                 time_format += "</b>"
 
-        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
-        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
-        headsign = headsign[:17]
-        trip_id = self.dep_stop_time.trip_id
+        headsign = headsign[:16]
         route_name = f'{self.dep_stop_time.route_name} ' if self.dep_stop_time.route_name else ''
-        platform_text = _(f'{source_name}_platform')
-        line = f'{time_format} {route_name}{headsign}\n⎿ <i>{trip_id} ' \
-               f'{platform_text} {dep_platform} -> {arr_platform}</i>'
+        line = f'{time_format} {route_name}{headsign}'
 
+        # Second line of text
+        dep_platform = self.dep_stop_time.platform
+        arr_platform = self.arr_stop_time.platform
+        trip_id = f'{self.dep_stop_time.trip_id} ' if source_name == 'treni' else None
+        second_line_elements = [trip_id, dep_platform, arr_platform]
+        if any(second_line_elements):
+            platform_text = _(f'{source_name}_platform')
+            dep_platform = dep_platform if dep_platform else '/'
+            arr_platform = arr_platform if arr_platform else '/'
+            trip_id = trip_id if trip_id else ''
+            line += f'\n⎿ <i>{trip_id}{platform_text} {dep_platform} -> {arr_platform}</i>'
+
+        # Modifications for all lines of text
         if self.dep_stop_time.dep_time < datetime.now():
             line = f'<del>{line}</del>'
 
