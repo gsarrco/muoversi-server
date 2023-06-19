@@ -44,6 +44,7 @@ class StopTime(Liner):
         if left_time_bold:
             time_format += "</b>"
 
+        headsign = headsign[:21]
         route_name = f'{self.route_name} ' if self.route_name else ''
         line = f'{time_format} {route_name}{headsign}'
 
@@ -107,7 +108,7 @@ class Route(Liner):
             if right_time_bold:
                 time_format += "</b>"
 
-        headsign = headsign[:16]
+        headsign = headsign[:14]
         route_name = f'{self.dep_stop_time.route_name} ' if self.dep_stop_time.route_name else ''
         line = f'{time_format} {route_name}{headsign}'
 
