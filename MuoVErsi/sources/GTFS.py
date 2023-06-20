@@ -6,14 +6,14 @@ import ssl
 import subprocess
 import urllib
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
 from geopy.distance import distance
 
-from MuoVErsi.helpers import cluster_strings, get_active_service_ids, time_25_to_1
+from MuoVErsi.helpers import cluster_strings, get_active_service_ids
 from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
@@ -226,13 +226,24 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, day, offset_times, dep_cluster_name) -> list[
+    def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name) -> list[
         GTFSStopTime]:
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
-        departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
 
-        service_ids = get_active_service_ids(day, self.con)
+        today_service_ids = get_active_service_ids(day, self.con)
+
+        if start_time == '':
+            start_dt = datetime.combine(day, time(0))
+        else:
+            start_dt = datetime.combine(day, start_time)
+
+        or_other_service = ''
+        yesterday_service_ids = []
+        if start_dt.hour < 6:
+            yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
+            or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
+            or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
 
         query = """
                 SELECT dep.departure_time      as dep_time,
@@ -240,7 +251,9 @@ class GTFS(Source):
                        hs_cluster_name        as headsign,
                        t.trip_id              as trip_id,
                        dep.stop_sequence       as stop_sequence,
-                       s.stop_name          as dep_stop_name
+                       s.stop_name          as dep_stop_name,
+                       CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+                       CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute
                 FROM stop_times dep
                          INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
                                      FROM stop_times st
@@ -258,28 +271,28 @@ class GTFS(Source):
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
                 WHERE dep.stop_id in ({dep_stop_ids})
-                  AND t.service_id in ({service_ids})
+                  AND ((t.service_id in ({today_service_ids}) AND dep.departure_time >= ? AND dep.departure_time <= ?) 
+                  {or_other_service})
                   AND dep.pickup_type = 0
                   {route}
-                  {departure_time}
-                ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
+                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
                 LIMIT ? OFFSET ?
                 """.format(
-            service_ids=','.join(['?'] * len(service_ids)),
+            today_service_ids=','.join(['?'] * len(today_service_ids)),
             dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
             route=route,
-            departure_time=departure_time
+            or_other_service=or_other_service
         )
 
-        params = (*dep_stop_ids, *service_ids)
+        params = (*dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+
+        if or_other_service != '':
+            # in the string add 24 hours to start_dt time
+            start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
+            params += (start_time_25, *yesterday_service_ids)
 
         if line != '':
             params += (line,)
-
-        if start_time != '':
-            start_datetime = datetime.combine(day, start_time)
-            minutes_5 = start_datetime - timedelta(minutes=5)
-            params += (minutes_5.strftime('%H:%M'),)
 
         params += (self.LIMIT, offset_times)
 
@@ -287,8 +300,8 @@ class GTFS(Source):
 
         stop_times = []
         for result in results:
-            dep_dt = time_25_to_1(day, result[0])
             location = result[5].upper().replace(dep_cluster_name.upper(), "").strip()
+            dep_dt = datetime.combine(day, time(result[6], result[7]))
             stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1], location)
             stop_times.append(stop_time)
 
@@ -299,9 +312,20 @@ class GTFS(Source):
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
-        departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
 
-        service_ids = get_active_service_ids(day, self.con)
+        today_service_ids = get_active_service_ids(day, self.con)
+
+        if start_time == '':
+            start_dt = datetime.combine(day, time(0))
+        else:
+            start_dt = datetime.combine(day, start_time)
+
+        or_other_service = ''
+        yesterday_service_ids = []
+        if start_dt.hour < 6:
+            yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
+            or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
+            or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
 
         query = """
         SELECT dep.departure_time      as dep_time,
@@ -311,7 +335,11 @@ class GTFS(Source):
                dep.stop_sequence       as stop_sequence,
                arr_time               as arr_time,
                s.stop_name          as dep_stop_name,
-               arr_stop_name          as arr_stop_name
+               arr_stop_name          as arr_stop_name,
+               CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+               CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
+               CAST(SUBSTR(arr_time, 1, 2) AS INTEGER) % 24 arr_hour_normalized,
+               CAST(SUBSTR(arr_time, 4, 2) AS INTEGER) arr_minute
         FROM stop_times dep
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
@@ -336,32 +364,30 @@ class GTFS(Source):
                  INNER JOIN routes r ON t.route_id = r.route_id
                  INNER JOIN stops s ON dep.stop_id = s.stop_id
         WHERE dep.stop_id in ({dep_stop_ids})
-          AND t.service_id in ({service_ids})
+          AND ((t.service_id in ({today_service_ids}) AND dep.departure_time >= ? AND dep.departure_time <= ?) 
+                  {or_other_service})
           AND dep.pickup_type = 0
           AND dep.stop_sequence < arr.stop_sequence
           {route}
-          {departure_time}
-        ORDER BY dep.departure_time, r.route_short_name, t.trip_headsign, dep.stop_sequence
+        ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
         LIMIT ? OFFSET ?
         """.format(
-            service_ids=','.join(['?'] * len(service_ids)),
+            today_service_ids=','.join(['?'] * len(today_service_ids)),
             arr_stop_ids=','.join(['?'] * len(arr_stop_ids)),
             dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
             route=route,
-            departure_time=departure_time
+            or_other_service=or_other_service
         )
 
-        params = (*arr_stop_ids,)
+        params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
-        params += (*dep_stop_ids, *service_ids)
+        if or_other_service != '':
+            # in the string add 24 hours to start_dt time
+            start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
+            params += (start_time_25, *yesterday_service_ids)
 
         if line != '':
             params += (line,)
-
-        if start_time != '':
-            start_datetime = datetime.combine(day, start_time)
-            minutes_5 = start_datetime - timedelta(minutes=5)
-            params += (minutes_5.strftime('%H:%M'),)
 
         params += (self.LIMIT, offset_times)
 
@@ -370,12 +396,16 @@ class GTFS(Source):
         directions = []
 
         for result in results:
-            dep_time = time_25_to_1(day, result[0])
-            arr_time = time_25_to_1(day, result[5])
+            dep_dt = datetime.combine(day, time(result[8], result[9]))
             dep_location = result[6].upper().replace(dep_cluster_name.upper(), "").strip()
-            dep_stop_time = GTFSStopTime(dep_time, result[4], result[2], result[3], result[1], dep_location)
+            dep_stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1], dep_location)
+            arr_time = time(result[10], result[11])
+            if arr_time < dep_dt.time():
+                arr_dt = datetime.combine(day + timedelta(days=1), arr_time)
+            else:
+                arr_dt = datetime.combine(day, arr_time)
             arr_location = result[7].upper().replace(arr_cluster_name.upper(), "").strip()
-            arr_stop_time = GTFSStopTime(arr_time, result[4], result[2], result[3], result[1], arr_location)
+            arr_stop_time = GTFSStopTime(arr_dt, result[4], result[2], result[3], result[1], arr_location)
             route = Route(dep_stop_time, arr_stop_time)
             directions.append(Direction([route]))
 
