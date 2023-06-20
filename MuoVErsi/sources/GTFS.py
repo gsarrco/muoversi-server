@@ -208,13 +208,9 @@ class GTFS(Source):
 
         return stops
 
-    def get_service_ids(self, day, service_ids) -> tuple:
-        if service_ids is None:
-            service_ids = get_active_service_ids(day, self.con)
-        return service_ids
-
-    def get_lines_from_stops(self, service_ids, stop_ids):
+    def get_lines_from_stops(self, day, stop_ids):
         cur = self.con.cursor()
+        service_ids = get_active_service_ids(day, self.con)
         query = """
                     SELECT route_short_name
                     FROM stop_times
@@ -230,11 +226,13 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_cluster_name) -> list[
+    def get_stop_times(self, line, start_time, dep_stop_ids, day, offset_times, dep_cluster_name) -> list[
         GTFSStopTime]:
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
+
+        service_ids = get_active_service_ids(day, self.con)
 
         query = """
                 SELECT dep.departure_time      as dep_time,
@@ -296,12 +294,14 @@ class GTFS(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, line, start_time,
                                      offset_times, day, dep_cluster_name, arr_cluster_name) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
         departure_time = 'AND dep.departure_time >= ?' if start_time != '' else ''
+
+        service_ids = get_active_service_ids(day, self.con)
 
         query = """
         SELECT dep.departure_time      as dep_time,

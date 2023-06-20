@@ -163,18 +163,15 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name) -> list[
+    def get_stop_times(self, line, start_time, dep_stop_ids, day, offset_times, dep_stop_name) -> list[
         StopTime]:
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, line, start_time,
                                      offset_times, day, dep_stop_name, arr_stop_name) -> list[Direction]:
         raise NotImplementedError
 
-    def get_service_ids(self, day, service_ids) -> tuple:
-        return service_ids
-
-    def get_lines_from_stops(self, service_ids, stop_ids):
+    def get_lines_from_stops(self, day, stop_ids):
         return []
 
     def get_stop_from_ref(self, ref) -> Stop:

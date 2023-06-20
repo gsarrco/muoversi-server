@@ -72,8 +72,9 @@ def get_active_service_ids(day: date, con: Connection) -> tuple:
     return service_ids
 
 
-def search_lines(line_name, service_ids, con: Connection):
+def search_lines(line_name, day, con: Connection):
     cur = con.cursor()
+    service_ids = get_active_service_ids(day, con)
     query = """SELECT trips.trip_id, route_short_name, route_long_name, count(stop_times.id) as times_count
                     FROM stop_times
                         INNER JOIN trips ON stop_times.trip_id = trips.trip_id
@@ -136,6 +137,7 @@ def cluster_strings(stops):
                 new_cluster = False
 
         if new_cluster:
+            longest_prefix = new_longest_prefix
             longest_prefix = new_longest_prefix
 
         cluster_name = longest_prefix if longest_prefix != '' and len(longest_prefix) > (

@@ -203,7 +203,7 @@ class Trenitalia(Source):
         result = self.session.query(Station.name).filter(Station.id == ref).first()
         return Stop(ref, result.name, [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name):
+    def get_stop_times(self, line, start_time, dep_stop_ids, day, offset_times, dep_stop_name):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
@@ -343,7 +343,7 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, service_ids, line, start_time, offset_times,
+    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, line, start_time, offset_times,
                                      day, dep_stop_name, arr_stop_name):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))

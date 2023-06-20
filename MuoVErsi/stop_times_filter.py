@@ -70,25 +70,23 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, db_file: Source, service_ids) -> tuple[list[Liner], tuple]:
+    def get_times(self, db_file: Source) -> list[Liner]:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
-        service_ids = db_file.get_service_ids(day, service_ids)
-
         if self.arr_stop_ids:
-            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
+            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
                                                            line, start_time, self.offset_times, day,
                                                            self.dep_cluster_name, self.arr_cluster_name)
-            return results, service_ids
+            return results
 
-        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, day, self.offset_times,
+        results = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
                                          self.dep_cluster_name)
 
         if self.lines is None:
-            self.lines = db_file.get_lines_from_stops(service_ids, dep_stop_ids)
+            self.lines = db_file.get_lines_from_stops(day, dep_stop_ids)
 
-        return results, service_ids
+        return results
 
     def format_times_text(self, results: list[Liner], _, lang):
         text = f'{self.title(_, lang)}'

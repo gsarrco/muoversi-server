@@ -17,7 +17,7 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, search_lines, get_stops_from_trip_id
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -42,7 +42,7 @@ localedir = os.path.join(parent_dir, 'locales')
 def clean_user_data(context, keep_transport_type=True):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
-    context.user_data.pop('service_ids', None)
+    # TODO: readd context.user_data.pop('service_ids', None)
     context.user_data.pop('dep_stop_ids', None)
     context.user_data.pop('arr_stop_ids', None)
     context.user_data.pop('dep_cluster_name', None)
@@ -192,16 +192,13 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
     context.user_data['query_data'] = stop_times_filter.query_data()
 
     stop_times_filter.lines = context.user_data.get('lines')
-    service_ids = context.user_data.get('service_ids')
 
     if context.user_data.get('day') != stop_times_filter.day.isoformat():
         context.user_data['day'] = stop_times_filter.day.isoformat()
-        service_ids = None
 
-    results, service_ids = stop_times_filter.get_times(db_file, service_ids)
+    results = stop_times_filter.get_times(db_file)
 
     context.user_data['lines'] = stop_times_filter.lines
-    context.user_data['service_ids'] = service_ids
 
     text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
@@ -235,7 +232,7 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     _ = trans.gettext
 
     del context.user_data['lines']
-    del context.user_data['service_ids']
+    # TODO: readd del context.user_data['service_ids']
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
@@ -365,9 +362,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     _ = trans.gettext
 
     today = datetime.now().date()
-    service_ids = get_active_service_ids(today, con)
 
-    lines = search_lines(update.message.text, service_ids, con)
+    lines = search_lines(update.message.text, today, con)
 
     inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
 

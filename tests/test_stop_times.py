@@ -13,9 +13,8 @@ def db_file():
 def test_night_stop_times(db_file):
     start_time = time(0, 33, 14, 379232)
     dep_stop_ids = [5031]
-    service_ids = ('320815_000',)
     day = date(2023, 2, 11)
-    stop_times = db_file.get_stop_times('', start_time, dep_stop_ids, service_ids, day, 0, 'P.LE ROMA')
+    stop_times = db_file.get_stop_times('', start_time, dep_stop_ids, day, 0, 'P.LE ROMA')
 
     day_after = day + timedelta(days=1)
     check_start_dt = datetime.combine(day_after, time(0, 0))
