@@ -233,10 +233,12 @@ class GTFS(Source):
 
         today_service_ids = get_active_service_ids(day, self.con)
 
+        day_start = datetime.combine(day, time(0))
+
         if start_time == '':
-            start_dt = datetime.combine(day, time(0))
+            start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time)
+            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=5))
 
         or_other_service = ''
         yesterday_service_ids = []
@@ -315,10 +317,12 @@ class GTFS(Source):
 
         today_service_ids = get_active_service_ids(day, self.con)
 
+        day_start = datetime.combine(day, time(0))
+
         if start_time == '':
-            start_dt = datetime.combine(day, time(0))
+            start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time)
+            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=5))
 
         or_other_service = ''
         yesterday_service_ids = []
