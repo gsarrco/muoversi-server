@@ -244,8 +244,11 @@ class GTFS(Source):
         yesterday_service_ids = []
         if start_dt.hour < 6:
             yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
-            or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-            or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+            if yesterday_service_ids:
+                or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
+                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+            else:
+                start_dt = datetime.combine(day, time(6))
 
         query = """
                 SELECT dep.departure_time      as dep_time,
@@ -328,8 +331,11 @@ class GTFS(Source):
         yesterday_service_ids = []
         if start_dt.hour < 6:
             yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
-            or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-            or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+            if yesterday_service_ids:
+                or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
+                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+            else:
+                start_dt = datetime.combine(day, time(6))
 
         query = """
         SELECT dep.departure_time      as dep_time,
