@@ -22,28 +22,6 @@ def time_25_to_1(day: date, time_string) -> datetime:
     return datetime.combine(day, time(hours, minutes, seconds))
 
 
-def times_groups(times, n):
-    def split_into_groups(people, n):
-        k, m = divmod(len(people), n)
-        groups = [people[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
-        return groups
-
-    result = []
-    grouped = split_into_groups(times, n)
-    for group in grouped:
-        first = group[0]
-        last = group[-1]
-        result.append((first, last))
-    return result
-
-
-def split_list(input_list):
-    midpoint = len(input_list) // 2
-    first_half = input_list[:midpoint]
-    second_half = input_list[midpoint:]
-    return [first_half, second_half]
-
-
 def get_active_service_ids(day: date, con: Connection) -> tuple:
     today_ymd = day.strftime('%Y%m%d')
     weekday = day.strftime('%A').lower()
