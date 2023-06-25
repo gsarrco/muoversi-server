@@ -252,7 +252,7 @@ class GTFS(Source):
             else:
                 start_dt = datetime.combine(day, time(6))
 
-        query = """
+        query = f"""
                 SELECT dep.departure_time      as dep_time,
                        r.route_short_name     as line,
                        hs_cluster_name        as headsign,
@@ -277,19 +277,15 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE dep.stop_id in ({dep_stop_ids})
-                  AND ((t.service_id in ({today_service_ids}) AND dep.departure_time >= ? AND dep.departure_time <= ?) 
+                WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop_ids))})
+                  AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
+                  AND dep.departure_time <= ?) 
                   {or_other_service})
                   AND dep.pickup_type = 0
                   {route}
                 ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
                 LIMIT ? OFFSET ?
-                """.format(
-            today_service_ids=','.join(['?'] * len(today_service_ids)),
-            dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
-            route=route,
-            or_other_service=or_other_service
-        )
+                """
 
         params = (*dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
@@ -341,7 +337,7 @@ class GTFS(Source):
             else:
                 start_dt = datetime.combine(day, time(6))
 
-        query = """
+        query = f"""
         SELECT dep.departure_time      as dep_time,
                r.route_short_name     as line,
                hs_cluster_name        as headsign,
@@ -358,7 +354,7 @@ class GTFS(Source):
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
                                 INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                             WHERE stop_times.stop_id in ({arr_stop_ids})
+                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop_ids))})
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
@@ -377,21 +373,16 @@ class GTFS(Source):
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
                  INNER JOIN stops s ON dep.stop_id = s.stop_id
-        WHERE dep.stop_id in ({dep_stop_ids})
-          AND ((t.service_id in ({today_service_ids}) AND dep.departure_time >= ? AND dep.departure_time <= ?) 
-                  {or_other_service})
+        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop_ids))})
+          AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
+          AND dep.departure_time <= ?) 
+          {or_other_service})
           AND dep.pickup_type = 0
           AND dep.stop_sequence < arr.stop_sequence
           {route}
         ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
         LIMIT ? OFFSET ?
-        """.format(
-            today_service_ids=','.join(['?'] * len(today_service_ids)),
-            arr_stop_ids=','.join(['?'] * len(arr_stop_ids)),
-            dep_stop_ids=','.join(['?'] * len(dep_stop_ids)),
-            route=route,
-            or_other_service=or_other_service
-        )
+        """
 
         params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
