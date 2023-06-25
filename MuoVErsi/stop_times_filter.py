@@ -101,7 +101,7 @@ class StopTimesFilter:
 
         results_len = len(results)
 
-        if results_len == 0:
+        if results_len == 0 and self.offset_times == 0:
             text += '\n' + _('no_times')
 
         for i, result in enumerate(results):
@@ -114,11 +114,10 @@ class StopTimesFilter:
         # prev/next page buttons
         if self.offset_times == 0 and self.start_time != '':
             paging_buttons.append(self.inline_button('<<', start_time=''))
-        if results_len > 0:
-            if self.offset_times > 0:
-                paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - self.source.LIMIT))
-            if results_len == self.source.LIMIT:
-                paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + self.source.LIMIT))
+        if self.offset_times > 0:
+            paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - self.source.LIMIT))
+        if results_len == self.source.LIMIT:
+            paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + self.source.LIMIT))
 
         keyboard.append(paging_buttons)
 
