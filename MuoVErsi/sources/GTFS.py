@@ -6,7 +6,7 @@ import ssl
 import subprocess
 import urllib
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from sqlite3 import Connection
 
 import requests
@@ -394,3 +394,20 @@ class GTFS(Source):
         ids = [result[0] for result in results]
 
         return Stop(ref, name, ids)
+
+    def search_lines(self, name):
+        today = date.today()
+        service_ids = get_active_service_ids(today, self.con)
+
+        cur = self.con.cursor()
+        query = """SELECT trips.trip_id, route_short_name, route_long_name, count(stop_times.id) as times_count
+                            FROM stop_times
+                                INNER JOIN trips ON stop_times.trip_id = trips.trip_id
+                                INNER JOIN routes ON trips.route_id = routes.route_id
+                            WHERE route_short_name = ?
+                                AND trips.service_id in ({seq})
+                            GROUP BY routes.route_id ORDER BY times_count DESC;""".format(
+            seq=','.join(['?'] * len(service_ids)))
+
+        results = cur.execute(query, (name, *service_ids)).fetchall()
+        return results
