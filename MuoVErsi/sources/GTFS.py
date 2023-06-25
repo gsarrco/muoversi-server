@@ -458,6 +458,15 @@ class GTFS(Source):
 
     def get_active_service_ids(self, day: date, context: ContextTypes.DEFAULT_TYPE | None = None) -> tuple:
         today_ymd = day.strftime('%Y%m%d')
+
+        if context:
+            # access safely context.bot_data['service_ids'][self.name][today_ymd]
+            service_ids = context.bot_data.setdefault('service_ids', {}).setdefault(self.name, {}).setdefault(today_ymd,
+                                                                                                              None)
+            if service_ids:
+                logger.info(f'Using cached service_ids for {today_ymd}')
+                return service_ids
+
         weekday = day.strftime('%A').lower()
 
         cur = self.con.cursor()
@@ -481,4 +490,9 @@ class GTFS(Source):
                 service_ids.remove(service_id)
 
         service_ids = tuple(service_ids)
+
+        if context:
+            context.bot_data.setdefault('service_ids', {}).setdefault(self.name, {})[today_ymd] = service_ids
+            logger.info(f'Cached service_ids for {today_ymd}')
+
         return service_ids
