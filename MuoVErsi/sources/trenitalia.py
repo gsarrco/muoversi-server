@@ -214,12 +214,14 @@ class Trenitalia(Source):
 
     def get_stop_times(self, line, start_time, dep_stop_ids, day,
                        offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None):
+        day_start = datetime.combine(day, time(0))
+
         if start_time == '':
-            start_dt = datetime.combine(day, time(4))
+            start_dt = day_start
         else:
             start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
 
-        end_dt = datetime.combine(day + timedelta(days=1), time(4))
+        end_dt = day_start + timedelta(days=1)
 
         dt = start_dt
         station_id = dep_stop_ids[0]
@@ -236,7 +238,8 @@ class Trenitalia(Source):
         ).join(Train, StopTime.train_id == Train.id).filter(
             and_(
                 StopTime.idFermata == station_id,
-                StopTime.partenza_teorica.between(start_dt, end_dt)
+                StopTime.partenza_teorica >= start_dt,
+                StopTime.partenza_teorica < end_dt
             )
         ).order_by(StopTime.partenza_teorica).limit(self.LIMIT).offset(offset_times).all()
 
@@ -357,12 +360,14 @@ class Trenitalia(Source):
                                      start_time, offset_times,
                                      day, dep_stop_name, arr_stop_name,
                                      context: ContextTypes.DEFAULT_TYPE | None = None):
+        day_start = datetime.combine(day, time(0))
+
         if start_time == '':
-            start_dt = datetime.combine(day, time(4))
+            start_dt = day_start
         else:
             start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
 
-        end_dt = datetime.combine(day + timedelta(days=1), time(4))
+        end_dt = day_start + timedelta(days=1)
 
         dep_station_id = next(iter(dep_stop_ids))
         arr_station_id = next(iter(arr_stop_ids))
@@ -389,7 +394,8 @@ class Trenitalia(Source):
         ).filter(
             and_(
                 d_stop_times.idFermata == dep_station_id,
-                d_stop_times.partenza_teorica.between(start_dt, end_dt),
+                d_stop_times.partenza_teorica >= start_dt,
+                d_stop_times.partenza_teorica < end_dt,
                 d_stop_times.partenza_teorica < a_stop_times.arrivo_teorico,
                 a_stop_times.idFermata == arr_station_id
             )
