@@ -27,7 +27,6 @@ class SQLitePersistence(BasePersistence):
         self.con.execute('CREATE TABLE IF NOT EXISTS callback_data (id INTEGER PRIMARY KEY, data TEXT)')
         self.con.execute(
             'CREATE TABLE IF NOT EXISTS conversations (name TEXT, key TEXT, state TEXT, UNIQUE (name, key))')
-        self.con.execute('DELETE FROM bot')
         self.con.commit()
         store_data = PersistenceInput(bot_data=False, chat_data=False)
         super().__init__(store_data, 10)
