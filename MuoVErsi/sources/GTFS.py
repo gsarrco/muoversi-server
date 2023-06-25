@@ -209,7 +209,7 @@ class GTFS(Source):
 
         return stops
 
-    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None):
+    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[str]:
         cur = self.con.cursor()
         service_ids = self.get_active_service_ids(day, context)
         query = """
