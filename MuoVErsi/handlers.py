@@ -42,7 +42,6 @@ localedir = os.path.join(parent_dir, 'locales')
 def clean_user_data(context, keep_transport_type=True):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
-    # TODO: readd context.user_data.pop('service_ids', None)
     context.user_data.pop('dep_stop_ids', None)
     context.user_data.pop('arr_stop_ids', None)
     context.user_data.pop('dep_cluster_name', None)
@@ -232,7 +231,6 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     _ = trans.gettext
 
     del context.user_data['lines']
-    # TODO: readd del context.user_data['service_ids']
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
