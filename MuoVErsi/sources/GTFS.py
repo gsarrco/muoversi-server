@@ -12,6 +12,7 @@ from sqlite3 import Connection
 import requests
 from bs4 import BeautifulSoup
 from geopy.distance import distance
+from telegram.ext import ContextTypes
 
 from MuoVErsi.helpers import cluster_strings, get_active_service_ids
 from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
@@ -208,7 +209,7 @@ class GTFS(Source):
 
         return stops
 
-    def get_lines_from_stops(self, day, stop_ids):
+    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None):
         cur = self.con.cursor()
         service_ids = get_active_service_ids(day, self.con)
         query = """
@@ -226,7 +227,8 @@ class GTFS(Source):
 
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
-    def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name) -> list[
+    def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day,
+                       offset_times, dep_cluster_name, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[
         GTFSStopTime]:
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -312,8 +314,10 @@ class GTFS(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, line, start_time,
-                                     offset_times, day, dep_cluster_name, arr_cluster_name) -> list[Direction]:
+    def get_stop_times_between_stops(self, dep_stop_ids: set,
+                                     arr_stop_ids: set, line, start_time,
+                                     offset_times, day, dep_cluster_name, arr_cluster_name,
+                                     context: ContextTypes.DEFAULT_TYPE | None = None) -> list[Direction]:
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -435,7 +439,7 @@ class GTFS(Source):
 
         return Stop(ref, name, ids)
 
-    def search_lines(self, name):
+    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
         service_ids = get_active_service_ids(today, self.con)
 
