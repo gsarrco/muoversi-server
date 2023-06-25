@@ -179,3 +179,6 @@ class Source:
 
     def get_stop_from_ref(self, ref) -> Stop:
         raise NotImplementedError
+
+    def search_lines(self, name):
+        raise NotImplementedError

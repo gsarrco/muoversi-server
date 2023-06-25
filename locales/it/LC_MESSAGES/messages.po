@@ -102,3 +102,6 @@ msgstr "appr."
 
 msgid "treni_platform"
 msgstr "bin."
+
+msgid "not_implemented"
+msgstr "Questa funzionalità non è stata ancora implementata per questo servizio."

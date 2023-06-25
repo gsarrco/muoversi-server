@@ -72,22 +72,6 @@ def get_active_service_ids(day: date, con: Connection) -> tuple:
     return service_ids
 
 
-def search_lines(line_name, service_ids, con: Connection):
-    cur = con.cursor()
-    query = """SELECT trips.trip_id, route_short_name, route_long_name, count(stop_times.id) as times_count
-                    FROM stop_times
-                        INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                        INNER JOIN routes ON trips.route_id = routes.route_id
-                    WHERE route_short_name = ?
-                        AND trips.service_id in ({seq})
-                    GROUP BY routes.route_id ORDER BY times_count DESC;""".format(
-        seq=','.join(['?'] * len(service_ids)))
-
-    cur = con.cursor()
-    results = cur.execute(query, (line_name, *service_ids)).fetchall()
-    return results
-
-
 def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
     cur = con.cursor()
     results = cur.execute('''
