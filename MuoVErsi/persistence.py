@@ -120,3 +120,8 @@ class SQLitePersistence(BasePersistence):
     async def flush(self) -> None:
         logger.info('closing connection to data.db')
         self.con.close()
+
+    def get_all_users(self):
+        cur = self.con.cursor()
+        cur.execute('SELECT user_id FROM users')
+        return [row['user_id'] for row in cur.fetchall()]
