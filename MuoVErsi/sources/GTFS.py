@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from geopy.distance import distance
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import cluster_strings, get_active_service_ids
+from MuoVErsi.helpers import cluster_strings
 from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
 
 logging.basicConfig(
@@ -211,7 +211,7 @@ class GTFS(Source):
 
     def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None):
         cur = self.con.cursor()
-        service_ids = get_active_service_ids(day, self.con)
+        service_ids = self.get_active_service_ids(day, context)
         query = """
                     SELECT route_short_name
                     FROM stop_times
@@ -233,7 +233,7 @@ class GTFS(Source):
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
 
-        today_service_ids = get_active_service_ids(day, self.con)
+        today_service_ids = self.get_active_service_ids(day, context)
 
         day_start = datetime.combine(day, time(0))
 
@@ -245,7 +245,7 @@ class GTFS(Source):
         or_other_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
-            yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
+            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1), context)
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
                 or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
@@ -322,7 +322,7 @@ class GTFS(Source):
 
         route = 'AND route_short_name = ?' if line != '' else ''
 
-        today_service_ids = get_active_service_ids(day, self.con)
+        today_service_ids = self.get_active_service_ids(day, context)
 
         day_start = datetime.combine(day, time(0))
 
@@ -334,7 +334,7 @@ class GTFS(Source):
         or_other_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
-            yesterday_service_ids = get_active_service_ids(day - timedelta(days=1), self.con)
+            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1), context)
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
                 or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
@@ -441,7 +441,7 @@ class GTFS(Source):
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
-        service_ids = get_active_service_ids(today, self.con)
+        service_ids = self.get_active_service_ids(today, context)
 
         cur = self.con.cursor()
         query = """SELECT trips.trip_id, route_short_name, route_long_name, count(stop_times.id) as times_count
@@ -455,3 +455,30 @@ class GTFS(Source):
 
         results = cur.execute(query, (name, *service_ids)).fetchall()
         return results
+
+    def get_active_service_ids(self, day: date, context: ContextTypes.DEFAULT_TYPE | None = None) -> tuple:
+        today_ymd = day.strftime('%Y%m%d')
+        weekday = day.strftime('%A').lower()
+
+        cur = self.con.cursor()
+        services = cur.execute(
+            f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
+            (today_ymd, today_ymd))
+
+        if not services:
+            return ()
+
+        service_ids = set([service[0] for service in services.fetchall()])
+
+        service_exceptions = cur.execute('SELECT service_id, exception_type FROM calendar_dates WHERE date = ?',
+                                         (today_ymd,))
+
+        for service_exception in service_exceptions.fetchall():
+            service_id, exception_type = service_exception
+            if exception_type == 1:
+                service_ids.add(service_id)
+            if exception_type == 2:
+                service_ids.remove(service_id)
+
+        service_ids = tuple(service_ids)
+        return service_ids
