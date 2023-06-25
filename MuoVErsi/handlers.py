@@ -17,7 +17,7 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, get_stops_from_trip_id
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -357,17 +357,17 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    today = datetime.now().date()
-    service_ids = get_active_service_ids(today, con)
-
-    lines = search_lines(update.message.text, service_ids, con)
+    try:
+        lines = db_file.search_lines(update.message.text)
+    except NotImplementedError:
+        await update.message.reply_text(_('not_implemented'))
+        return ConversationHandler.END
 
     inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
 
