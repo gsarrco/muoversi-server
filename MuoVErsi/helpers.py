@@ -22,56 +22,6 @@ def time_25_to_1(day: date, time_string) -> datetime:
     return datetime.combine(day, time(hours, minutes, seconds))
 
 
-def times_groups(times, n):
-    def split_into_groups(people, n):
-        k, m = divmod(len(people), n)
-        groups = [people[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
-        return groups
-
-    result = []
-    grouped = split_into_groups(times, n)
-    for group in grouped:
-        first = group[0]
-        last = group[-1]
-        result.append((first, last))
-    return result
-
-
-def split_list(input_list):
-    midpoint = len(input_list) // 2
-    first_half = input_list[:midpoint]
-    second_half = input_list[midpoint:]
-    return [first_half, second_half]
-
-
-def get_active_service_ids(day: date, con: Connection) -> tuple:
-    today_ymd = day.strftime('%Y%m%d')
-    weekday = day.strftime('%A').lower()
-
-    cur = con.cursor()
-    services = cur.execute(
-        f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
-        (today_ymd, today_ymd))
-
-    if not services:
-        return ()
-
-    service_ids = set([service[0] for service in services.fetchall()])
-
-    service_exceptions = cur.execute('SELECT service_id, exception_type FROM calendar_dates WHERE date = ?',
-                                     (today_ymd,))
-
-    for service_exception in service_exceptions.fetchall():
-        service_id, exception_type = service_exception
-        if exception_type == 1:
-            service_ids.add(service_id)
-        if exception_type == 2:
-            service_ids.remove(service_id)
-
-    service_ids = tuple(service_ids)
-    return service_ids
-
-
 def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
     cur = con.cursor()
     results = cur.execute('''

@@ -42,7 +42,6 @@ localedir = os.path.join(parent_dir, 'locales')
 def clean_user_data(context, keep_transport_type=True):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
-    context.user_data.pop('service_ids', None)
     context.user_data.pop('dep_stop_ids', None)
     context.user_data.pop('arr_stop_ids', None)
     context.user_data.pop('dep_cluster_name', None)
@@ -192,16 +191,13 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
     context.user_data['query_data'] = stop_times_filter.query_data()
 
     stop_times_filter.lines = context.user_data.get('lines')
-    service_ids = context.user_data.get('service_ids')
 
     if context.user_data.get('day') != stop_times_filter.day.isoformat():
         context.user_data['day'] = stop_times_filter.day.isoformat()
-        service_ids = None
 
-    results, service_ids = stop_times_filter.get_times(db_file, service_ids)
+    results = stop_times_filter.get_times(db_file)
 
     context.user_data['lines'] = stop_times_filter.lines
-    context.user_data['service_ids'] = service_ids
 
     text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
@@ -235,12 +231,12 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     _ = trans.gettext
 
     del context.user_data['lines']
-    del context.user_data['service_ids']
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'],
+    stop_times_filter = StopTimesFilter(context, db_file, dep_stop_ids=dep_stop_ids,
+                                        query_data=context.user_data['query_data'],
                                         arr_stop_ids=arr_stop_ids, dep_cluster_name=dep_cluster_name,
                                         arr_cluster_name=arr_cluster_name)
     if update.message.text == _('minus_day'):
@@ -278,12 +274,15 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(db_file, saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
-                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name, first_time=True)
+        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), '', now.time(),
+                                            arr_stop_ids=stop_ids,
+                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name,
+                                            first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(db_file, stop_ids, now.date(), '', now.time(), dep_cluster_name=cluster_name,
+        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), '', now.time(),
+                                            dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
@@ -310,7 +309,8 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids,
+    stop_times_filter = StopTimesFilter(context, db_file, dep_stop_ids=dep_stop_ids, query_data=query.data,
+                                        arr_stop_ids=arr_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_cluster_name=arr_cluster_name)
     message_id = query.message.message_id
 
@@ -338,7 +338,7 @@ async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-    text = StopTimesFilter(db_file, day=day, line=line, start_time='').title(_, lang)
+    text = StopTimesFilter(context, db_file, day=day, line=line, start_time='').title(_, lang)
 
     for result in results:
         stop_id, stop_name, time_raw = result
@@ -364,7 +364,7 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     _ = trans.gettext
 
     try:
-        lines = db_file.search_lines(update.message.text)
+        lines = db_file.search_lines(update.message.text, context=context)
     except NotImplementedError:
         await update.message.reply_text(_('not_implemented'))
         return ConversationHandler.END
