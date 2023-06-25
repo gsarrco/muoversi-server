@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from telegram.ext import ContextTypes
+
 
 class Stop:
     def __init__(self, ref: str, name: str, ids=None):
@@ -14,8 +16,10 @@ class Liner:
     def format(self, number, _, source_name):
         raise NotImplementedError
 
+
 class StopTime(Liner):
-    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform, headsign, trip_id,
+    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform,
+                 headsign, trip_id,
                  route_name, stop_name: str = None):
         self.dep_time = dep_time
         self.arr_time = arr_time
@@ -163,22 +167,22 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name) -> list[
+    def get_stop_times(self, line, start_time, dep_stop_ids, day,
+                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[
         StopTime]:
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set, arr_stop_ids: set, service_ids, line, start_time,
-                                     offset_times, day, dep_stop_name, arr_stop_name) -> list[Direction]:
+    def get_stop_times_between_stops(self, dep_stop_ids: set,
+                                     arr_stop_ids: set, line, start_time,
+                                     offset_times, day, dep_stop_name, arr_stop_name,
+                                     context: ContextTypes.DEFAULT_TYPE | None = None) -> list[Direction]:
         raise NotImplementedError
 
-    def get_service_ids(self, day, service_ids) -> tuple:
-        return service_ids
-
-    def get_lines_from_stops(self, service_ids, stop_ids):
+    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None):
         return []
 
     def get_stop_from_ref(self, ref) -> Stop:
         raise NotImplementedError
 
-    def search_lines(self, name):
+    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError

@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueCons
     DateTime, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, aliased
+from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
 
@@ -134,21 +135,25 @@ class Trenitalia(Source):
         for i, station in enumerate(stations):
             stop_times = self.get_stop_times_from_station(station)
             for stop_time in stop_times:
-                train = self.session.query(Train).filter_by(codOrigine=stop_time.origin_id, numeroTreno=stop_time.trip_id, dataPartenzaTreno=stop_time.origin_dep_time).first()
+                train = self.session.query(Train).filter_by(codOrigine=stop_time.origin_id,
+                                                            numeroTreno=stop_time.trip_id,
+                                                            dataPartenzaTreno=stop_time.origin_dep_time).first()
 
                 if not train:
-                    train = Train(codOrigine=stop_time.origin_id, destinazione=stop_time.destination, numeroTreno=stop_time.trip_id, dataPartenzaTreno=stop_time.origin_dep_time)
+                    train = Train(codOrigine=stop_time.origin_id, destinazione=stop_time.destination,
+                                  numeroTreno=stop_time.trip_id, dataPartenzaTreno=stop_time.origin_dep_time)
                     self.session.add(train)
                     self.session.commit()
 
                 stop_time_db = self.session.query(StopTime).filter_by(train_id=train.id, idFermata=station.id).first()
 
                 if stop_time_db:
-                        if stop_time_db.binario != stop_time.platform:
-                            stop_time_db.binario = stop_time.platform
-                            self.session.commit()
+                    if stop_time_db.binario != stop_time.platform:
+                        stop_time_db.binario = stop_time.platform
+                        self.session.commit()
                 else:
-                    new_stop_time = StopTime(train_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time, partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
+                    new_stop_time = StopTime(train_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time,
+                                             partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
                     self.session.commit()
             logger.info(f'{i + 1}/{len(stations)}: saved station {station.name}, stop_times: {len(stop_times)}')
@@ -188,10 +193,14 @@ class Trenitalia(Source):
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4):
         if lat and lon:
-            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None), Station.region_code == 12).order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
+            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None),
+                                                                          Station.region_code == 12).order_by(
+                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
         else:
             lat, lon = 45.441569, 12.320882
-            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%'), Station.region_code == 12).order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
+            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%'),
+                                                                          Station.region_code == 12).order_by(
+                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
 
         stops = []
         for result in results:
@@ -203,7 +212,8 @@ class Trenitalia(Source):
         result = self.session.query(Station.name).filter(Station.id == ref).first()
         return Stop(ref, result.name, [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, service_ids, day, offset_times, dep_stop_name):
+    def get_stop_times(self, line, start_time, dep_stop_ids, day,
+                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
@@ -281,7 +291,7 @@ class Trenitalia(Source):
         return results[:limit]
 
     def get_stop_times_from_start_dt(self, type, station_id: str, start_dt: datetime, train_ids: list[int] | None) -> \
-    list[TrenitaliaStopTime]:
+            list[TrenitaliaStopTime]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
         url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{station_id}/{quote(date)}'
@@ -343,8 +353,10 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, service_ids, line, start_time, offset_times,
-                                     day, dep_stop_name, arr_stop_name):
+    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, line,
+                                     start_time, offset_times,
+                                     day, dep_stop_name, arr_stop_name,
+                                     context: ContextTypes.DEFAULT_TYPE | None = None):
         if start_time == '':
             start_dt = datetime.combine(day, time(4))
         else:
