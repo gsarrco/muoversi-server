@@ -33,10 +33,19 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
 thismodule.sources = {}
+thismodule.persistence = SQLitePersistence()
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
 localedir = os.path.join(parent_dir, 'locales')
+
+config_path = os.path.join(parent_dir, 'config.yaml')
+with open(config_path, 'r') as config_file:
+    try:
+        config = yaml.safe_load(config_file)
+        logger.info(config)
+    except yaml.YAMLError as err:
+        logger.error(err)
 
 
 def clean_user_data(context, keep_transport_type=True):
@@ -56,6 +65,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _ = trans.gettext
     clean_user_data(context, False)
     await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
+
+
+async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if config.get('ADMIN_TG_ID') != update.effective_user.id:
+        return
+
+    persistence: SQLitePersistence = thismodule.persistence
+    user_ids = persistence.get_all_users()
+    text = update.message.text[10:]
+    for user_id in user_ids:
+        try:
+            await context.bot.send_message(user_id, text, parse_mode='HTML', disable_notification=True)
+        except Exception as e:
+            logger.error(e)
 
 
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -413,14 +436,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    config_path = os.path.join(parent_dir, 'config.yaml')
-    with open(config_path, 'r') as config_file:
-        try:
-            config = yaml.safe_load(config_file)
-            logger.info(config)
-        except yaml.YAMLError as err:
-            logger.error(err)
-
     DEV = config.get('DEV', False)
 
     PGUSER = config.get('PGUSER', None)
@@ -435,7 +450,7 @@ def main() -> None:
         'treni': Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
     }
 
-    application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
+    application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
 
     langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]
     default_lang = 'en'
@@ -481,6 +496,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
 
     if DEV:
