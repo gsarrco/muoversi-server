@@ -3,6 +3,7 @@ from datetime import datetime, time, date, timedelta
 
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Liner
 
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class StopTimesFilter:
-    def __init__(self, source: Source, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0,
+    def __init__(self, context: ContextTypes.DEFAULT_TYPE, source: Source, dep_stop_ids=None, day=None, line=None,
+                 start_time=None, offset_times=0,
                  offset_lines=0,
                  query_data=None, arr_stop_ids=None, dep_cluster_name=None, arr_cluster_name=None, first_time=False):
 
@@ -23,6 +25,7 @@ class StopTimesFilter:
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
+        self.context = context
         self.source = source
         self.dep_stop_ids = dep_stop_ids
         self.arr_stop_ids = arr_stop_ids
@@ -77,14 +80,15 @@ class StopTimesFilter:
         if self.arr_stop_ids:
             results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
                                                            line, start_time, self.offset_times, day,
-                                                           self.dep_cluster_name, self.arr_cluster_name)
+                                                           self.dep_cluster_name, self.arr_cluster_name,
+                                                           context=self.context)
             return results
 
         results = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
-                                         self.dep_cluster_name)
+                                         self.dep_cluster_name, context=self.context)
 
         if self.lines is None:
-            self.lines = db_file.get_lines_from_stops(day, dep_stop_ids)
+            self.lines = db_file.get_lines_from_stops(day, dep_stop_ids, context=self.context)
 
         return results
 
