@@ -213,6 +213,9 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
+    if stop_times_filter.first_time:
+        context.user_data.pop('lines', None)
+
     stop_times_filter.lines = context.user_data.get('lines')
 
     if context.user_data.get('day') != stop_times_filter.day.isoformat():
