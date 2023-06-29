@@ -254,6 +254,9 @@ class Trenitalia(Source):
             )
         )
 
+        if line != '':
+            raw_stop_times = raw_stop_times.filter(Train.categoria == line)
+
         if count:
             raw_stop_times = raw_stop_times \
                 .group_by(Train.categoria) \
@@ -430,6 +433,9 @@ class Trenitalia(Source):
                 a_stop_times.idFermata == arr_station_id
             )
         )
+
+        if line != '':
+            raw_stop_times = raw_stop_times.filter(Train.categoria == line)
 
         if count:
             raw_stop_times = raw_stop_times.group_by(Train.categoria).order_by(func.count(Train.categoria).desc())
