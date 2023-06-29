@@ -236,6 +236,7 @@ class Trenitalia(Source):
             Train.destinazione.label('destination'),
             Train.numeroTreno.label('trip_id'),
             Train.dataPartenzaTreno.label('origin_dep_time'),
+            Train.categoria.label('route_name'),
             StopTime.binario.label('platform')
         ).join(Train, StopTime.train_id == Train.id).filter(
             and_(
@@ -250,10 +251,9 @@ class Trenitalia(Source):
         for raw_stop_time in raw_stop_times:
             dep_time = raw_stop_time.dep_time
             arr_time = raw_stop_time.arr_time
-            route_name = 'RV' if 3000 <= raw_stop_time.trip_id < 4000 else 'R'
             stop_time = TrenitaliaStopTime(raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
                                            raw_stop_time.destination, raw_stop_time.trip_id,
-                                           route_name, arr_time=arr_time,
+                                           raw_stop_time.route_name, arr_time=arr_time,
                                            origin_dep_time=raw_stop_time.origin_dep_time)
             stop_times.append(stop_time)
 
@@ -385,6 +385,7 @@ class Trenitalia(Source):
             Train.destinazione.label('destination'),
             Train.numeroTreno.label('trip_id'),
             Train.dataPartenzaTreno.label('origin_dep_time'),
+            Train.categoria.label('route_name'),
             d_stop_times.binario.label('d_platform'),
             a_stop_times.partenza_teorica.label('a_dep_time'),
             a_stop_times.arrivo_teorico.label('a_arr_time'),
@@ -412,15 +413,14 @@ class Trenitalia(Source):
             d_arr_time = raw_stop_time.d_arr_time
             a_dep_time = raw_stop_time.a_dep_time
             a_arr_time = raw_stop_time.a_arr_time
-            route_name = 'RV' if 3000 <= raw_stop_time.trip_id < 4000 else 'R'
             d_stop_time = TrenitaliaStopTime(
                 raw_stop_time.origin_id, d_dep_time, None, 0, raw_stop_time.d_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, route_name,
+                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
                 arr_time=d_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
 
             a_stop_time = TrenitaliaStopTime(
                 raw_stop_time.origin_id, a_dep_time, None, 0, raw_stop_time.a_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, route_name,
+                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
                 arr_time=a_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
 
             route = TrenitaliaRoute(d_stop_time, a_stop_time)
