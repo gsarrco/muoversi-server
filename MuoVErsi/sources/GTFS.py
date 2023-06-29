@@ -228,7 +228,7 @@ class GTFS(Source):
         return [line[0] for line in cur.execute(query, params).fetchall()]
 
     def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name,
-                       context: ContextTypes.DEFAULT_TYPE | None = None, count=False) -> list[GTFSStopTime]:
+                       context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
 
@@ -325,7 +325,7 @@ class GTFS(Source):
     def get_stop_times_between_stops(self, dep_stop_ids: set,
                                      arr_stop_ids: set, line, start_time,
                                      offset_times, day, dep_cluster_name, arr_cluster_name,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False) -> list[Direction]:
+                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
