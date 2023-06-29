@@ -3,6 +3,7 @@ from datetime import datetime, time, date, timedelta
 
 from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Liner
 
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 class StopTimesFilter:
-    def __init__(self, source: Source, dep_stop_ids=None, day=None, line=None, start_time=None, offset_times=0,
+    def __init__(self, context: ContextTypes.DEFAULT_TYPE, source: Source, dep_stop_ids=None, day=None, line=None,
+                 start_time=None, offset_times=0,
                  offset_lines=0,
                  query_data=None, arr_stop_ids=None, dep_cluster_name=None, arr_cluster_name=None, first_time=False):
 
@@ -23,6 +25,7 @@ class StopTimesFilter:
             day = datetime.strptime(day_raw, '%Y%m%d').date()
             start_time = time.fromisoformat(start_time_raw) if start_time_raw != '' else ''
 
+        self.context = context
         self.source = source
         self.dep_stop_ids = dep_stop_ids
         self.arr_stop_ids = arr_stop_ids
@@ -70,25 +73,30 @@ class StopTimesFilter:
     def inline_button(self, text: str, **new_params):
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
-    def get_times(self, db_file: Source, service_ids) -> tuple[list[Liner], tuple]:
+    def get_times(self, db_file: Source) -> list[Liner]:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
-        service_ids = db_file.get_service_ids(day, service_ids)
-
         if self.arr_stop_ids:
-            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids), service_ids,
+            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
                                                            line, start_time, self.offset_times, day,
-                                                           self.dep_cluster_name, self.arr_cluster_name)
-            return results, service_ids
+                                                           self.dep_cluster_name, self.arr_cluster_name,
+                                                           context=self.context)
+            if self.lines is None:
+                self.lines = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
+                                                                  line, start_time, self.offset_times, day,
+                                                                  self.dep_cluster_name, self.arr_cluster_name,
+                                                                  context=self.context, count=True)
+            return results
 
-        results = db_file.get_stop_times(line, start_time, dep_stop_ids, service_ids, day, self.offset_times,
-                                         self.dep_cluster_name)
+        results = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
+                                         self.dep_cluster_name, context=self.context)
 
         if self.lines is None:
-            self.lines = db_file.get_lines_from_stops(service_ids, dep_stop_ids)
+            self.lines = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
+                                                self.dep_cluster_name, context=self.context, count=True)
 
-        return results, service_ids
+        return results
 
     def format_times_text(self, results: list[Liner], _, lang):
         text = f'{self.title(_, lang)}'
@@ -99,7 +107,7 @@ class StopTimesFilter:
 
         results_len = len(results)
 
-        if results_len == 0:
+        if results_len == 0 and self.offset_times == 0:
             text += '\n' + _('no_times')
 
         for i, result in enumerate(results):
@@ -112,11 +120,10 @@ class StopTimesFilter:
         # prev/next page buttons
         if self.offset_times == 0 and self.start_time != '':
             paging_buttons.append(self.inline_button('<<', start_time=''))
-        if results_len > 0:
-            if self.offset_times > 0:
-                paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - self.source.LIMIT))
-            if results_len == self.source.LIMIT:
-                paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + self.source.LIMIT))
+        if self.offset_times > 0:
+            paging_buttons.append(self.inline_button('<', offset_times=self.offset_times - self.source.LIMIT))
+        if results_len == self.source.LIMIT:
+            paging_buttons.append(self.inline_button('>', offset_times=self.offset_times + self.source.LIMIT))
 
         keyboard.append(paging_buttons)
 
