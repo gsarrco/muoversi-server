@@ -17,7 +17,7 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_active_service_ids, search_lines, get_stops_from_trip_id
+from .helpers import time_25_to_1, get_stops_from_trip_id
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -33,16 +33,24 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
 thismodule.sources = {}
+thismodule.persistence = SQLitePersistence()
 
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
 localedir = os.path.join(parent_dir, 'locales')
 
+config_path = os.path.join(parent_dir, 'config.yaml')
+with open(config_path, 'r') as config_file:
+    try:
+        config = yaml.safe_load(config_file)
+        logger.info(config)
+    except yaml.YAMLError as err:
+        logger.error(err)
+
 
 def clean_user_data(context, keep_transport_type=True):
     context.user_data.pop('query_data', None)
     context.user_data.pop('lines', None)
-    context.user_data.pop('service_ids', None)
     context.user_data.pop('dep_stop_ids', None)
     context.user_data.pop('arr_stop_ids', None)
     context.user_data.pop('dep_cluster_name', None)
@@ -57,6 +65,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     _ = trans.gettext
     clean_user_data(context, False)
     await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
+
+
+async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if config.get('ADMIN_TG_ID') != update.effective_user.id:
+        return
+
+    persistence: SQLitePersistence = thismodule.persistence
+    user_ids = persistence.get_all_users()
+    text = update.message.text[10:]
+    for user_id in user_ids:
+        try:
+            await context.bot.send_message(user_id, text, parse_mode='HTML', disable_notification=True)
+        except Exception as e:
+            logger.error(e)
 
 
 async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -191,17 +213,17 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
                           context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['query_data'] = stop_times_filter.query_data()
 
+    if stop_times_filter.first_time:
+        context.user_data.pop('lines', None)
+
     stop_times_filter.lines = context.user_data.get('lines')
-    service_ids = context.user_data.get('service_ids')
 
     if context.user_data.get('day') != stop_times_filter.day.isoformat():
         context.user_data['day'] = stop_times_filter.day.isoformat()
-        service_ids = None
 
-    results, service_ids = stop_times_filter.get_times(db_file, service_ids)
+    results = stop_times_filter.get_times(db_file)
 
     context.user_data['lines'] = stop_times_filter.lines
-    context.user_data['service_ids'] = service_ids
 
     text, reply_markup = stop_times_filter.format_times_text(results, _, lang)
 
@@ -235,12 +257,12 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
     _ = trans.gettext
 
     del context.user_data['lines']
-    del context.user_data['service_ids']
     dep_stop_ids = context.user_data.get('dep_stop_ids')
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=context.user_data['query_data'],
+    stop_times_filter = StopTimesFilter(context, db_file, dep_stop_ids=dep_stop_ids,
+                                        query_data=context.user_data['query_data'],
                                         arr_stop_ids=arr_stop_ids, dep_cluster_name=dep_cluster_name,
                                         arr_cluster_name=arr_cluster_name)
     if update.message.text == _('minus_day'):
@@ -278,12 +300,15 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(db_file, saved_dep_stop_ids, now.date(), '', now.time(), arr_stop_ids=stop_ids,
-                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name, first_time=True)
+        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), '', now.time(),
+                                            arr_stop_ids=stop_ids,
+                                            arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name,
+                                            first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(db_file, stop_ids, now.date(), '', now.time(), dep_cluster_name=cluster_name,
+        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), '', now.time(),
+                                            dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
         context.user_data['dep_cluster_name'] = cluster_name
@@ -310,7 +335,8 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     dep_cluster_name = context.user_data.get('dep_cluster_name')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
-    stop_times_filter = StopTimesFilter(db_file, dep_stop_ids=dep_stop_ids, query_data=query.data, arr_stop_ids=arr_stop_ids,
+    stop_times_filter = StopTimesFilter(context, db_file, dep_stop_ids=dep_stop_ids, query_data=query.data,
+                                        arr_stop_ids=arr_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_cluster_name=arr_cluster_name)
     message_id = query.message.message_id
 
@@ -338,7 +364,7 @@ async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     results = get_stops_from_trip_id(trip_id, con, stop_sequence)
 
-    text = StopTimesFilter(db_file, day=day, line=line, start_time='').title(_, lang)
+    text = StopTimesFilter(context, db_file, day=day, line=line, start_time='').title(_, lang)
 
     for result in results:
         stop_id, stop_name, time_raw = result
@@ -357,17 +383,17 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    today = datetime.now().date()
-    service_ids = get_active_service_ids(today, con)
-
-    lines = search_lines(update.message.text, service_ids, con)
+    try:
+        lines = db_file.search_lines(update.message.text, context=context)
+    except NotImplementedError:
+        await update.message.reply_text(_('not_implemented'))
+        return ConversationHandler.END
 
     inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
 
@@ -413,14 +439,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 def main() -> None:
-    config_path = os.path.join(parent_dir, 'config.yaml')
-    with open(config_path, 'r') as config_file:
-        try:
-            config = yaml.safe_load(config_file)
-            logger.info(config)
-        except yaml.YAMLError as err:
-            logger.error(err)
-
     DEV = config.get('DEV', False)
 
     PGUSER = config.get('PGUSER', None)
@@ -435,7 +453,7 @@ def main() -> None:
         'treni': Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
     }
 
-    application = Application.builder().token(config['TOKEN']).persistence(persistence=SQLitePersistence()).build()
+    application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
 
     langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]
     default_lang = 'en'
@@ -481,6 +499,7 @@ def main() -> None:
     )
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
 
     if DEV:

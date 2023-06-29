@@ -22,11 +22,12 @@ class SQLitePersistence(BasePersistence):
         self.con.row_factory = sqlite3.Row
         self.con.set_trace_callback(logger.info)
         self.con.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, data TEXT)')
-        # self.con.execute('CREATE TABLE IF NOT EXISTS chats (chat_id INTEGER PRIMARY KEY, data TEXT)')
-        # self.con.execute('CREATE TABLE IF NOT EXISTS bot (id INTEGER PRIMARY KEY, data TEXT)')
+        self.con.execute('CREATE TABLE IF NOT EXISTS chats (chat_id INTEGER PRIMARY KEY, data TEXT)')
+        self.con.execute('CREATE TABLE IF NOT EXISTS bot (id INTEGER PRIMARY KEY, data TEXT)')
         self.con.execute('CREATE TABLE IF NOT EXISTS callback_data (id INTEGER PRIMARY KEY, data TEXT)')
         self.con.execute(
             'CREATE TABLE IF NOT EXISTS conversations (name TEXT, key TEXT, state TEXT, UNIQUE (name, key))')
+        self.con.commit()
         store_data = PersistenceInput(bot_data=False, chat_data=False)
         super().__init__(store_data, 10)
 
@@ -119,3 +120,8 @@ class SQLitePersistence(BasePersistence):
     async def flush(self) -> None:
         logger.info('closing connection to data.db')
         self.con.close()
+
+    def get_all_users(self):
+        cur = self.con.cursor()
+        cur.execute('SELECT user_id FROM users')
+        return [row['user_id'] for row in cur.fetchall()]
