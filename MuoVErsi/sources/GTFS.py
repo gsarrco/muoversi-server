@@ -209,27 +209,8 @@ class GTFS(Source):
 
         return stops
 
-    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[str]:
-        cur = self.con.cursor()
-        service_ids = self.get_active_service_ids(day, context)
-        query = """
-                    SELECT route_short_name
-                    FROM stop_times
-                             INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                             INNER JOIN routes ON trips.route_id = routes.route_id
-                    WHERE stop_times.stop_id in ({stop_id})
-                      AND trips.service_id in ({seq})
-                      AND pickup_type = 0
-                    GROUP BY route_short_name ORDER BY count(*) DESC;
-                """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
-
-        params = (*stop_ids, *service_ids)
-
-        return [line[0] for line in cur.execute(query, params).fetchall()]
-
-    def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day,
-                       offset_times, dep_cluster_name, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[
-        GTFSStopTime]:
+    def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name,
+                       context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
         route = 'AND route_short_name = ?' if line != '' else ''
 
@@ -252,15 +233,25 @@ class GTFS(Source):
             else:
                 start_dt = datetime.combine(day, time(6))
 
+        if count:
+            select_elements = "r.route_short_name     as line"
+            button_elements = "GROUP BY route_short_name ORDER BY count(*) DESC"
+        else:
+            select_elements = """
+                dep.departure_time      as dep_time,
+                r.route_short_name     as line,
+                hs_cluster_name        as headsign,
+                t.trip_id              as trip_id,
+                dep.stop_sequence       as stop_sequence,
+                s.stop_name          as dep_stop_name,
+                CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+                CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute"""
+            button_elements = """
+                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
+                LIMIT ? OFFSET ?"""
+
         query = f"""
-                SELECT dep.departure_time      as dep_time,
-                       r.route_short_name     as line,
-                       hs_cluster_name        as headsign,
-                       t.trip_id              as trip_id,
-                       dep.stop_sequence       as stop_sequence,
-                       s.stop_name          as dep_stop_name,
-                       CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-                       CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute
+                SELECT {select_elements}
                 FROM stop_times dep
                          INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
                                      FROM stop_times st
@@ -283,8 +274,7 @@ class GTFS(Source):
                   {or_other_service})
                   AND dep.pickup_type = 0
                   {route}
-                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
-                LIMIT ? OFFSET ?
+                {button_elements}
                 """
 
         params = (*dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
@@ -297,9 +287,13 @@ class GTFS(Source):
         if line != '':
             params += (line,)
 
-        params += (self.LIMIT, offset_times)
+        if not count:
+            params += (self.LIMIT, offset_times)
 
         results = cur.execute(query, params).fetchall()
+
+        if count:
+            return [line[0] for line in cur.execute(query, params).fetchall()]
 
         stop_times = []
         for result in results:
@@ -313,7 +307,7 @@ class GTFS(Source):
     def get_stop_times_between_stops(self, dep_stop_ids: set,
                                      arr_stop_ids: set, line, start_time,
                                      offset_times, day, dep_cluster_name, arr_cluster_name,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None) -> list[Direction]:
+                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
 
         route = 'AND route_short_name = ?' if line != '' else ''
@@ -337,19 +331,31 @@ class GTFS(Source):
             else:
                 start_dt = datetime.combine(day, time(6))
 
+        if count:
+            select_elements = "r.route_short_name     as line"
+            button_elements = "GROUP BY route_short_name ORDER BY count(*) DESC"
+        else:
+            select_elements = """
+                   dep.departure_time      as dep_time,
+                   r.route_short_name     as line,
+                   hs_cluster_name        as headsign,
+                   t.trip_id              as trip_id,
+                   dep.stop_sequence       as stop_sequence,
+                   arr_time               as arr_time,
+                   s.stop_name          as dep_stop_name,
+                   arr_stop_name          as arr_stop_name,
+                   CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+                   CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
+                   CAST(SUBSTR(arr_time, 1, 2) AS INTEGER) % 24 arr_hour_normalized,
+                   CAST(SUBSTR(arr_time, 4, 2) AS INTEGER) arr_minute
+            """
+            button_elements = """
+                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
+                LIMIT ? OFFSET ?
+            """
+
         query = f"""
-        SELECT dep.departure_time      as dep_time,
-               r.route_short_name     as line,
-               hs_cluster_name        as headsign,
-               t.trip_id              as trip_id,
-               dep.stop_sequence       as stop_sequence,
-               arr_time               as arr_time,
-               s.stop_name          as dep_stop_name,
-               arr_stop_name          as arr_stop_name,
-               CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-               CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
-               CAST(SUBSTR(arr_time, 1, 2) AS INTEGER) % 24 arr_hour_normalized,
-               CAST(SUBSTR(arr_time, 4, 2) AS INTEGER) arr_minute
+        SELECT {select_elements}
         FROM stop_times dep
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
@@ -380,8 +386,7 @@ class GTFS(Source):
           AND dep.pickup_type = 0
           AND dep.stop_sequence < arr.stop_sequence
           {route}
-        ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
-        LIMIT ? OFFSET ?
+        {button_elements}
         """
 
         params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
@@ -394,9 +399,13 @@ class GTFS(Source):
         if line != '':
             params += (line,)
 
-        params += (self.LIMIT, offset_times)
+        if not count:
+            params += (self.LIMIT, offset_times)
 
         results = cur.execute(query, params).fetchall()
+
+        if count:
+            return [line[0] for line in cur.execute(query, params).fetchall()]
 
         directions = []
 

@@ -215,7 +215,7 @@ class Trenitalia(Source):
         return Stop(ref, result.name, [ref]) if result else None
 
     def get_stop_times(self, line, start_time, dep_stop_ids, day,
-                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None):
+                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -225,26 +225,46 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        dt = start_dt
         station_id = dep_stop_ids[0]
 
-        # get stop_times from db
-        raw_stop_times = self.session.query(
-            StopTime.arrivo_teorico.label('arr_time'),
-            StopTime.partenza_teorica.label('dep_time'),
-            Train.codOrigine.label('origin_id'),
-            Train.destinazione.label('destination'),
-            Train.numeroTreno.label('trip_id'),
-            Train.dataPartenzaTreno.label('origin_dep_time'),
-            Train.categoria.label('route_name'),
-            StopTime.binario.label('platform')
-        ).join(Train, StopTime.train_id == Train.id).filter(
+        if count:
+            raw_stop_times = self.session.query(
+                Train.categoria.label('route_name')
+            )
+        else:
+            raw_stop_times = self.session.query(
+                StopTime.arrivo_teorico.label('arr_time'),
+                StopTime.partenza_teorica.label('dep_time'),
+                Train.codOrigine.label('origin_id'),
+                Train.destinazione.label('destination'),
+                Train.numeroTreno.label('trip_id'),
+                Train.dataPartenzaTreno.label('origin_dep_time'),
+                StopTime.binario.label('platform'),
+                Train.categoria.label('route_name')
+            )
+
+        raw_stop_times = raw_stop_times \
+            .select_from(StopTime) \
+            .join(Train, StopTime.train_id == Train.id) \
+            .filter(
             and_(
                 StopTime.idFermata == station_id,
                 StopTime.partenza_teorica >= start_dt,
                 StopTime.partenza_teorica < end_dt
             )
-        ).order_by(StopTime.partenza_teorica).limit(self.LIMIT).offset(offset_times).all()
+        )
+
+        if count:
+            raw_stop_times = raw_stop_times \
+                .group_by(Train.categoria) \
+                .order_by(func.count(Train.categoria).desc())
+        else:
+            raw_stop_times = raw_stop_times.order_by(StopTime.partenza_teorica).limit(self.LIMIT).offset(offset_times)
+
+        raw_stop_times = raw_stop_times.all()
+
+        if count:
+            return [train.route_name for train in raw_stop_times]
 
         stop_times = []
 
@@ -361,7 +381,7 @@ class Trenitalia(Source):
     def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, line,
                                      start_time, offset_times,
                                      day, dep_stop_name, arr_stop_name,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None):
+                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -378,23 +398,30 @@ class Trenitalia(Source):
         a_stop_times = aliased(StopTime)
         d_stop_times = aliased(StopTime)
 
-        raw_stop_times = self.session.query(
-            d_stop_times.arrivo_teorico.label('d_arr_time'),
-            d_stop_times.partenza_teorica.label('d_dep_time'),
-            Train.codOrigine.label('origin_id'),
-            Train.destinazione.label('destination'),
-            Train.numeroTreno.label('trip_id'),
-            Train.dataPartenzaTreno.label('origin_dep_time'),
-            Train.categoria.label('route_name'),
-            d_stop_times.binario.label('d_platform'),
-            a_stop_times.partenza_teorica.label('a_dep_time'),
-            a_stop_times.arrivo_teorico.label('a_arr_time'),
-            a_stop_times.binario.label('a_platform')
-        ).join(
-            a_stop_times, d_stop_times.train_id == a_stop_times.train_id
-        ).join(
-            Train, d_stop_times.train_id == Train.id
-        ).filter(
+        if count:
+            raw_stop_times = self.session.query(
+                Train.categoria.label('route_name'),
+            )
+        else:
+            raw_stop_times = self.session.query(
+                d_stop_times.arrivo_teorico.label('d_arr_time'),
+                d_stop_times.partenza_teorica.label('d_dep_time'),
+                Train.codOrigine.label('origin_id'),
+                Train.destinazione.label('destination'),
+                Train.numeroTreno.label('trip_id'),
+                Train.dataPartenzaTreno.label('origin_dep_time'),
+                Train.categoria.label('route_name'),
+                d_stop_times.binario.label('d_platform'),
+                a_stop_times.partenza_teorica.label('a_dep_time'),
+                a_stop_times.arrivo_teorico.label('a_arr_time'),
+                a_stop_times.binario.label('a_platform')
+            )
+
+        raw_stop_times = raw_stop_times \
+            .select_from(d_stop_times) \
+            .join(a_stop_times, d_stop_times.train_id == a_stop_times.train_id) \
+            .join(Train, d_stop_times.train_id == Train.id) \
+            .filter(
             and_(
                 d_stop_times.idFermata == dep_station_id,
                 d_stop_times.partenza_teorica >= start_dt,
@@ -402,9 +429,19 @@ class Trenitalia(Source):
                 d_stop_times.partenza_teorica < a_stop_times.arrivo_teorico,
                 a_stop_times.idFermata == arr_station_id
             )
-        ).order_by(
-            d_stop_times.partenza_teorica
-        ).limit(self.LIMIT).offset(offset_times).all()
+        )
+
+        if count:
+            raw_stop_times = raw_stop_times.group_by(Train.categoria).order_by(func.count(Train.categoria).desc())
+        else:
+            raw_stop_times = raw_stop_times.order_by(
+                d_stop_times.partenza_teorica
+            ).limit(self.LIMIT).offset(offset_times)
+
+        raw_stop_times = raw_stop_times.all()
+
+        if count:
+            return [train.route_name for train in raw_stop_times]
 
         directions = []
 
