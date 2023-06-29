@@ -82,13 +82,19 @@ class StopTimesFilter:
                                                            line, start_time, self.offset_times, day,
                                                            self.dep_cluster_name, self.arr_cluster_name,
                                                            context=self.context)
+            if self.lines is None:
+                self.lines = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
+                                                                  line, start_time, self.offset_times, day,
+                                                                  self.dep_cluster_name, self.arr_cluster_name,
+                                                                  context=self.context, count=True)
             return results
 
         results = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
                                          self.dep_cluster_name, context=self.context)
 
         if self.lines is None:
-            self.lines = db_file.get_lines_from_stops(day, dep_stop_ids, context=self.context)
+            self.lines = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
+                                                self.dep_cluster_name, context=self.context, count=True)
 
         return results
 
