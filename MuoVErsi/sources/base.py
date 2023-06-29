@@ -177,9 +177,6 @@ class Source:
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[str]:
-        return []
-
     def get_stop_from_ref(self, ref) -> Stop:
         raise NotImplementedError
 
