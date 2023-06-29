@@ -209,24 +209,6 @@ class GTFS(Source):
 
         return stops
 
-    def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[str]:
-        cur = self.con.cursor()
-        service_ids = self.get_active_service_ids(day, context)
-        query = """
-                    SELECT route_short_name
-                    FROM stop_times
-                             INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                             INNER JOIN routes ON trips.route_id = routes.route_id
-                    WHERE stop_times.stop_id in ({stop_id})
-                      AND trips.service_id in ({seq})
-                      AND pickup_type = 0
-                    GROUP BY route_short_name ORDER BY count(*) DESC;
-                """.format(seq=','.join(['?'] * len(service_ids)), stop_id=','.join(['?'] * len(stop_ids)))
-
-        params = (*stop_ids, *service_ids)
-
-        return [line[0] for line in cur.execute(query, params).fetchall()]
-
     def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name,
                        context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
