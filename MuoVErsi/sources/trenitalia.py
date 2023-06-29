@@ -62,6 +62,7 @@ class Train(Base):
     numeroTreno = Column(Integer)
     dataPartenzaTreno = Column(Date)
     statoTreno = Column(String, default='regol.')
+    categoria = Column(String)
     stop_times = relationship('StopTime', backref='train')
 
     __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
@@ -141,7 +142,8 @@ class Trenitalia(Source):
 
                 if not train:
                     train = Train(codOrigine=stop_time.origin_id, destinazione=stop_time.destination,
-                                  numeroTreno=stop_time.trip_id, dataPartenzaTreno=stop_time.origin_dep_time)
+                                  numeroTreno=stop_time.trip_id, dataPartenzaTreno=stop_time.origin_dep_time,
+                                  categoria=stop_time.route_name)
                     self.session.add(train)
                     self.session.commit()
 
