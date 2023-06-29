@@ -168,14 +168,15 @@ class Source:
         raise NotImplementedError
 
     def get_stop_times(self, line, start_time, dep_stop_ids, day,
-                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[
-        StopTime]:
+                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None, count=False) -> \
+            list[
+                StopTime]:
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop_ids: set,
                                      arr_stop_ids: set, line, start_time,
                                      offset_times, day, dep_stop_name, arr_stop_name,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None) -> list[Direction]:
+                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False) -> list[Direction]:
         raise NotImplementedError
 
     def get_lines_from_stops(self, day, stop_ids, context: ContextTypes.DEFAULT_TYPE | None = None) -> list[str]:
