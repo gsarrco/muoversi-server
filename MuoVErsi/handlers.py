@@ -291,7 +291,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
 
-    stop_ref = text[1:]
+    stop_ref, line = text[1:].split('/')
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -299,14 +299,14 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), line, now.time(),
                                             arr_stop_ids=stop_ids,
                                             arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name,
                                             first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), line, now.time(),
                                             dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
@@ -417,10 +417,14 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     text = _('stops') + ':\n'
 
-    for stop in stops:
-        text += f'\n/{stop[0]} {stop[1]}'
+    inline_buttons = []
 
-    await query.edit_message_text(text=text)
+    for stop in stops:
+        stop_id = stop[0]
+        stop_name = stop[1]
+        inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
+
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(inline_buttons))
     await query.answer('')
 
     return SHOW_STOP
