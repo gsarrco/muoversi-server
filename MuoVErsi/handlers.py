@@ -1,5 +1,4 @@
 import gettext
-import gettext
 import logging
 import os
 import sys
