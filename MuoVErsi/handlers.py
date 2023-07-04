@@ -394,7 +394,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('not_implemented'))
         return ConversationHandler.END
 
-    inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
+    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}')] for line in lines]
+    inline_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
 
@@ -410,7 +411,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     query = update.callback_query
 
-    trip_id = query.data
+    trip_id, line = query.data[1:].split('/')
 
     stops = get_stops_from_trip_id(trip_id, con)
 
@@ -483,7 +484,7 @@ def main() -> None:
                 MessageHandler(filters.TEXT & (~filters.COMMAND), search_line),
                 CallbackQueryHandler(specify_line, r'^T')
             ],
-            SHOW_LINE: [CallbackQueryHandler(show_line)],
+            SHOW_LINE: [CallbackQueryHandler(show_line, r'^L')],
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
