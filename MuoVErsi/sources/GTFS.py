@@ -212,7 +212,14 @@ class GTFS(Source):
     def get_stop_times(self, line, start_time: str | time, dep_stop_ids, day, offset_times, dep_cluster_name,
                        context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
-        route = 'AND route_short_name = ?' if line != '' else ''
+
+        route_name, route_id = line.split('-') if '-' in line else (line, '')
+        if route_id == '':
+            line = route_name
+            route = 'AND route_short_name = ?' if line != '' else ''
+        else:
+            line = route_id
+            route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
 
@@ -310,7 +317,13 @@ class GTFS(Source):
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
 
-        route = 'AND route_short_name = ?' if line != '' else ''
+        route_name, route_id = line.split('-') if '-' in line else (line, '')
+        if route_id == '':
+            line = route_name
+            route = 'AND route_short_name = ?' if line != '' else ''
+        else:
+            line = route_id
+            route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
 
@@ -444,13 +457,13 @@ class GTFS(Source):
         service_ids = self.get_active_service_ids(today, context)
 
         cur = self.con.cursor()
-        query = """SELECT trips.trip_id, route_short_name, route_long_name, count(stop_times.id) as times_count
+        query = """SELECT trips.trip_id, route_short_name, route_long_name, routes.route_id
                             FROM stop_times
                                 INNER JOIN trips ON stop_times.trip_id = trips.trip_id
                                 INNER JOIN routes ON trips.route_id = routes.route_id
                             WHERE route_short_name = ?
                                 AND trips.service_id in ({seq})
-                            GROUP BY routes.route_id ORDER BY times_count DESC;""".format(
+                            GROUP BY routes.route_id ORDER BY count(stop_times.id) DESC;""".format(
             seq=','.join(['?'] * len(service_ids)))
 
         results = cur.execute(query, (name, *service_ids)).fetchall()
