@@ -291,7 +291,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
 
-    stop_ref, line = text[1:].split('/')
+    stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
