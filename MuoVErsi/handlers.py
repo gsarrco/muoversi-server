@@ -291,7 +291,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
 
-    stop_ref = text[1:]
+    stop_ref, line = text[1:].split('/')
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -299,14 +299,14 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), line, now.time(),
                                             arr_stop_ids=stop_ids,
                                             arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name,
                                             first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), line, now.time(),
                                             dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
@@ -394,7 +394,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('not_implemented'))
         return ConversationHandler.END
 
-    inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
+    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}')] for line in lines]
+    inline_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
 
@@ -410,16 +411,20 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     query = update.callback_query
 
-    trip_id = query.data
+    trip_id, line = query.data[1:].split('/')
 
     stops = get_stops_from_trip_id(trip_id, con)
 
     text = _('stops') + ':\n'
 
-    for stop in stops:
-        text += f'\n/{stop[0]} {stop[1]}'
+    inline_buttons = []
 
-    await query.edit_message_text(text=text)
+    for stop in stops:
+        stop_id = stop[0]
+        stop_name = stop[1]
+        inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
+
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(inline_buttons))
     await query.answer('')
 
     return SHOW_STOP
@@ -483,7 +488,7 @@ def main() -> None:
                 MessageHandler(filters.TEXT & (~filters.COMMAND), search_line),
                 CallbackQueryHandler(specify_line, r'^T')
             ],
-            SHOW_LINE: [CallbackQueryHandler(show_line)],
+            SHOW_LINE: [CallbackQueryHandler(show_line, r'^L')],
             SHOW_STOP: [
                 MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
