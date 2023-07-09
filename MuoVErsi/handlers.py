@@ -543,7 +543,7 @@ async def main() -> None:
             config=uvicorn.Config(
                 app=starlette_app,
                 port=443,
-                host="127.0.0.1",
+                host="0.0.0.0",
                 ssl_keyfile=os.path.join(parent_dir, 'private.key'),
                 ssl_certfile=os.path.join(parent_dir, 'cert.pem')
             )
