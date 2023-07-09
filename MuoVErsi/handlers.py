@@ -291,7 +291,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
 
-    stop_ref, line = text[1:].split('/')
+    stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -394,7 +394,7 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('not_implemented'))
         return ConversationHandler.END
 
-    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}')] for line in lines]
+    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}-{line[3]}')] for line in lines]
     inline_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
