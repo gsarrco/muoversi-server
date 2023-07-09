@@ -5,7 +5,12 @@ import sys
 from datetime import datetime, timedelta
 
 import requests
+import uvicorn
 import yaml
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
     InlineKeyboardButton, Bot
 from telegram.ext import (
@@ -442,7 +447,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-def main() -> None:
+async def main() -> None:
     DEV = config.get('DEV', False)
 
     PGUSER = config.get('PGUSER', None)
@@ -506,9 +511,45 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
 
+    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
+    bot: Bot = application.bot
+    await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'),
+                          secret_token=config['SECRET_TOKEN'])
+
+    async def telegram(request: Request) -> Response:
+        if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['SECRET_TOKEN']:
+            return Response(status_code=403)
+        await application.update_queue.put(
+            Update.de_json(data=await request.json(), bot=application.bot)
+        )
+        return Response()
+
+    starlette_app = Starlette(
+        routes=[
+            Route("/tg_bot_webhook", telegram, methods=["POST"])
+        ]
+    )
+
     if DEV:
-        application.run_polling()
+        webserver = uvicorn.Server(
+            config=uvicorn.Config(
+                app=starlette_app,
+                port=8000,
+                host="127.0.0.1",
+            )
+        )
     else:
-        application.run_webhook(listen='0.0.0.0', port=443, secret_token=config['SECRET_TOKEN'],
-                                webhook_url=config['WEBHOOK_URL'], key=os.path.join(parent_dir, 'private.key'),
-                                cert=os.path.join(parent_dir, 'cert.pem'))
+        webserver = uvicorn.Server(
+            config=uvicorn.Config(
+                app=starlette_app,
+                port=443,
+                host="127.0.0.1",
+                ssl_keyfile=os.path.join(parent_dir, 'private.key'),
+                ssl_certfile=os.path.join(parent_dir, 'cert.pem')
+            )
+        )
+
+    async with application:
+        await application.start()
+        await webserver.serve()
+        await application.stop()
