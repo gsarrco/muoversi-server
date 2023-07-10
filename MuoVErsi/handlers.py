@@ -495,7 +495,6 @@ async def main() -> None:
             ],
             SHOW_LINE: [CallbackQueryHandler(show_line, r'^L')],
             SHOW_STOP: [
-                MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
                 CallbackQueryHandler(ride_view_show_stop, r'^R'),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
