@@ -513,12 +513,14 @@ class GTFS(Source):
     def get_stops_from_trip_id(self, trip_id, stop_sequence: int = 0):
         cur = self.con.cursor()
         results = cur.execute('''
-            SELECT sc.id, stop_name, departure_time
+            SELECT sc.id, stop_name, arrival_time, departure_time, route_short_name
             FROM stop_times
                      INNER JOIN stops ON stops.stop_id = stop_times.stop_id
                      LEFT JOIN stops_stops_clusters ssc on stops.stop_id = ssc.stop_id
                      LEFT JOIN stops_clusters sc on ssc.stop_cluster_id = sc.id
-            WHERE trip_id = ?
+                     LEFT JOIN trips t on stop_times.trip_id = t.trip_id
+                     LEFT JOIN routes r on t.route_id = r.route_id
+            WHERE stop_times.trip_id = ?
               AND stop_sequence >= ?
             ORDER BY stop_sequence
         ''', (trip_id, stop_sequence)).fetchall()

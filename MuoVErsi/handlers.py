@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import requests
 import uvicorn
 import yaml
+from babel.dates import format_date
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response
@@ -354,30 +355,36 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return new_state
 
 
-async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     source: Source = thismodule.sources[context.user_data['transport_type']]
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
+    query_data = context.user_data['query_data']
+    dep_cluster_name = context.user_data['dep_cluster_name']
+    arr_stop_ids = context.user_data.get('arr_stop_ids')
+    arr_cluster_name = context.user_data.get('arr_cluster_name')
 
-    query = update.callback_query
+    results = source.get_stops_from_trip_id(update.message.text[1:])
 
-    trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
-    day = datetime.strptime(day_raw, '%Y%m%d').date()
+    stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_cluster_name=dep_cluster_name,
+                                        arr_stop_ids=arr_stop_ids, arr_cluster_name=arr_cluster_name)
 
-    results = source.get_stops_from_trip_id(trip_id, stop_sequence)
-
-    text = StopTimesFilter(context, source, day=day, line=line, start_time='').title(_, lang)
+    line = results[0][4]
+    text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
+        'line') + ' ' + line + '</b>'
 
     for result in results:
-        stop_id, stop_name, time_raw = result
-        time_format = time_25_to_1(day, time_raw).isoformat(timespec="minutes")
+        stop_id, stop_name, arrival_time, departure_time, line = result
+        arrival_time_format = time_25_to_1(stop_times_filter.day, arrival_time).strftime('%H:%M')
+        departure_time_format = time_25_to_1(stop_times_filter.day, departure_time).strftime('%H:%M')
+        time_format = f'{arrival_time_format}>{departure_time_format}' if arrival_time != departure_time else \
+            arrival_time_format
         text += f'\n{time_format} {stop_name}'
 
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
-    await query.answer('')
+    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
 
 
@@ -494,7 +501,7 @@ async def main() -> None:
             SHOW_LINE: [CallbackQueryHandler(show_line, r'^L')],
             SHOW_STOP: [
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
-                CallbackQueryHandler(ride_view_show_stop, r'^R'),
+                MessageHandler(filters.Regex(r'^\/[0-9]+$'), trip_view),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
                 MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
