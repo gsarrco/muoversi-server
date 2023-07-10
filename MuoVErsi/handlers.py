@@ -21,7 +21,7 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_stops_from_trip_id
+from .helpers import time_25_to_1
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -355,8 +355,7 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    source: Source = thismodule.sources[context.user_data['transport_type']]
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -366,9 +365,9 @@ async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE
     trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
     day = datetime.strptime(day_raw, '%Y%m%d').date()
 
-    results = get_stops_from_trip_id(trip_id, con, stop_sequence)
+    results = source.get_stops_from_trip_id(trip_id, stop_sequence)
 
-    text = StopTimesFilter(context, db_file, day=day, line=line, start_time='').title(_, lang)
+    text = StopTimesFilter(context, source, day=day, line=line, start_time='').title(_, lang)
 
     for result in results:
         stop_id, stop_name, time_raw = result
@@ -408,8 +407,7 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    source: Source = thismodule.sources[context.user_data['transport_type']]
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -418,7 +416,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     trip_id, line = query.data[1:].split('/')
 
-    stops = get_stops_from_trip_id(trip_id, con)
+    stops = source.get_stops_from_trip_id(trip_id)
 
     text = _('stops') + ':\n'
 
