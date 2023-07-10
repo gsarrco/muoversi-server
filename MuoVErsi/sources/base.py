@@ -112,16 +112,10 @@ class Route(Liner):
         line = f'{time_format} {route_name}{headsign}'
 
         # Second line of text
-        dep_platform = self.dep_stop_time.platform
-        arr_platform = self.arr_stop_time.platform
-        trip_id = f'{self.dep_stop_time.trip_id} ' if source_name == 'treni' else None
-        second_line_elements = [trip_id, dep_platform, arr_platform]
-        if any(second_line_elements):
-            platform_text = _(f'{source_name}_platform')
-            dep_platform = dep_platform if dep_platform else '/'
-            arr_platform = arr_platform if arr_platform else '/'
-            trip_id = trip_id if trip_id else ''
-            line += f'\n⎿ <i>{trip_id}{platform_text} {dep_platform} -> {arr_platform}</i>'
+        platform_text = _(f'{source_name}_platform')
+        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
+        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
+        line += f'\n⎿ <i>/{self.dep_stop_time.trip_id} {platform_text} {dep_platform} -> {arr_platform}</i>'
 
         # Modifications for all lines of text
         if self.dep_stop_time.dep_time < datetime.now():
