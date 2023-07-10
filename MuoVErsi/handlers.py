@@ -361,21 +361,34 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
     query_data = context.user_data['query_data']
+    dep_stop_ids = context.user_data['dep_stop_ids']
     dep_cluster_name = context.user_data['dep_cluster_name']
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
 
     results = source.get_stops_from_trip_id(update.message.text[1:])
 
-    stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_cluster_name=dep_cluster_name,
-                                        arr_stop_ids=arr_stop_ids, arr_cluster_name=arr_cluster_name)
+    stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_stop_ids=dep_stop_ids,
+                                        dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
+                                        arr_cluster_name=arr_cluster_name)
 
     line = results[0][4]
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + '</b>'
+    try:
+        dep_stop_index = next(i for i, v in enumerate(results) if int(v[5]) in stop_times_filter.dep_stop_ids)
+    except StopIteration:
+        raise StopIteration('No departure stop found')
+    arr_stop_index = len(results) - 1
+    if arr_cluster_name:
+        try:
+            arr_stop_index = dep_stop_index + next(i for i, v in enumerate(results[dep_stop_index:]) if int(v[5]) in
+                                                   stop_times_filter.arr_stop_ids)
+        except StopIteration:
+            raise StopIteration('No arrival stop found')
 
-    for result in results:
-        stop_id, stop_name, arrival_time, departure_time, line = result
+    for result in results[dep_stop_index:arr_stop_index + 1]:
+        cluster_id, stop_name, arrival_time, departure_time, line, stop_id = result
         arrival_time_format = time_25_to_1(stop_times_filter.day, arrival_time).strftime('%H:%M')
         departure_time_format = time_25_to_1(stop_times_filter.day, departure_time).strftime('%H:%M')
         time_format = f'{arrival_time_format}>{departure_time_format}' if arrival_time != departure_time else \
