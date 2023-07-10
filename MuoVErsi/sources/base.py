@@ -53,15 +53,10 @@ class StopTime(Liner):
         line = f'{time_format} {route_name}{headsign}'
 
         # Second line of text
-        trip_id = self.trip_id if source_name == 'treni' else None
-        platform = self.platform
-
-        second_line_elements = [trip_id, platform]
-        if any(second_line_elements):
-            trip_id = f'{trip_id} ' if trip_id else ''
-            platform = platform if platform else '/'
-            platform_text = _(f'{source_name}_platform')
-            line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
+        trip_id = f'/{self.trip_id} ' if self.trip_id else ''
+        platform = self.platform if self.platform else '/'
+        platform_text = _(f'{source_name}_platform')
+        line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
 
         # Modifications for all lines of text
         if self.dep_time < datetime.now():
