@@ -513,8 +513,11 @@ async def main() -> None:
 
     webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
     bot: Bot = application.bot
-    await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'),
-                          secret_token=config['SECRET_TOKEN'])
+
+    if DEV:
+        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['SECRET_TOKEN'])
+    else:
+        await bot.set_webhook(webhook_url, secret_token=config['SECRET_TOKEN'])
 
     async def telegram(request: Request) -> Response:
         if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['SECRET_TOKEN']:
@@ -544,8 +547,8 @@ async def main() -> None:
                 app=starlette_app,
                 port=443,
                 host="0.0.0.0",
-                ssl_keyfile=os.path.join(parent_dir, 'private.key'),
-                ssl_certfile=os.path.join(parent_dir, 'cert.pem')
+                ssl_keyfile=config['SSL_KEYFILE'],
+                ssl_certfile=config['SSL_CERTFILE']
             )
         )
 
