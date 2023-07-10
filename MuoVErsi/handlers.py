@@ -547,8 +547,8 @@ async def main() -> None:
                 app=starlette_app,
                 port=443,
                 host="0.0.0.0",
-                ssl_keyfile=os.path.join(parent_dir, 'private.key'),
-                ssl_certfile=os.path.join(parent_dir, 'cert.pem')
+                ssl_keyfile=config['SSL_KEYFILE'],
+                ssl_certfile=config['SSL_CERTFILE']
             )
         )
 
