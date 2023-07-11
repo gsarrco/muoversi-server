@@ -172,5 +172,5 @@ class Source:
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id, stop_sequence: int = 0):
+    def get_stops_from_trip_id(self, trip_id) -> list[StopTime]:
         raise NotImplementedError
