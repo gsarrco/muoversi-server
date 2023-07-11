@@ -506,7 +506,7 @@ class GTFS(Source):
 
         return service_ids
 
-    def get_stops_from_trip_id(self, trip_id) -> list[BaseStopTime]:
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         cur = self.con.cursor()
         results = cur.execute('''
             SELECT sc.id, stop_name, arrival_time, departure_time, route_short_name, stop_times.stop_id
