@@ -479,8 +479,7 @@ class Trenitalia(Source):
             .filter(
             and_(
                 Train.numeroTreno == trip_id,
-                StopTime.partenza_teorica >= datetime.combine(day, time(0)),
-                StopTime.partenza_teorica < datetime.combine(day, time(23, 59, 59))
+                Train.dataPartenzaTreno == day.isoformat()
             )) \
             .order_by(StopTime.partenza_teorica)
 
