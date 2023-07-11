@@ -508,15 +508,35 @@ class GTFS(Source):
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         cur = self.con.cursor()
+        cur.row_factory = sqlite3.Row
         results = cur.execute('''
-            SELECT sc.id, stop_name, arrival_time, departure_time, route_short_name, stop_times.stop_id
-            FROM stop_times
-                     INNER JOIN stops ON stops.stop_id = stop_times.stop_id
-                     LEFT JOIN stops_stops_clusters ssc on stops.stop_id = ssc.stop_id
+            SELECT
+                sc.id as sc_id,
+                sc.name as sc_name,
+                sp.stop_id as sp_id,
+                sp.stop_name as sp_name,
+                CAST(SUBSTR(st.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+                CAST(SUBSTR(st.departure_time, 4, 2) AS INTEGER) dep_minute,
+                r.route_short_name as route_name    
+            FROM stop_times st
+                     INNER JOIN stops sp ON sp.stop_id = st.stop_id
+                     LEFT JOIN stops_stops_clusters ssc on sp.stop_id = ssc.stop_id
                      LEFT JOIN stops_clusters sc on ssc.stop_cluster_id = sc.id
-                     LEFT JOIN trips t on stop_times.trip_id = t.trip_id
+                     LEFT JOIN trips t on st.trip_id = t.trip_id
                      LEFT JOIN routes r on t.route_id = r.route_id
-            WHERE stop_times.trip_id = ?
-            ORDER BY stop_sequence
-        ''', trip_id).fetchall()
-        return results
+            WHERE st.trip_id = ?
+            ORDER BY st.stop_sequence
+        ''', (trip_id,)).fetchall()
+
+        stop_times = []
+        headsign = results[-1]['sc_name']
+
+        for result in results:
+            stop = Stop(result['sc_id'], result['sc_name'], [result['sp_id']])
+            location = result['sp_name'].upper().replace(stop.name.upper(), "").strip()
+            dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
+            stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
+                                     result['route_name'])
+            stop_times.append(stop_time)
+
+        return stop_times

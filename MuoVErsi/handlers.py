@@ -22,7 +22,6 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -372,28 +371,33 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     results = source.get_stops_from_trip_id(update.message.text[1:], stop_times_filter.day)
 
-    line = results[0][4]
+    line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + '</b>'
     try:
-        dep_stop_index = next(i for i, v in enumerate(results) if int(v[5]) in stop_times_filter.dep_stop_ids)
+        dep_stop_index = next(i for i, v in enumerate(results) if int(v.stop.ids[0]) in stop_times_filter.dep_stop_ids)
     except StopIteration:
         raise StopIteration('No departure stop found')
     arr_stop_index = len(results) - 1
     if arr_cluster_name:
         try:
-            arr_stop_index = dep_stop_index + next(i for i, v in enumerate(results[dep_stop_index:]) if int(v[5]) in
-                                                   stop_times_filter.arr_stop_ids)
+            arr_stop_index = dep_stop_index + next(
+                i for i, v in enumerate(results[dep_stop_index:]) if int(v.stop.ids[0]) in
+                stop_times_filter.arr_stop_ids)
         except StopIteration:
             raise StopIteration('No arrival stop found')
 
+    platform_text = _(f'{source.name}_platform')
+
     for result in results[dep_stop_index:arr_stop_index + 1]:
-        cluster_id, stop_name, arrival_time, departure_time, line, stop_id = result
-        arrival_time_format = time_25_to_1(stop_times_filter.day, arrival_time).strftime('%H:%M')
-        departure_time_format = time_25_to_1(stop_times_filter.day, departure_time).strftime('%H:%M')
-        time_format = f'{arrival_time_format}>{departure_time_format}' if arrival_time != departure_time else \
-            arrival_time_format
-        text += f'\n{time_format} {stop_name}'
+        arr_time_fmt = result.arr_time.strftime('%H:%M')
+        dep_time_fmt = result.dep_time.strftime('%H:%M')
+        time_format = f'{arr_time_fmt}>{dep_time_fmt}' if arr_time_fmt != dep_time_fmt else \
+            arr_time_fmt
+        text += f'\n{time_format} {result.stop.name}'
+
+        if result.platform:
+            text += f' ({platform_text} {result.platform})'
 
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
