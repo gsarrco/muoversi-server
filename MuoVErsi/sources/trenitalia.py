@@ -1,14 +1,14 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, date
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import create_engine, Column, Integer, String, Float, UniqueConstraint, ForeignKey, func, and_, \
-    DateTime, Date
+from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_
+from sqlalchemy import select
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, aliased
+from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
 from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
@@ -46,24 +46,23 @@ Base = declarative_base()
 class Station(Base):
     __tablename__ = 'stations'
 
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
-    region_code = Column(Integer)
-    lat = Column(Float)
-    lon = Column(Float)
+    id: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    region_code: Mapped[int]
+    lat: Mapped[float]
+    lon: Mapped[float]
 
 
 class Train(Base):
     __tablename__ = 'trains'
 
-    id = Column(Integer, primary_key=True)
-    codOrigine = Column(String, ForeignKey('stations.id'))
-    destinazione = Column(String)
-    numeroTreno = Column(Integer)
-    dataPartenzaTreno = Column(Date)
-    statoTreno = Column(String, default='regol.')
-    categoria = Column(String)
-    stop_times = relationship('StopTime', backref='train')
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codOrigine: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    destinazione: Mapped[str]
+    numeroTreno: Mapped[int]
+    dataPartenzaTreno: Mapped[date]
+    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
+    categoria: Mapped[str]
 
     __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
 
@@ -71,16 +70,18 @@ class Train(Base):
 class StopTime(Base):
     __tablename__ = 'stop_times'
 
-    id = Column(Integer, primary_key=True)
-    train_id = Column(Integer, ForeignKey('trains.id'))
-    idFermata = Column(String, ForeignKey('stations.id'))
-    arrivo_teorico = Column(DateTime)
-    arrivo_reale = Column(DateTime)
-    partenza_teorica = Column(DateTime)
-    partenza_reale = Column(DateTime)
-    ritardo_arrivo = Column(Integer)
-    ritardo_partenza = Column(Integer)
-    binario = Column(String)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
+    train: Mapped[Train] = relationship('Train', backref='stop_times')
+    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    station: Mapped[Station] = relationship('Station', backref='stop_times')
+    arrivo_teorico: Mapped[datetime]
+    arrivo_reale: Mapped[datetime]
+    partenza_teorica: Mapped[datetime]
+    partenza_reale: Mapped[datetime]
+    ritardo_arrivo: Mapped[int]
+    ritardo_partenza: Mapped[int]
+    binario: Mapped[str]
 
     __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
 
@@ -470,3 +471,28 @@ class Trenitalia(Source):
             directions.append(Direction([route]))
 
         return directions
+
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
+        query = select(StopTime, Train, Station) \
+            .join(StopTime.train) \
+            .join(StopTime.station) \
+            .filter(
+            and_(
+                Train.numeroTreno == trip_id,
+                StopTime.partenza_teorica >= datetime.combine(day, time(0)),
+                StopTime.partenza_teorica < datetime.combine(day, time(23, 59, 59))
+            )) \
+            .order_by(StopTime.partenza_teorica)
+
+        results = self.session.execute(query)
+
+        stop_times = []
+        for result in results:
+            stop = Stop(result.Station.id, result.Station.name, [result.Station.id])
+            stop_time = TrenitaliaStopTime(stop, result.Train.codOrigine, result.StopTime.partenza_teorica, None, 0,
+                                           result.StopTime.binario, result.Train.destinazione, trip_id,
+                                           result.Train.categoria,
+                                           result.StopTime.arrivo_teorico, result.Train.dataPartenzaTreno)
+            stop_times.append(stop_time)
+
+        return stop_times
