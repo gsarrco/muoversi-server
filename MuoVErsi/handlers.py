@@ -391,8 +391,11 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     platform_text = _(f'{source.name}_platform')
 
     for result in results[dep_stop_index:arr_stop_index + 1]:
-        dep_time_fmt = result.dep_time.strftime('%H:%M')
-        text += f'\n<b>{dep_time_fmt}</b> {result.stop.name}'
+        if result.dep_time:
+            time_fmt = result.dep_time.strftime('%H:%M')
+        else:
+            time_fmt = result.arr_time.strftime('%H:%M')
+        text += f'\n<b>{time_fmt}</b> {result.stop.name}'
 
         if result.platform:
             text += f' ({platform_text} {result.platform})'
