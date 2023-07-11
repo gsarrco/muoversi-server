@@ -64,7 +64,7 @@ class StopTimesFilter:
         start_time = self.start_time
 
         if start_time != '':
-            text += f' - {self.start_time.strftime("%H:%M")}(-5' + _('min') + ')'
+            text += f' - {self.start_time.strftime("%H:%M")}(-{self.source.MINUTES_TOLERANCE}' + _('min') + ')'
 
         if self.line != '':
             text += ' - ' + _('line') + ' ' + self.line
