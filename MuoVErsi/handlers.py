@@ -369,11 +369,12 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                                         dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
                                         arr_cluster_name=arr_cluster_name)
 
-    results = source.get_stops_from_trip_id(update.message.text[1:], stop_times_filter.day)
+    trip_id = update.message.text[1:]
+    results = source.get_stops_from_trip_id(trip_id, stop_times_filter.day)
 
     line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
-        'line') + ' ' + line + '</b>'
+        'line') + ' ' + line + f' {trip_id}</b>'
     try:
         dep_stop_index = next(i for i, v in enumerate(results) if v.stop.ids[0] in stop_times_filter.dep_stop_ids)
     except StopIteration:
