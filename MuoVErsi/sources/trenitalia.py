@@ -214,8 +214,8 @@ class Trenitalia(Source):
         result = self.session.query(Station.name).filter(Station.id == ref).first()
         return Stop(ref, result.name, [ref]) if result else None
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, day,
-                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+    def get_stop_times(self, stop: Stop, line, start_time, day,
+                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -225,7 +225,7 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        station_id = dep_stop_ids[0]
+        station_id = stop.ids[0]
 
         if count:
             raw_stop_times = self.session.query(
@@ -381,9 +381,8 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop_ids, arr_stop_ids, line,
-                                     start_time, offset_times,
-                                     day, dep_stop_name, arr_stop_name,
+    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+                                     offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
@@ -394,8 +393,8 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        dep_station_id = next(iter(dep_stop_ids))
-        arr_station_id = next(iter(arr_stop_ids))
+        dep_station_id = next(iter(dep_stop.ids))
+        arr_station_id = next(iter(arr_stop.ids))
 
         # Define alias for stop_times
         a_stop_times = aliased(StopTime)

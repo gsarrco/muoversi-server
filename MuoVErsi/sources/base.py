@@ -167,13 +167,12 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, day,
-                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+    def get_stop_times(self, stop: Stop, line, start_time, day,
+                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set,
-                                     arr_stop_ids: set, line, start_time,
-                                     offset_times, day, dep_stop_name, arr_stop_name,
+    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+                                     offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
