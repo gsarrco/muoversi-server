@@ -1,6 +1,5 @@
 import logging
 from datetime import time, date, datetime, timedelta
-from sqlite3 import Connection
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -20,21 +19,6 @@ def time_25_to_1(day: date, time_string) -> datetime:
         day = day + timedelta(days=1)
 
     return datetime.combine(day, time(hours, minutes, seconds))
-
-
-def get_stops_from_trip_id(trip_id, con: Connection, stop_sequence: int = 0):
-    cur = con.cursor()
-    results = cur.execute('''
-        SELECT sc.id, stop_name, departure_time
-        FROM stop_times
-                 INNER JOIN stops ON stops.stop_id = stop_times.stop_id
-                 LEFT JOIN stops_stops_clusters ssc on stops.stop_id = ssc.stop_id
-                 LEFT JOIN stops_clusters sc on ssc.stop_cluster_id = sc.id
-        WHERE trip_id = ?
-          AND stop_sequence >= ?
-        ORDER BY stop_sequence
-    ''', (trip_id, stop_sequence)).fetchall()
-    return results
 
 
 def find_longest_prefix(str1, str2):
