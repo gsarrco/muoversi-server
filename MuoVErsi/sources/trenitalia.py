@@ -223,7 +223,7 @@ class Trenitalia(Source):
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+            start_dt = datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE)
 
         end_dt = day_start + timedelta(days=1)
 
@@ -347,7 +347,7 @@ class Trenitalia(Source):
                 dep_time = None
 
             if dep_time:
-                if dep_time < start_dt - timedelta(minutes=5):
+                if dep_time < start_dt - timedelta(minutes=self.MINUTES_TOLERANCE):
                     continue
 
             try:
@@ -391,7 +391,7 @@ class Trenitalia(Source):
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time) - timedelta(minutes=5)
+            start_dt = datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE)
 
         end_dt = day_start + timedelta(days=1)
 
