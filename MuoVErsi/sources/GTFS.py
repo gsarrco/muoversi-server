@@ -15,7 +15,7 @@ from geopy.distance import distance
 from telegram.ext import ContextTypes
 
 from MuoVErsi.helpers import cluster_strings
-from MuoVErsi.sources.base import Source, Stop, StopTime, Route, Direction
+from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -74,11 +74,6 @@ def get_clusters_of_stops(stops):
             clusters[cluster_name]['coords'] = stops[0]['coords']
             clusters[cluster_name]['times_count'] = stops[0]['times_count']
     return clusters
-
-
-class GTFSStopTime(StopTime):
-    def __init__(self, dt: datetime, stop_sequence, headsign, trip_id, route_name, location):
-        super().__init__(dt, dt, stop_sequence, 0, location, headsign, trip_id, route_name)
 
 
 class GTFS(Source):
@@ -306,7 +301,7 @@ class GTFS(Source):
         for result in results:
             location = result[5].upper().replace(dep_cluster_name.upper(), "").strip()
             dep_dt = datetime.combine(day, time(result[6], result[7]))
-            stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1], location)
+            stop_time = BaseStopTime(dep_dt, dep_dt, result[4], 0, location, result[2], result[3], result[1])
             stop_times.append(stop_time)
 
         return stop_times
@@ -425,14 +420,14 @@ class GTFS(Source):
         for result in results:
             dep_dt = datetime.combine(day, time(result[8], result[9]))
             dep_location = result[6].upper().replace(dep_cluster_name.upper(), "").strip()
-            dep_stop_time = GTFSStopTime(dep_dt, result[4], result[2], result[3], result[1], dep_location)
+            dep_stop_time = BaseStopTime(dep_dt, dep_dt, result[4], 0, dep_location, result[2], result[3], result[1])
             arr_time = time(result[10], result[11])
             if arr_time < dep_dt.time():
                 arr_dt = datetime.combine(day + timedelta(days=1), arr_time)
             else:
                 arr_dt = datetime.combine(day, arr_time)
             arr_location = result[7].upper().replace(arr_cluster_name.upper(), "").strip()
-            arr_stop_time = GTFSStopTime(arr_dt, result[4], result[2], result[3], result[1], arr_location)
+            arr_stop_time = BaseStopTime(arr_dt, arr_dt, result[4], 0, arr_location, result[2], result[3], result[1])
             route = Route(dep_stop_time, arr_stop_time)
             directions.append(Direction([route]))
 
