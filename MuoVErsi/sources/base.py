@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes
 
 
 class Stop:
-    def __init__(self, ref: str, name: str, ids=None):
+    def __init__(self, ref: str = None, name: str = None, ids=None):
         if ids is None:
             ids = []
         self.ref = ref
