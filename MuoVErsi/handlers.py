@@ -448,8 +448,8 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     inline_buttons = []
 
     for stop in stops:
-        stop_id = stop[0]
-        stop_name = stop[1]
+        stop_id = stop.stop.ref
+        stop_name = stop.stop.name
         inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
 
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(inline_buttons))
