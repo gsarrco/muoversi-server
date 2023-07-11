@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from telegram.ext import ContextTypes
 
@@ -172,5 +172,5 @@ class Source:
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id) -> list[StopTime]:
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
         raise NotImplementedError

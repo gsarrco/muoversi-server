@@ -2,7 +2,7 @@ import gettext
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import requests
 import uvicorn
@@ -366,11 +366,11 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     arr_stop_ids = context.user_data.get('arr_stop_ids')
     arr_cluster_name = context.user_data.get('arr_cluster_name')
 
-    results = source.get_stops_from_trip_id(update.message.text[1:])
-
     stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_stop_ids=dep_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
                                         arr_cluster_name=arr_cluster_name)
+
+    results = source.get_stops_from_trip_id(update.message.text[1:], stop_times_filter.day)
 
     line = results[0][4]
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
@@ -436,7 +436,8 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     trip_id, line = query.data[1:].split('/')
 
-    stops = source.get_stops_from_trip_id(trip_id)
+    day = date.today()
+    stops = source.get_stops_from_trip_id(trip_id, day)
 
     text = _('stops') + ':\n'
 
