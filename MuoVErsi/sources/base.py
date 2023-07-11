@@ -18,9 +18,11 @@ class Liner:
 
 
 class StopTime(Liner):
-    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform,
+    def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+                 platform,
                  headsign, trip_id,
-                 route_name, stop_name: str = None):
+                 route_name):
+        self.stop = stop
         self.dep_time = dep_time
         self.arr_time = arr_time
         self.stop_sequence = stop_sequence
@@ -29,7 +31,6 @@ class StopTime(Liner):
         self.headsign = headsign
         self.trip_id = trip_id
         self.route_name = route_name
-        self.stop_name = stop_name
 
     def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
         headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
@@ -149,11 +150,11 @@ class Direction(Liner):
             text += route.format(number, _, source_name, left_time_bold=i == 0,
                                  right_time_bold=i == len(self.routes) - 1)
 
-            if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
+            if route.arr_stop_time.stop.name and i != len(self.routes) - 1:
                 next_route = self.routes[i + 1]
                 print(route.arr_stop_time.dep_time, next_route.dep_stop_time.dep_time)
                 duration_in_minutes = (next_route.dep_stop_time.dep_time - route.arr_stop_time.dep_time).seconds // 60
-                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop_name} ({duration_in_minutes}min)</i>'
+                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop.name} ({duration_in_minutes}min)</i>'
 
         return text
 
