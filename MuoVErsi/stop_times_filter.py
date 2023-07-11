@@ -5,7 +5,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Liner
+from MuoVErsi.sources.base import Source, Liner, Stop
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -64,7 +64,7 @@ class StopTimesFilter:
         start_time = self.start_time
 
         if start_time != '':
-            text += f' - {self.start_time.strftime("%H:%M")}(-5' + _('min') + ')'
+            text += f' - {self.start_time.strftime("%H:%M")}(-{self.source.MINUTES_TOLERANCE}' + _('min') + ')'
 
         if self.line != '':
             text += ' - ' + _('line') + ' ' + self.line
@@ -77,24 +77,24 @@ class StopTimesFilter:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
+        dep_stop = Stop(name=self.dep_cluster_name, ids=dep_stop_ids)
+
         if self.arr_stop_ids:
-            results = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
+            arr_stop = Stop(name=self.arr_cluster_name, ids=self.arr_stop_ids)
+            results = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
                                                            line, start_time, self.offset_times, day,
-                                                           self.dep_cluster_name, self.arr_cluster_name,
                                                            context=self.context)
             if self.lines is None:
-                self.lines = db_file.get_stop_times_between_stops(set(self.dep_stop_ids), set(self.arr_stop_ids),
+                self.lines = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
                                                                   line, start_time, self.offset_times, day,
-                                                                  self.dep_cluster_name, self.arr_cluster_name,
                                                                   context=self.context, count=True)
             return results
 
-        results = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
-                                         self.dep_cluster_name, context=self.context)
+        results = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times, context=self.context)
 
         if self.lines is None:
-            self.lines = db_file.get_stop_times(line, start_time, dep_stop_ids, day, self.offset_times,
-                                                self.dep_cluster_name, context=self.context, count=True)
+            self.lines = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times,
+                                                context=self.context, count=True)
 
         return results
 

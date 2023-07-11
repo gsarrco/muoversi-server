@@ -1,12 +1,17 @@
 import gettext
-import gettext
 import logging
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 import requests
+import uvicorn
 import yaml
+from babel.dates import format_date
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
+from starlette.routing import Route
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
     InlineKeyboardButton, Bot
 from telegram.ext import (
@@ -17,7 +22,6 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .helpers import time_25_to_1, get_stops_from_trip_id
 from .persistence import SQLitePersistence
 from .sources.GTFS import GTFS
 from .sources.base import Source
@@ -292,7 +296,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if update.callback_query:
         message_id = update.callback_query.message.message_id
 
-    stop_ref = text[1:]
+    stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -300,14 +304,14 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
     if saved_dep_stop_ids:
-        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, saved_dep_stop_ids, now.date(), line, now.time(),
                                             arr_stop_ids=stop_ids,
                                             arr_cluster_name=cluster_name, dep_cluster_name=saved_dep_cluster_name,
                                             first_time=True)
         context.user_data['arr_stop_ids'] = stop_ids
         context.user_data['arr_cluster_name'] = cluster_name
     else:
-        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), '', now.time(),
+        stop_times_filter = StopTimesFilter(context, db_file, stop_ids, now.date(), line, now.time(),
                                             dep_cluster_name=cluster_name,
                                             first_time=True)
         context.user_data['dep_stop_ids'] = stop_ids
@@ -350,31 +354,52 @@ async def filter_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return new_state
 
 
-async def ride_view_show_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    source: Source = thismodule.sources[context.user_data['transport_type']]
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
+    query_data = context.user_data['query_data']
+    dep_stop_ids = context.user_data['dep_stop_ids']
+    dep_cluster_name = context.user_data['dep_cluster_name']
+    arr_stop_ids = context.user_data.get('arr_stop_ids')
+    arr_cluster_name = context.user_data.get('arr_cluster_name')
 
-    query = update.callback_query
+    stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_stop_ids=dep_stop_ids,
+                                        dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
+                                        arr_cluster_name=arr_cluster_name)
 
-    trip_id, day_raw, stop_sequence, line = query.data[1:].split('/')
-    day = datetime.strptime(day_raw, '%Y%m%d').date()
+    trip_id = update.message.text[1:]
+    results = source.get_stops_from_trip_id(trip_id, stop_times_filter.day)
 
-    results = get_stops_from_trip_id(trip_id, con, stop_sequence)
+    line = results[0].route_name
+    text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
+        'line') + ' ' + line + f' {trip_id}</b>'
+    try:
+        dep_stop_index = next(i for i, v in enumerate(results) if v.stop.ids[0] in stop_times_filter.dep_stop_ids)
+    except StopIteration:
+        raise StopIteration('No departure stop found')
+    arr_stop_index = len(results) - 1
+    if arr_cluster_name:
+        try:
+            arr_stop_index = dep_stop_index + next(
+                i for i, v in enumerate(results[dep_stop_index:]) if v.stop.ids[0] in
+                stop_times_filter.arr_stop_ids)
+        except StopIteration:
+            raise StopIteration('No arrival stop found')
 
-    text = StopTimesFilter(context, db_file, day=day, line=line, start_time='').title(_, lang)
+    platform_text = _(f'{source.name}_platform')
 
-    for result in results:
-        stop_id, stop_name, time_raw = result
-        time_format = time_25_to_1(day, time_raw).isoformat(timespec="minutes")
-        text += f'\n{time_format} {stop_name}'
+    for result in results[dep_stop_index:arr_stop_index + 1]:
+        dep_time_fmt = result.dep_time.strftime('%H:%M')
+        text += f'\n<b>{dep_time_fmt}</b> {result.stop.name}'
+
+        if result.platform:
+            text += f' ({platform_text} {result.platform})'
 
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
-    await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
-    await query.answer('')
+    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
 
 
@@ -395,7 +420,8 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('not_implemented'))
         return ConversationHandler.END
 
-    inline_markup = InlineKeyboardMarkup([[InlineKeyboardButton(line[2], callback_data=line[0])] for line in lines])
+    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}-{line[3]}')] for line in lines]
+    inline_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
 
@@ -403,24 +429,28 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
 
 async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file = thismodule.sources[context.user_data['transport_type']]
-    con = db_file.con
+    source: Source = thismodule.sources[context.user_data['transport_type']]
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
     query = update.callback_query
 
-    trip_id = query.data
+    trip_id, line = query.data[1:].split('/')
 
-    stops = get_stops_from_trip_id(trip_id, con)
+    day = date.today()
+    stops = source.get_stops_from_trip_id(trip_id, day)
 
     text = _('stops') + ':\n'
 
-    for stop in stops:
-        text += f'\n/{stop[0]} {stop[1]}'
+    inline_buttons = []
 
-    await query.edit_message_text(text=text)
+    for stop in stops:
+        stop_id = stop.stop.ref
+        stop_name = stop.stop.name
+        inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
+
+    await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(inline_buttons))
     await query.answer('')
 
     return SHOW_STOP
@@ -438,7 +468,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-def main() -> None:
+async def main() -> None:
     DEV = config.get('DEV', False)
 
     PGUSER = config.get('PGUSER', None)
@@ -484,11 +514,10 @@ def main() -> None:
                 MessageHandler(filters.TEXT & (~filters.COMMAND), search_line),
                 CallbackQueryHandler(specify_line, r'^T')
             ],
-            SHOW_LINE: [CallbackQueryHandler(show_line)],
+            SHOW_LINE: [CallbackQueryHandler(show_line, r'^L')],
             SHOW_STOP: [
-                MessageHandler(filters.Regex(r'(?:\/|\()\d+'), show_stop_from_id),
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
-                CallbackQueryHandler(ride_view_show_stop, r'^R'),
+                MessageHandler(filters.Regex(r'^\/[0-9]+$'), trip_view),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
                 MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
@@ -502,9 +531,48 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
 
+    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
+    bot: Bot = application.bot
+
     if DEV:
-        application.run_polling()
+        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['SECRET_TOKEN'])
     else:
-        application.run_webhook(listen='0.0.0.0', port=443, secret_token=config['SECRET_TOKEN'],
-                                webhook_url=config['WEBHOOK_URL'], key=os.path.join(parent_dir, 'private.key'),
-                                cert=os.path.join(parent_dir, 'cert.pem'))
+        await bot.set_webhook(webhook_url, secret_token=config['SECRET_TOKEN'])
+
+    async def telegram(request: Request) -> Response:
+        if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['SECRET_TOKEN']:
+            return Response(status_code=403)
+        await application.update_queue.put(
+            Update.de_json(data=await request.json(), bot=application.bot)
+        )
+        return Response()
+
+    starlette_app = Starlette(
+        routes=[
+            Route("/tg_bot_webhook", telegram, methods=["POST"])
+        ]
+    )
+
+    if DEV:
+        webserver = uvicorn.Server(
+            config=uvicorn.Config(
+                app=starlette_app,
+                port=8000,
+                host="127.0.0.1",
+            )
+        )
+    else:
+        webserver = uvicorn.Server(
+            config=uvicorn.Config(
+                app=starlette_app,
+                port=443,
+                host="0.0.0.0",
+                ssl_keyfile=config['SSL_KEYFILE'],
+                ssl_certfile=config['SSL_CERTFILE']
+            )
+        )
+
+    async with application:
+        await application.start()
+        await webserver.serve()
+        await application.stop()

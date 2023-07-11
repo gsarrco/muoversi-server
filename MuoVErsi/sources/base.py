@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, date
 
 from telegram.ext import ContextTypes
 
 
 class Stop:
-    def __init__(self, ref: str, name: str, ids=None):
+    def __init__(self, ref: str = None, name: str = None, ids=None):
         if ids is None:
             ids = []
         self.ref = ref
@@ -18,9 +18,11 @@ class Liner:
 
 
 class StopTime(Liner):
-    def __init__(self, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int, platform,
+    def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+                 platform,
                  headsign, trip_id,
-                 route_name, stop_name: str = None):
+                 route_name):
+        self.stop = stop
         self.dep_time = dep_time
         self.arr_time = arr_time
         self.stop_sequence = stop_sequence
@@ -29,7 +31,6 @@ class StopTime(Liner):
         self.headsign = headsign
         self.trip_id = trip_id
         self.route_name = route_name
-        self.stop_name = stop_name
 
     def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
         headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
@@ -53,15 +54,10 @@ class StopTime(Liner):
         line = f'{time_format} {route_name}{headsign}'
 
         # Second line of text
-        trip_id = self.trip_id if source_name == 'treni' else None
-        platform = self.platform
-
-        second_line_elements = [trip_id, platform]
-        if any(second_line_elements):
-            trip_id = f'{trip_id} ' if trip_id else ''
-            platform = platform if platform else '/'
-            platform_text = _(f'{source_name}_platform')
-            line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
+        trip_id = f'/{self.trip_id} ' if self.trip_id else ''
+        platform = self.platform if self.platform else '/'
+        platform_text = _(f'{source_name}_platform')
+        line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
 
         # Modifications for all lines of text
         if self.dep_time < datetime.now():
@@ -117,16 +113,10 @@ class Route(Liner):
         line = f'{time_format} {route_name}{headsign}'
 
         # Second line of text
-        dep_platform = self.dep_stop_time.platform
-        arr_platform = self.arr_stop_time.platform
-        trip_id = f'{self.dep_stop_time.trip_id} ' if source_name == 'treni' else None
-        second_line_elements = [trip_id, dep_platform, arr_platform]
-        if any(second_line_elements):
-            platform_text = _(f'{source_name}_platform')
-            dep_platform = dep_platform if dep_platform else '/'
-            arr_platform = arr_platform if arr_platform else '/'
-            trip_id = trip_id if trip_id else ''
-            line += f'\n⎿ <i>{trip_id}{platform_text} {dep_platform} -> {arr_platform}</i>'
+        platform_text = _(f'{source_name}_platform')
+        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
+        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
+        line += f'\n⎿ <i>/{self.dep_stop_time.trip_id} {platform_text} {dep_platform} -> {arr_platform}</i>'
 
         # Modifications for all lines of text
         if self.dep_stop_time.dep_time < datetime.now():
@@ -149,17 +139,18 @@ class Direction(Liner):
             text += route.format(number, _, source_name, left_time_bold=i == 0,
                                  right_time_bold=i == len(self.routes) - 1)
 
-            if route.arr_stop_time.stop_name and i != len(self.routes) - 1:
+            if route.arr_stop_time.stop.name and i != len(self.routes) - 1:
                 next_route = self.routes[i + 1]
                 print(route.arr_stop_time.dep_time, next_route.dep_stop_time.dep_time)
                 duration_in_minutes = (next_route.dep_stop_time.dep_time - route.arr_stop_time.dep_time).seconds // 60
-                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop_name} ({duration_in_minutes}min)</i>'
+                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop.name} ({duration_in_minutes}min)</i>'
 
         return text
 
 
 class Source:
     LIMIT = 7
+    MINUTES_TOLERANCE = 3
 
     def __init__(self, name):
         self.name = name
@@ -167,13 +158,12 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError
 
-    def get_stop_times(self, line, start_time, dep_stop_ids, day,
-                       offset_times, dep_stop_name, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+    def get_stop_times(self, stop: Stop, line, start_time, day,
+                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop_ids: set,
-                                     arr_stop_ids: set, line, start_time,
-                                     offset_times, day, dep_stop_name, arr_stop_name,
+    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+                                     offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
@@ -181,4 +171,7 @@ class Source:
         raise NotImplementedError
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
+        raise NotImplementedError
+
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
         raise NotImplementedError

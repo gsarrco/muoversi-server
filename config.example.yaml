@@ -8,3 +8,5 @@ PGPORT:
 PGHOST:
 PGDATABASE:
 ADMIN_TG_ID: # Telegram user ID of the admin
+SSL_KEYFILE: # Path to the SSL key file
+SSL_CERTFILE: # Path to the SSL certificate file

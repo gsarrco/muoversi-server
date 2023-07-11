@@ -10,4 +10,6 @@ pytest==7.2.1
 pybabel==0.0.0.dev0
 tqdm==4.65.0
 SQLAlchemy==2.0.15
-psycopg2==2.9.6
+psycopg2-binary==2.9.6
+starlette==0.28.0
+uvicorn==0.22.0
