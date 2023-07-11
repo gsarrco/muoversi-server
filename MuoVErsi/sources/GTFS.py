@@ -223,7 +223,7 @@ class GTFS(Source):
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=5))
+            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE))
 
         or_other_service = ''
         yesterday_service_ids = []
@@ -326,7 +326,7 @@ class GTFS(Source):
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=5))
+            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE))
 
         or_other_service = ''
         yesterday_service_ids = []

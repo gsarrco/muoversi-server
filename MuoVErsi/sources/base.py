@@ -150,6 +150,7 @@ class Direction(Liner):
 
 class Source:
     LIMIT = 7
+    MINUTES_TOLERANCE = 5
 
     def __init__(self, name):
         self.name = name
