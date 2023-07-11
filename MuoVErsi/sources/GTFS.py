@@ -532,7 +532,7 @@ class GTFS(Source):
         headsign = results[-1]['sc_name']
 
         for result in results:
-            stop = Stop(result['sc_id'], result['sc_name'], [result['sp_id']])
+            stop = Stop(result['sc_id'], result['sc_name'], [int(result['sp_id'])])
             location = result['sp_name'].upper().replace(stop.name.upper(), "").strip()
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
