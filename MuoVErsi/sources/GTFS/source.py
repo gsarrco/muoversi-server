@@ -103,7 +103,7 @@ class GTFS(Source):
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
+        parent_dir = os.path.abspath(current_dir + f"/../../../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
