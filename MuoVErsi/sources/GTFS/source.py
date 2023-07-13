@@ -11,11 +11,10 @@ from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
-from geopy.distance import distance
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import cluster_strings
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from .clustering import get_clusters_of_stops
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -37,43 +36,6 @@ def get_latest_gtfs_version(transport_type):
     # datetime_str = str(link.next_sibling).strip().split('            ')[0]
     # datetime_obj = datetime.strptime(datetime_str, '%d-%b-%Y %H:%M')
     return version
-
-
-def get_clusters_of_stops(stops):
-    clusters = cluster_strings(stops)
-    for cluster_name, stops in clusters.copy().items():
-        stops = stops['stops'].copy()
-        if len(stops) > 1:
-            # calculate centroid of the coordinates
-            latitudes = [stop['coords'][0] for stop in stops]
-            longitudes = [stop['coords'][1] for stop in stops]
-            centroid_lat = sum(latitudes) / len(latitudes)
-            centroid_long = sum(longitudes) / len(longitudes)
-            centroid = (round(centroid_lat, 7), round(centroid_long, 7))
-
-            split_cluster = False
-            for stop in stops:
-                if distance(stop['coords'], centroid).m > 200:
-                    split_cluster = True
-                    break
-            if split_cluster:
-                del clusters[cluster_name]
-                i = 1
-                for stop in stops:
-                    if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
-                                                                  'times_count': stop['times_count']}
-                        i += 1
-                    else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
-                                                       'times_count': stop['times_count']}
-            else:
-                clusters[cluster_name]['coords'] = centroid
-                clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
-        else:
-            clusters[cluster_name]['coords'] = stops[0]['coords']
-            clusters[cluster_name]['times_count'] = stops[0]['times_count']
-    return clusters
 
 
 class GTFS(Source):
