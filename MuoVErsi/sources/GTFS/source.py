@@ -11,11 +11,11 @@ from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
-from geopy.distance import distance
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import cluster_strings
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from .clustering import get_clusters_of_stops
+from .models import CStop
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -37,43 +37,6 @@ def get_latest_gtfs_version(transport_type):
     # datetime_str = str(link.next_sibling).strip().split('            ')[0]
     # datetime_obj = datetime.strptime(datetime_str, '%d-%b-%Y %H:%M')
     return version
-
-
-def get_clusters_of_stops(stops):
-    clusters = cluster_strings(stops)
-    for cluster_name, stops in clusters.copy().items():
-        stops = stops['stops'].copy()
-        if len(stops) > 1:
-            # calculate centroid of the coordinates
-            latitudes = [stop['coords'][0] for stop in stops]
-            longitudes = [stop['coords'][1] for stop in stops]
-            centroid_lat = sum(latitudes) / len(latitudes)
-            centroid_long = sum(longitudes) / len(longitudes)
-            centroid = (round(centroid_lat, 7), round(centroid_long, 7))
-
-            split_cluster = False
-            for stop in stops:
-                if distance(stop['coords'], centroid).m > 200:
-                    split_cluster = True
-                    break
-            if split_cluster:
-                del clusters[cluster_name]
-                i = 1
-                for stop in stops:
-                    if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
-                                                                  'times_count': stop['times_count']}
-                        i += 1
-                    else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
-                                                       'times_count': stop['times_count']}
-            else:
-                clusters[cluster_name]['coords'] = centroid
-                clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
-        else:
-            clusters[cluster_name]['coords'] = stops[0]['coords']
-            clusters[cluster_name]['times_count'] = stops[0]['times_count']
-    return clusters
 
 
 class GTFS(Source):
@@ -103,7 +66,7 @@ class GTFS(Source):
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
+        parent_dir = os.path.abspath(current_dir + f"/../../../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
@@ -134,7 +97,7 @@ class GTFS(Source):
     def connect_to_database(self) -> Connection:
         return sqlite3.connect(self.file_path('db'))
 
-    def get_all_stops(self):
+    def get_all_stops(self) -> list[CStop]:
         cur = self.con.cursor()
         query = """
         SELECT S.stop_id, stop_name, stop_lat, stop_lon, count(s.stop_id) as times_count
@@ -142,8 +105,8 @@ class GTFS(Source):
                      INNER JOIN stops s on stop_times.stop_id = s.stop_id
             GROUP BY s.stop_id
         """
-        stops = cur.execute(query)
-        return stops.fetchall()
+        stops = cur.execute(query).fetchall()
+        return [CStop(*stop) for stop in stops]
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
@@ -178,13 +141,13 @@ class GTFS(Source):
         ''')
         stops = self.get_all_stops()
         stops_clusters = get_clusters_of_stops(stops)
-        for cluster_name, cluster_values in stops_clusters.items():
+        for cluster in stops_clusters:
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
-                cluster_name, cluster_values['coords'][0], cluster_values['coords'][1], cluster_values['times_count']))
+                cluster.name, cluster.lat, cluster.lon, cluster.times_count))
             cluster_id = result.lastrowid
-            for stop in cluster_values['stops']:
+            for stop in cluster.stops:
                 cur.execute('INSERT INTO stops_stops_clusters (stop_id, stop_cluster_id) VALUES (?, ?)',
-                            (stop['stop_id'], cluster_id))
+                            (stop.id, cluster_id))
         self.con.commit()
         return True
 
