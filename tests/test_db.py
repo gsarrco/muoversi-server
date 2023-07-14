@@ -65,7 +65,7 @@ def test_all_stops_are_in_clusters(stops_and_stops_clusters):
 def test_uniqueness_of_known_clusters(stops_and_stops_clusters):
     stops, stops_clusters = stops_and_stops_clusters
 
-    known_clusters = ['P.LE ROMA']
+    known_clusters = ['P.LE ROMA', 'LIDO S.M.E.', 'S. MARCO-SAN ZACCARIA']
 
     for known_cluster in known_clusters:
         assert len([cluster for cluster in stops_clusters if known_cluster in cluster.name]) == 1, \
