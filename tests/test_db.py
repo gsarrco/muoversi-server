@@ -60,3 +60,13 @@ def test_all_stops_are_in_clusters(stops_and_stops_clusters):
     actual_strings = sorted([item.name.strip().upper() + '_' + item.id for item in stops])
 
     assert actual_strings == flat_result, 'not all stops are in the clusters'
+
+
+def test_uniqueness_of_known_clusters(stops_and_stops_clusters):
+    stops, stops_clusters = stops_and_stops_clusters
+
+    known_clusters = ['P.LE ROMA']
+
+    for known_cluster in known_clusters:
+        assert len([cluster for cluster in stops_clusters if known_cluster in cluster.name]) == 1, \
+            f'more than one cluster with name "{known_cluster}"'
