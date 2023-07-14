@@ -1,6 +1,6 @@
 import pytest
 
-from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops
+from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 
 @pytest.fixture
@@ -9,7 +9,7 @@ def db_file():
 
 
 @pytest.fixture
-def stops_and_stops_clusters(db_file):
+def stops_and_stops_clusters(db_file) -> tuple[list[CStop], list[CCluster]]:
     stops = db_file.get_all_stops()
     stops_clusters = get_clusters_of_stops(stops)
     return stops, stops_clusters
@@ -37,24 +37,26 @@ def test_search_stops_by_name(db_file):
 
 def test_clusters_stops_structure(stops_and_stops_clusters):
     _, stops_clusters = stops_and_stops_clusters
-    assert all('stops' in cluster for cluster in stops_clusters.values()), 'not all clusters have stops'
-    assert all('coords' in cluster for cluster in stops_clusters.values()), 'not all clusters have coords'
-    assert all('times_count' in cluster for cluster in stops_clusters.values()), 'not all clusters have times_count'
+    assert all(hasattr(cluster, 'name') for cluster in stops_clusters), 'not all clusters have name'
+    assert all(hasattr(cluster, 'stops') for cluster in stops_clusters), 'not all clusters have stops'
+    assert all(hasattr(cluster, 'lat') for cluster in stops_clusters), 'not all clusters have lat'
+    assert all(hasattr(cluster, 'lon') for cluster in stops_clusters), 'not all clusters have lon'
+    assert all(hasattr(cluster, 'times_count') for cluster in stops_clusters), 'not all clusters have times_count'
 
 
 def test_cluster_times_count_equals_sum_of_stops_times_count(stops_and_stops_clusters):
     stops, stops_clusters = stops_and_stops_clusters
-    for cluster in stops_clusters.values():
-        assert cluster['times_count'] == sum(stop['times_count'] for stop in cluster[
-            'stops']), 'cluster times_count is not equal to sum of stops times_count'
+    for cluster in stops_clusters:
+        assert cluster.times_count == sum(stop.times_count for stop in cluster.stops), \
+            'cluster times_count is not equal to sum of stops times_count'
 
 
 def test_all_stops_are_in_clusters(stops_and_stops_clusters):
     stops, stops_clusters = stops_and_stops_clusters
     flat_result = sorted(
-        [stop['stop_name'].strip().upper() + '_' + stop['stop_id'] for stops_cluster in stops_clusters.values() for
-         stop in stops_cluster['stops']])
+        [stop.name.strip().upper() + '_' + stop.id for stops_cluster in stops_clusters for
+         stop in stops_cluster.stops])
 
-    actual_strings = sorted([item[1].strip().upper() + '_' + item[0] for item in stops])
+    actual_strings = sorted([item.name.strip().upper() + '_' + item.id for item in stops])
 
     assert actual_strings == flat_result, 'not all stops are in the clusters'

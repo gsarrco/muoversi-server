@@ -1,53 +1,56 @@
 from geopy.distance import distance
 
+from .models import CStop, CCluster
 
-def get_clusters_of_stops(stops):
+
+def get_clusters_of_stops(stops: list[CStop]) -> list[CCluster]:
     clusters = cluster_strings(stops)
-    for cluster_name, stops in clusters.copy().items():
-        stops = stops['stops'].copy()
+    for cluster_name, cluster in clusters.copy().items():
+        stops = cluster.stops.copy()
         if len(stops) > 1:
             # calculate centroid of the coordinates
-            latitudes = [stop['coords'][0] for stop in stops]
-            longitudes = [stop['coords'][1] for stop in stops]
+            latitudes = [stop.lat for stop in stops]
+            longitudes = [stop.lon for stop in stops]
             centroid_lat = sum(latitudes) / len(latitudes)
             centroid_long = sum(longitudes) / len(longitudes)
             centroid = (round(centroid_lat, 7), round(centroid_long, 7))
 
             split_cluster = False
             for stop in stops:
-                if distance(stop['coords'], centroid).m > 200:
+                stop_coords = (stop.lat, stop.lon)
+                if distance(stop_coords, centroid).m > 200:
                     split_cluster = True
                     break
             if split_cluster:
                 del clusters[cluster_name]
                 i = 1
                 for stop in stops:
-                    if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
-                                                                  'times_count': stop['times_count']}
+                    if stop.name in clusters:
+                        a_cluster_name = f'{stop.name} ({i})'
                         i += 1
                     else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
-                                                       'times_count': stop['times_count']}
+                        a_cluster_name = stop.name
+                    a_cluster = CCluster(a_cluster_name, [stop], stop.lat, stop.lon, stop.times_count)
+                    clusters[a_cluster_name] = a_cluster
             else:
-                clusters[cluster_name]['coords'] = centroid
-                clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
+                cluster.lat, cluster.lon = centroid
+                cluster.times_count = sum(stop.times_count for stop in stops)
         else:
-            clusters[cluster_name]['coords'] = stops[0]['coords']
-            clusters[cluster_name]['times_count'] = stops[0]['times_count']
-    return clusters
+            cluster.lat, cluster.lon = stops[0].lat, stops[0].lon
+            cluster.times_count = stops[0].times_count
+    return list(clusters.values())
 
 
-def cluster_strings(stops):
-    stops = [(stop[0], stop[1].upper(), stop[2], stop[3], stop[4]) for stop in stops]
-    stops.sort(key=lambda x: x[1])
+def cluster_strings(stops: list[CStop]) -> dict[str, CCluster]:
+    stops = [CStop(stop.id, stop.name.upper(), stop.lat, stop.lon, stop.times_count) for stop in stops]
+    stops.sort(key=lambda stop: stop.name)
     longest_prefix = ''
-    clusters = {}
+    clusters: dict[str, CCluster] = {}
     for i1 in range(len(stops)):
         i2 = i1 + 1
         ref_el = stops[i1]
-        first_string = ref_el[1]
-        second_string = stops[i2][1] if i2 < len(stops) else ''
+        first_string = ref_el.name
+        second_string = stops[i2].name if i2 < len(stops) else ''
         first_string, second_string = first_string.strip().upper(), second_string.strip().upper()
         new_cluster = True
         new_longest_prefix = find_longest_prefix(first_string, second_string).rstrip(' "').rstrip()
@@ -64,9 +67,8 @@ def cluster_strings(stops):
         cluster_name = longest_prefix if longest_prefix != '' and len(longest_prefix) > (
                 len(first_string) / 3) else first_string
         # add_to_cluster(clusters, cluster_name, first_string, stops[i1][2:4])
-        clusters.setdefault(cluster_name, {'stops': []})['stops'].append(
-            {'stop_id': ref_el[0], 'stop_name': first_string, 'coords': (ref_el[2], ref_el[3]),
-             'times_count': ref_el[4]})
+        cluster = CCluster(cluster_name)
+        clusters.setdefault(cluster_name, cluster).stops.append(ref_el)
 
     return clusters
 
