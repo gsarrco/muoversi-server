@@ -11,11 +11,11 @@ from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
-from geopy.distance import distance
 from telegram.ext import ContextTypes
 
-from MuoVErsi.helpers import cluster_strings
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
+from .models import CStop
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -37,43 +37,6 @@ def get_latest_gtfs_version(transport_type):
     # datetime_str = str(link.next_sibling).strip().split('            ')[0]
     # datetime_obj = datetime.strptime(datetime_str, '%d-%b-%Y %H:%M')
     return version
-
-
-def get_clusters_of_stops(stops):
-    clusters = cluster_strings(stops)
-    for cluster_name, stops in clusters.copy().items():
-        stops = stops['stops'].copy()
-        if len(stops) > 1:
-            # calculate centroid of the coordinates
-            latitudes = [stop['coords'][0] for stop in stops]
-            longitudes = [stop['coords'][1] for stop in stops]
-            centroid_lat = sum(latitudes) / len(latitudes)
-            centroid_long = sum(longitudes) / len(longitudes)
-            centroid = (round(centroid_lat, 7), round(centroid_long, 7))
-
-            split_cluster = False
-            for stop in stops:
-                if distance(stop['coords'], centroid).m > 200:
-                    split_cluster = True
-                    break
-            if split_cluster:
-                del clusters[cluster_name]
-                i = 1
-                for stop in stops:
-                    if stop['stop_name'] in clusters:
-                        clusters[f'{stop["stop_name"]} ({i})'] = {'stops': [stop], 'coords': stop['coords'],
-                                                                  'times_count': stop['times_count']}
-                        i += 1
-                    else:
-                        clusters[stop['stop_name']] = {'stops': [stop], 'coords': stop['coords'],
-                                                       'times_count': stop['times_count']}
-            else:
-                clusters[cluster_name]['coords'] = centroid
-                clusters[cluster_name]['times_count'] = sum(stop['times_count'] for stop in stops)
-        else:
-            clusters[cluster_name]['coords'] = stops[0]['coords']
-            clusters[cluster_name]['times_count'] = stops[0]['times_count']
-    return clusters
 
 
 class GTFS(Source):
@@ -103,7 +66,7 @@ class GTFS(Source):
 
     def file_path(self, ext):
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
+        parent_dir = os.path.abspath(current_dir + f"/../../../{self.location}")
 
         return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
 
@@ -134,7 +97,7 @@ class GTFS(Source):
     def connect_to_database(self) -> Connection:
         return sqlite3.connect(self.file_path('db'))
 
-    def get_all_stops(self):
+    def get_all_stops(self) -> list[CStop]:
         cur = self.con.cursor()
         query = """
         SELECT S.stop_id, stop_name, stop_lat, stop_lon, count(s.stop_id) as times_count
@@ -142,8 +105,8 @@ class GTFS(Source):
                      INNER JOIN stops s on stop_times.stop_id = s.stop_id
             GROUP BY s.stop_id
         """
-        stops = cur.execute(query)
-        return stops.fetchall()
+        stops = cur.execute(query).fetchall()
+        return [CStop(*stop) for stop in stops]
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
@@ -178,13 +141,13 @@ class GTFS(Source):
         ''')
         stops = self.get_all_stops()
         stops_clusters = get_clusters_of_stops(stops)
-        for cluster_name, cluster_values in stops_clusters.items():
+        for cluster in stops_clusters:
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
-                cluster_name, cluster_values['coords'][0], cluster_values['coords'][1], cluster_values['times_count']))
+                cluster.name, cluster.lat, cluster.lon, cluster.times_count))
             cluster_id = result.lastrowid
-            for stop in cluster_values['stops']:
+            for stop in cluster.stops:
                 cur.execute('INSERT INTO stops_stops_clusters (stop_id, stop_cluster_id) VALUES (?, ?)',
-                            (stop['stop_id'], cluster_id))
+                            (stop.id, cluster_id))
         self.con.commit()
         return True
 
@@ -299,7 +262,7 @@ class GTFS(Source):
 
         stop_times = []
         for result in results:
-            location = result[5].upper().replace(stop.name.upper(), "").strip()
+            location = get_loc_from_stop_and_cluster(result[5], stop.name)
             dep_dt = datetime.combine(day, time(result[6], result[7]))
             stop_time = BaseStopTime(stop, dep_dt, dep_dt, result[4], 0, location, result[2], result[3], result[1])
             stop_times.append(stop_time)
@@ -418,7 +381,7 @@ class GTFS(Source):
 
         for result in results:
             dep_dt = datetime.combine(day, time(result[8], result[9]))
-            dep_location = result[6].upper().replace(dep_stop.name.upper(), "").strip()
+            dep_location = get_loc_from_stop_and_cluster(result[6], dep_stop.name)
             dep_stop_time = BaseStopTime(dep_stop, dep_dt, dep_dt, result[4], 0, dep_location, result[2], result[3],
                                          result[1])
             arr_time = time(result[10], result[11])
@@ -426,7 +389,7 @@ class GTFS(Source):
                 arr_dt = datetime.combine(day + timedelta(days=1), arr_time)
             else:
                 arr_dt = datetime.combine(day, arr_time)
-            arr_location = result[7].upper().replace(arr_stop.name.upper(), "").strip()
+            arr_location = get_loc_from_stop_and_cluster(result[7], arr_stop.name)
             arr_stop_time = BaseStopTime(arr_stop, arr_dt, arr_dt, result[4], 0, arr_location, result[2], result[3],
                                          result[1])
             route = Route(dep_stop_time, arr_stop_time)
@@ -533,7 +496,7 @@ class GTFS(Source):
 
         for result in results:
             stop = Stop(result['sc_id'], result['sc_name'], [int(result['sp_id'])])
-            location = result['sp_name'].upper().replace(stop.name.upper(), "").strip()
+            location = get_loc_from_stop_and_cluster(result['sp_name'], stop.name)
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
                                      result['route_name'])
