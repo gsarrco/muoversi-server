@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
-from .clustering import get_clusters_of_stops
+from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
 logging.basicConfig(
@@ -262,7 +262,7 @@ class GTFS(Source):
 
         stop_times = []
         for result in results:
-            location = result[5].upper().replace(stop.name.upper(), "").strip()
+            location = get_loc_from_stop_and_cluster(result[5], stop.name)
             dep_dt = datetime.combine(day, time(result[6], result[7]))
             stop_time = BaseStopTime(stop, dep_dt, dep_dt, result[4], 0, location, result[2], result[3], result[1])
             stop_times.append(stop_time)
@@ -381,7 +381,7 @@ class GTFS(Source):
 
         for result in results:
             dep_dt = datetime.combine(day, time(result[8], result[9]))
-            dep_location = result[6].upper().replace(dep_stop.name.upper(), "").strip()
+            dep_location = get_loc_from_stop_and_cluster(result[6], dep_stop.name)
             dep_stop_time = BaseStopTime(dep_stop, dep_dt, dep_dt, result[4], 0, dep_location, result[2], result[3],
                                          result[1])
             arr_time = time(result[10], result[11])
@@ -389,7 +389,7 @@ class GTFS(Source):
                 arr_dt = datetime.combine(day + timedelta(days=1), arr_time)
             else:
                 arr_dt = datetime.combine(day, arr_time)
-            arr_location = result[7].upper().replace(arr_stop.name.upper(), "").strip()
+            arr_location = get_loc_from_stop_and_cluster(result[7], arr_stop.name)
             arr_stop_time = BaseStopTime(arr_stop, arr_dt, arr_dt, result[4], 0, arr_location, result[2], result[3],
                                          result[1])
             route = Route(dep_stop_time, arr_stop_time)
@@ -496,7 +496,7 @@ class GTFS(Source):
 
         for result in results:
             stop = Stop(result['sc_id'], result['sc_name'], [int(result['sp_id'])])
-            location = result['sp_name'].upper().replace(stop.name.upper(), "").strip()
+            location = get_loc_from_stop_and_cluster(result['sp_name'], stop.name)
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
                                      result['route_name'])

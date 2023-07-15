@@ -83,3 +83,7 @@ def find_longest_prefix(str1, str2):
         else:
             break
     return prefix.strip()
+
+
+def get_loc_from_stop_and_cluster(stop_name, cluster_name):
+    return stop_name.upper().replace(cluster_name.upper(), "").strip()
