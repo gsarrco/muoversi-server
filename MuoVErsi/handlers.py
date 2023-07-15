@@ -90,9 +90,11 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    if update.message.text[1:] == _('stop'):
+    command_text = update.message.text[1:]
+
+    if command_text == 'fermata' or command_text == 'stop':
         command = 'fermata'
-    elif update.message.text[1:] == _('line'):
+    elif command_text == 'linea' or command_text == 'line':
         command = 'linea'
     else:
         return ConversationHandler.END
