@@ -8,7 +8,7 @@ class CStop:
 
 
 class CCluster:
-    def __init__(self, name: str, stops: list[CStop] = None, lat: str = None, lon: str = None, times_count: int = None):
+    def __init__(self, name: str, stops: list[CStop] = None, lat: str = None, lon: str = None, times_count: int = 0):
         self.name = name
         if stops is None:
             stops = []
