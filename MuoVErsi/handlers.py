@@ -476,16 +476,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def main() -> None:
     DEV = config.get('DEV', False)
 
-    PGUSER = config.get('PGUSER', None)
-    PGPASSWORD = config.get('PGPASSWORD', None)
-    PGHOST = config.get('PGHOST', None)
-    PGPORT = config.get('PGPORT', 5432)
-    PGDATABASE = config.get('PGDATABASE', None)
-
     thismodule.sources = {
         'aut': GTFS('automobilistico', dev=DEV),
         'nav': GTFS('navigazione', dev=DEV),
-        'treni': Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
+        'treni': Trenitalia()
     }
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()

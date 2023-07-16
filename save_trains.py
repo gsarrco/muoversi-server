@@ -29,7 +29,7 @@ def run():
     PGPORT = config.get('PGPORT', 5432)
     PGDATABASE = config.get('PGDATABASE', None)
 
-    trenitalia = Trenitalia(PGUSER, PGPASSWORD, PGHOST, PGPORT, PGDATABASE, dev=DEV)
+    trenitalia = Trenitalia()
     trenitalia.save_trains()
 
 
