@@ -2,13 +2,14 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, time, date
+from typing import Optional
 from urllib.parse import quote
 
 import requests
+import yaml
 from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_
 from sqlalchemy import select
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
+from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column, declarative_base
 from telegram.ext import ContextTypes
 
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
@@ -17,6 +18,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+config_path = os.path.join(base_dir, 'config.yaml')
+with open(config_path, 'r') as config_file:
+    try:
+        config = yaml.safe_load(config_file)
+        logger.info(config)
+    except yaml.YAMLError as err:
+        logger.error(err)
+
+engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
+             f"{config['PGDATABASE']}"
+engine = create_engine(engine_url, echo=config['DEV'])
 
 
 class TrenitaliaStopTime(BaseStopTime):
@@ -89,15 +103,13 @@ class StopTime(Base):
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, pguser, pgpassword, pghost, pgport, pgdatabase, location='', dev=False):
+    def __init__(self, location=''):
         self.location = location
         super().__init__('treni')
 
-        self.engine = create_engine(f'postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}', echo=dev)
+        Base.metadata.create_all(engine)
 
-        Base.metadata.create_all(self.engine)
-
-        self.Session = sessionmaker(bind=self.engine)
+        self.Session = sessionmaker(bind=engine)
         self.session = self.Session()
 
         self.populate_db()
