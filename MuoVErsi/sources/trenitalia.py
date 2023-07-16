@@ -107,8 +107,6 @@ class Trenitalia(Source):
         self.location = location
         super().__init__('treni')
 
-        Base.metadata.create_all(engine)
-
         self.Session = sessionmaker(bind=engine)
         self.session = self.Session()
 
