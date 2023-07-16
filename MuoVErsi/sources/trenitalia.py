@@ -61,10 +61,10 @@ class Station(Base):
     __tablename__ = 'stations'
 
     id: Mapped[str] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String)
     region_code: Mapped[int]
-    lat: Mapped[float]
-    lon: Mapped[float]
+    lat: Mapped[Optional[float]]
+    lon: Mapped[Optional[float]]
 
 
 class Train(Base):
@@ -89,13 +89,13 @@ class StopTime(Base):
     train: Mapped[Train] = relationship('Train', backref='stop_times')
     idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', backref='stop_times')
-    arrivo_teorico: Mapped[datetime]
-    arrivo_reale: Mapped[datetime]
-    partenza_teorica: Mapped[datetime]
-    partenza_reale: Mapped[datetime]
-    ritardo_arrivo: Mapped[int]
-    ritardo_partenza: Mapped[int]
-    binario: Mapped[str]
+    arrivo_teorico: Mapped[Optional[datetime]]
+    arrivo_reale: Mapped[Optional[datetime]]
+    partenza_teorica: Mapped[Optional[datetime]]
+    partenza_reale: Mapped[Optional[datetime]]
+    ritardo_arrivo: Mapped[Optional[int]]
+    ritardo_partenza: Mapped[Optional[int]]
+    binario: Mapped[Optional[str]]
 
     __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
 
