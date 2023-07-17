@@ -1,7 +1,4 @@
 import logging
-import os
-
-import yaml
 
 from MuoVErsi.sources.trenitalia import Trenitalia
 
@@ -12,24 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def run():
-    current_dir = os.path.dirname(os.path.realpath(__file__))
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--force_update_stations', action='store_true')
+    args = parser.parse_args()
+    force_update_stations = args.force_update_stations
 
-    with open(os.path.join(current_dir, 'config.yaml'), 'r') as config_file:
-        try:
-            config = yaml.safe_load(config_file)
-            logger.info(config)
-        except yaml.YAMLError as err:
-            logger.error(err)
-
-    DEV = config.get('DEV', False)
-
-    PGUSER = config.get('PGUSER', None)
-    PGPASSWORD = config.get('PGPASSWORD', None)
-    PGHOST = config.get('PGHOST', None)
-    PGPORT = config.get('PGPORT', 5432)
-    PGDATABASE = config.get('PGDATABASE', None)
-
-    trenitalia = Trenitalia()
+    trenitalia = Trenitalia(force_update_stations=force_update_stations)
     trenitalia.save_trains()
 
 
