@@ -70,7 +70,7 @@ class Train(Base):
     __tablename__ = 'trains'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codOrigine: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    codOrigine: Mapped[str]
     destinazione: Mapped[str]
     numeroTreno: Mapped[int]
     dataPartenzaTreno: Mapped[date]
