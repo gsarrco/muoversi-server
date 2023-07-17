@@ -7,8 +7,8 @@ from urllib.parse import quote
 
 import requests
 import yaml
-from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_
-from sqlalchemy import select
+from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column, declarative_base
 from telegram.ext import ContextTypes
 
@@ -64,6 +64,7 @@ class Station(Base):
     name: Mapped[str] = mapped_column(String)
     lat: Mapped[Optional[float]]
     lon: Mapped[Optional[float]]
+    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
 
 
 class Train(Base):
@@ -76,6 +77,7 @@ class Train(Base):
     dataPartenzaTreno: Mapped[date]
     statoTreno: Mapped[str] = mapped_column(String, default='regol.')
     categoria: Mapped[str]
+    stop_times = relationship('StopTime', back_populates='train')
 
     __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
 
@@ -85,9 +87,9 @@ class StopTime(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Train] = relationship('Train', backref='stop_times')
+    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
     idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
-    station: Mapped[Station] = relationship('Station', backref='stop_times')
+    station: Mapped[Station] = relationship('Station', back_populates='stop_times')
     arrivo_teorico: Mapped[Optional[datetime]]
     arrivo_reale: Mapped[Optional[datetime]]
     partenza_teorica: Mapped[Optional[datetime]]
@@ -102,24 +104,24 @@ class StopTime(Base):
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, location=''):
+    def __init__(self, location='', force_update_stations=False):
         self.location = location
         super().__init__('treni')
 
         self.Session = sessionmaker(bind=engine)
         self.session = self.Session()
 
-        self.populate_db()
+        if force_update_stations or self.session.query(Station).count() == 0:
+            self.sync_stations_db()
 
-    def populate_db(self):
-        if self.session.query(Station).count() != 0:
-            return
-
+    def sync_stations_db(self):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         datadir = os.path.abspath(current_dir + '/data')
 
         with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
             stations = json.load(f)
+
+        station_codes = [s['code'] for s in stations]
 
         for station in stations:
             _id = station.get('code', None)
@@ -134,8 +136,19 @@ class Trenitalia(Source):
             if lon == '':
                 lon = None
 
-            station = Station(id=_id, name=name, lat=lat, lon=lon)
-            self.session.add(station)
+            # either update or create the station
+            stmt = insert(Station).values(id=_id, name=name, lat=lat, lon=lon)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['id'],
+                set_={'name': name, 'lat': lat, 'lon': lon}
+            )
+            self.session.execute(stmt)
+
+        old_stations = self.session.scalars(select(Station)).all()
+
+        for station in old_stations:
+            if station.id not in station_codes:
+                self.session.delete(station)
 
         self.session.commit()
 
