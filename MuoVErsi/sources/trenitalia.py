@@ -62,7 +62,6 @@ class Station(Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String)
-    region_code: Mapped[int]
     lat: Mapped[Optional[float]]
     lon: Mapped[Optional[float]]
 
@@ -125,7 +124,6 @@ class Trenitalia(Source):
         for station in stations:
             _id = station.get('code', None)
             name = station.get('long_name', None)
-            region_code = station.get('region', None)
 
             # if lat and long are empty strings, set them to None
             lat = station.get('latitude', None)
@@ -136,13 +134,13 @@ class Trenitalia(Source):
             if lon == '':
                 lon = None
 
-            station = Station(id=_id, name=name, region_code=region_code, lat=lat, lon=lon)
+            station = Station(id=_id, name=name, lat=lat, lon=lon)
             self.session.add(station)
 
         self.session.commit()
 
     def save_trains(self):
-        stations = self.session.query(Station).filter(Station.region_code == 12).all()
+        stations = self.session.query(Station).all()
 
         for i, station in enumerate(stations):
             stop_times = self.get_stop_times_from_station(station)
@@ -207,13 +205,11 @@ class Trenitalia(Source):
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4):
         if lat and lon:
-            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None),
-                                                                          Station.region_code == 12).order_by(
+            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None)).order_by(
                 func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
         else:
             lat, lon = 45.441569, 12.320882
-            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%'),
-                                                                          Station.region_code == 12).order_by(
+            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%')).order_by(
                 func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
 
         stops = []
