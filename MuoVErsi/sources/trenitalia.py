@@ -5,12 +5,14 @@ from datetime import datetime, timedelta, time, date
 from typing import Optional
 from urllib.parse import quote
 
+import math
 import requests
 import yaml
-from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select
+from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column, declarative_base
 from telegram.ext import ContextTypes
+from tqdm import tqdm
 
 from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
 
@@ -30,7 +32,7 @@ with open(config_path, 'r') as config_file:
 
 engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
              f"{config['PGDATABASE']}"
-engine = create_engine(engine_url, echo=config['DEV'])
+engine = create_engine(engine_url)
 
 
 class TrenitaliaStopTime(BaseStopTime):
@@ -156,8 +158,16 @@ class Trenitalia(Source):
     def save_trains(self):
         stations = self.session.query(Station).all()
 
-        for i, station in enumerate(stations):
+        total_times_count = 0
+        times_count = []
+
+        tqdm_stations = tqdm(enumerate(stations), total=len(stations))
+
+        for i, station in tqdm_stations:
+            tqdm_stations.set_description(f'Processing station {station.name}')
             stop_times = self.get_stop_times_from_station(station)
+            total_times_count += len(stop_times)
+            times_count.append(len(stop_times))
             for stop_time in stop_times:
                 train = self.session.query(Train).filter_by(codOrigine=stop_time.origin_id,
                                                             numeroTreno=stop_time.trip_id,
@@ -181,7 +191,17 @@ class Trenitalia(Source):
                                              partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
                     self.session.commit()
-            logger.info(f'{i + 1}/{len(stations)}: saved station {station.name}, stop_times: {len(stop_times)}')
+
+        stations_to_update: list[dict[str, str | int]] = []
+
+        for i, station in enumerate(stations):
+            stations_to_update.append({
+                'id': station.id,
+                'times_count': round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)
+            })
+
+        self.session.execute(update(Station), stations_to_update)
+        self.session.commit()
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
