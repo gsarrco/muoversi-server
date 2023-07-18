@@ -66,6 +66,7 @@ class Station(Base):
     name: Mapped[str]
     lat: Mapped[Optional[float]]
     lon: Mapped[Optional[float]]
+    ids: Mapped[str] = mapped_column(server_default='')
     times_count: Mapped[float] = mapped_column(server_default='0')
     stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
 
@@ -140,10 +141,10 @@ class Trenitalia(Source):
                 lon = None
 
             # either update or create the station
-            stmt = insert(Station).values(id=_id, name=name, lat=lat, lon=lon)
+            stmt = insert(Station).values(id=_id, name=name, lat=lat, lon=lon, ids=_id)
             stmt = stmt.on_conflict_do_update(
                 index_elements=['id'],
-                set_={'name': name, 'lat': lat, 'lon': lon}
+                set_={'name': name, 'lat': lat, 'lon': lon, 'ids': _id}
             )
             self.session.execute(stmt)
 
