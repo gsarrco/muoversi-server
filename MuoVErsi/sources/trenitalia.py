@@ -239,12 +239,19 @@ class Trenitalia(Source):
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4):
         if lat and lon:
-            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None)).order_by(
-                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
+            results = self.session \
+                .query(Station.id, Station.name) \
+                .filter(Station.lat.isnot(None)) \
+                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)) \
+                .limit(limit) \
+                .all()
         else:
-            lat, lon = 45.441569, 12.320882
-            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%')).order_by(
-                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
+            results = self.session \
+                .query(Station.id, Station.name) \
+                .filter(Station.name.ilike(f'%{name}%')) \
+                .order_by(Station.times_count.desc()) \
+                .limit(limit) \
+                .all()
 
         stops = []
         for result in results:
