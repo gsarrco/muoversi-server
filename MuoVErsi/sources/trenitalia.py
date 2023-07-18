@@ -61,9 +61,10 @@ class Station(Base):
     __tablename__ = 'stations'
 
     id: Mapped[str] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String)
+    name: Mapped[str]
     lat: Mapped[Optional[float]]
     lon: Mapped[Optional[float]]
+    times_count: Mapped[float] = mapped_column(server_default='0')
     stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
 
 
