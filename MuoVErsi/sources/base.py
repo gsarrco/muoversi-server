@@ -191,4 +191,5 @@ class Station(Base):
     lon: Mapped[Optional[float]]
     ids: Mapped[str] = mapped_column(server_default='')
     times_count: Mapped[float] = mapped_column(server_default='0')
+    source: Mapped[str] = mapped_column(server_default='treni')
     stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
