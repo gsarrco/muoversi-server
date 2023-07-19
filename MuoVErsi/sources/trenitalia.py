@@ -10,11 +10,11 @@ import requests
 import yaml
 from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column, declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction, Station, Base
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -54,21 +54,6 @@ class TrenitaliaStopTime(BaseStopTime):
 
 class TrenitaliaRoute(Route):
     pass
-
-
-Base = declarative_base()
-
-
-class Station(Base):
-    __tablename__ = 'stations'
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    name: Mapped[str]
-    lat: Mapped[Optional[float]]
-    lon: Mapped[Optional[float]]
-    ids: Mapped[str] = mapped_column(server_default='')
-    times_count: Mapped[float] = mapped_column(server_default='0')
-    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
 
 
 class Train(Base):
