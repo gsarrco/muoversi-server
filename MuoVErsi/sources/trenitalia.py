@@ -180,28 +180,6 @@ class Trenitalia(Source):
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
         return os.path.join(parent_dir, 'trenitalia.db')
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4):
-        if lat and lon:
-            results = self.session \
-                .query(Station.id, Station.name) \
-                .filter(Station.lat.isnot(None)) \
-                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)) \
-                .limit(limit) \
-                .all()
-        else:
-            results = self.session \
-                .query(Station.id, Station.name) \
-                .filter(Station.name.ilike(f'%{name}%')) \
-                .order_by(Station.times_count.desc()) \
-                .limit(limit) \
-                .all()
-
-        stops = []
-        for result in results:
-            stops.append(Stop(result.id, result.name))
-
-        return stops
-
     def get_stop_from_ref(self, ref):
         result = self.session.query(Station.name).filter(Station.id == ref).first()
         return Stop(ref, result.name, [ref]) if result else None

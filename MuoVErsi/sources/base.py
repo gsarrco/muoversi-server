@@ -4,7 +4,7 @@ from datetime import datetime, date
 from typing import Optional
 
 import yaml
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base, sessionmaker
 from telegram.ext import ContextTypes
@@ -199,7 +199,22 @@ class Source:
         self.session = self.Session()
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
-        raise NotImplementedError
+        stmt = select(Station)
+        if lat and lon:
+            stmt = stmt \
+                .filter(Station.lat.isnot(None), Station.source == self.name) \
+                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon))
+        else:
+            stmt = stmt \
+                .filter(Station.name.ilike(f'%{name}%'), Station.source == self.name) \
+                .order_by(Station.times_count.desc())
+        results = self.session.scalars(stmt.limit(limit)).all()
+
+        stops = []
+        for result in results:
+            stops.append(Stop(result.id, result.name, result.ids.split(',')))
+
+        return stops
 
     def get_stop_times(self, stop: Stop, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
