@@ -1,8 +1,17 @@
+import logging
+import os
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
+import yaml
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base, sessionmaker
 from telegram.ext import ContextTypes
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 
 class Stop:
@@ -150,12 +159,28 @@ class Direction(Liner):
         return text
 
 
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+config_path = os.path.join(base_dir, 'config.yaml')
+with open(config_path, 'r') as config_file:
+    try:
+        config = yaml.safe_load(config_file)
+        logger.info(config)
+    except yaml.YAMLError as err:
+        logger.error(err)
+
+engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
+             f"{config['PGDATABASE']}"
+engine = create_engine(engine_url)
+
+
 class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
     def __init__(self, name):
         self.name = name
+        self.Session = sessionmaker(bind=engine)
+        self.session = self.Session()
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         raise NotImplementedError

@@ -7,10 +7,9 @@ from urllib.parse import quote
 
 import math
 import requests
-import yaml
-from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select, update
+from sqlalchemy import String, UniqueConstraint, ForeignKey, func, and_, select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
+from sqlalchemy.orm import relationship, aliased, Mapped, mapped_column
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
@@ -21,18 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-config_path = os.path.join(base_dir, 'config.yaml')
-with open(config_path, 'r') as config_file:
-    try:
-        config = yaml.safe_load(config_file)
-        logger.info(config)
-    except yaml.YAMLError as err:
-        logger.error(err)
 
-engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
-             f"{config['PGDATABASE']}"
-engine = create_engine(engine_url)
 
 
 class TrenitaliaStopTime(BaseStopTime):
@@ -96,9 +84,6 @@ class Trenitalia(Source):
     def __init__(self, location='', force_update_stations=False):
         self.location = location
         super().__init__('treni')
-
-        self.Session = sessionmaker(bind=engine)
-        self.session = self.Session()
 
         if force_update_stations or self.session.query(Station).count() == 0:
             self.sync_stations_db()
