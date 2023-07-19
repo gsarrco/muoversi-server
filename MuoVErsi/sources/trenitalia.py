@@ -91,8 +91,10 @@ class Trenitalia(Source):
             with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
                 file_stations = json.load(f)
 
-            new_stations = [Station(id=s['id'], name=s['name'], lat=s['lat'], lon=s['lon'], ids=s['id']) for s in
-                            file_stations]
+            new_stations = [
+                Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code']) for s
+                in
+                file_stations]
             self.sync_stations_db(new_stations)
 
 
