@@ -9,11 +9,12 @@ import urllib.request
 from datetime import datetime, timedelta, date, time
 from sqlite3 import Connection
 
+import math
 import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction, Station
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -141,6 +142,15 @@ class GTFS(Source):
         ''')
         stops = self.get_all_stops()
         stops_clusters = get_clusters_of_stops(stops)
+        total_times_count = sum([cluster.times_count for cluster in stops_clusters])
+
+        new_stations = [Station(id=cluster.name, name=cluster.name, lat=cluster.lat, lon=cluster.lon,
+                                ids=','.join([str(stop.id) for stop in cluster.stops]),
+                                times_count=round(cluster.times_count / total_times_count,
+                                                  int(math.log10(total_times_count)) + 1)) for cluster in
+                        stops_clusters]
+        self.sync_stations_db(new_stations)
+
         for cluster in stops_clusters:
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
                 cluster.name, cluster.lat, cluster.lon, cluster.times_count))
