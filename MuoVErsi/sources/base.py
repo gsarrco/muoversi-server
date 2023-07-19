@@ -1,5 +1,7 @@
 from datetime import datetime, date
+from typing import Optional
 
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
 
 
@@ -175,3 +177,19 @@ class Source:
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
         raise NotImplementedError
+
+
+Base = declarative_base()
+
+
+class Station(Base):
+    __tablename__ = 'stations'
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    lat: Mapped[Optional[float]]
+    lon: Mapped[Optional[float]]
+    ids: Mapped[str] = mapped_column(server_default='')
+    times_count: Mapped[float] = mapped_column(server_default='0')
+    source: Mapped[str] = mapped_column(server_default='treni')
+    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
