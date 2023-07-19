@@ -4,7 +4,8 @@ from datetime import datetime, date
 from typing import Optional
 
 import yaml
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base, sessionmaker
 from telegram.ext import ContextTypes
 
@@ -172,6 +173,21 @@ engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['P
              f"{config['PGDATABASE']}"
 engine = create_engine(engine_url)
 
+Base = declarative_base()
+
+
+class Station(Base):
+    __tablename__ = 'stations'
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    lat: Mapped[Optional[float]]
+    lon: Mapped[Optional[float]]
+    ids: Mapped[str] = mapped_column(server_default='')
+    times_count: Mapped[float] = mapped_column(server_default='0')
+    source: Mapped[str] = mapped_column(server_default='treni')
+    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
+
 
 class Source:
     LIMIT = 7
@@ -194,6 +210,25 @@ class Source:
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
+    def sync_stations_db(self, new_stations: list[Station]):
+        station_codes = [s.id for s in new_stations]
+
+        for station in new_stations:
+            stmt = insert(Station).values(id=station.id, name=station.name, lat=station.lat, lon=station.lon,
+                                          ids=station.ids, source=self.name)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['id'],
+                set_={'name': station.name, 'lat': station.lat, 'lon': station.lon, 'ids': station.ids,
+                      'source': self.name}
+            )
+            self.session.execute(stmt)
+
+        for station in self.session.scalars(select(Station).filter_by(source=self.name)).all():
+            if station.id not in station_codes:
+                self.session.delete(station)
+
+        self.session.commit()
+
     def get_stop_from_ref(self, ref) -> Stop:
         raise NotImplementedError
 
@@ -202,19 +237,3 @@ class Source:
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
         raise NotImplementedError
-
-
-Base = declarative_base()
-
-
-class Station(Base):
-    __tablename__ = 'stations'
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    name: Mapped[str]
-    lat: Mapped[Optional[float]]
-    lon: Mapped[Optional[float]]
-    ids: Mapped[str] = mapped_column(server_default='')
-    times_count: Mapped[float] = mapped_column(server_default='0')
-    source: Mapped[str] = mapped_column(server_default='treni')
-    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')

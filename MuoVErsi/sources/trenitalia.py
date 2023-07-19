@@ -8,7 +8,6 @@ from urllib.parse import quote
 import math
 import requests
 from sqlalchemy import String, UniqueConstraint, ForeignKey, func, and_, select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import relationship, aliased, Mapped, mapped_column
 from telegram.ext import ContextTypes
 from tqdm import tqdm
@@ -86,45 +85,16 @@ class Trenitalia(Source):
         super().__init__('treni')
 
         if force_update_stations or self.session.query(Station).count() == 0:
-            self.sync_stations_db()
+            current_dir = os.path.abspath(os.path.dirname(__file__))
+            datadir = os.path.abspath(current_dir + '/data')
 
-    def sync_stations_db(self):
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        datadir = os.path.abspath(current_dir + '/data')
+            with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
+                file_stations = json.load(f)
 
-        with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
-            stations = json.load(f)
+            new_stations = [Station(id=s['id'], name=s['name'], lat=s['lat'], lon=s['lon'], ids=s['id']) for s in
+                            file_stations]
+            self.sync_stations_db(new_stations)
 
-        station_codes = [s['code'] for s in stations]
-
-        for station in stations:
-            _id = station.get('code', None)
-            name = station.get('long_name', None)
-
-            # if lat and long are empty strings, set them to None
-            lat = station.get('latitude', None)
-            lon = station.get('longitude', None)
-
-            if lat == '':
-                lat = None
-            if lon == '':
-                lon = None
-
-            # either update or create the station
-            stmt = insert(Station).values(id=_id, name=name, lat=lat, lon=lon, ids=_id)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=['id'],
-                set_={'name': name, 'lat': lat, 'lon': lon, 'ids': _id}
-            )
-            self.session.execute(stmt)
-
-        old_stations = self.session.scalars(select(Station)).all()
-
-        for station in old_stations:
-            if station.id not in station_codes:
-                self.session.delete(station)
-
-        self.session.commit()
 
     def save_trains(self):
         stations = self.session.query(Station).all()
