@@ -164,22 +164,6 @@ class GTFS(Source):
         self.sync_stations_db(new_stations)
         return True
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
-        cur = self.con.cursor()
-        if lat and lon:
-            query = 'SELECT id, name FROM stops_clusters ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
-            results = cur.execute(query, (lat, lat, lon, lon, limit)).fetchall()
-        else:
-            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT ?'
-            results = cur.execute(query, (f'%{name}%', limit)).fetchall()
-
-        stops = []
-        for result in results:
-            stops.append(Stop(result[0], result[1]))
-
-        return stops
-
     def get_stop_times(self, stop: Stop, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
@@ -409,20 +393,6 @@ class GTFS(Source):
             directions.append(Direction([route]))
 
         return directions
-
-    def get_stop_from_ref(self, ref) -> Stop:
-        # get stop name
-        cur = self.con.cursor()
-        results = cur.execute('SELECT name FROM stops_clusters WHERE id = ?', (ref,)).fetchall()
-        name = results[0][0]
-
-        # get stop ids
-        cur = self.con.cursor()
-        results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
-                              (ref,)).fetchall()
-        ids = [result[0] for result in results]
-
-        return Stop(ref, name, ids)
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
