@@ -180,10 +180,6 @@ class Trenitalia(Source):
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
         return os.path.join(parent_dir, 'trenitalia.db')
 
-    def get_stop_from_ref(self, ref):
-        result = self.session.query(Station.name).filter(Station.id == ref).first()
-        return Stop(ref, result.name, [ref]) if result else None
-
     def get_stop_times(self, stop: Stop, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))

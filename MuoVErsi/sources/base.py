@@ -244,8 +244,14 @@ class Source:
 
         self.session.commit()
 
-    def get_stop_from_ref(self, ref) -> Stop:
-        raise NotImplementedError
+    def get_stop_from_ref(self, ref):
+        stmt = select(Station) \
+            .filter(Station.id == ref, Station.source == self.name)
+        result: Station = self.session.scalars(stmt).first()
+        if result:
+            return Stop(result.id, result.name, result.ids.split(','))
+        else:
+            return None
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
