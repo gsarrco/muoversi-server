@@ -230,11 +230,11 @@ class Source:
 
         for station in new_stations:
             stmt = insert(Station).values(id=station.id, name=station.name, lat=station.lat, lon=station.lon,
-                                          ids=station.ids, source=self.name)
+                                          ids=station.ids, source=self.name, times_count=station.times_count)
             stmt = stmt.on_conflict_do_update(
                 index_elements=['id'],
                 set_={'name': station.name, 'lat': station.lat, 'lon': station.lon, 'ids': station.ids,
-                      'source': self.name}
+                      'source': self.name, 'times_count': station.times_count}
             )
             self.session.execute(stmt)
 
