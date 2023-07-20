@@ -144,14 +144,16 @@ class GTFS(Source):
         stops_clusters = get_clusters_of_stops(stops)
         total_times_count = sum([cluster.times_count for cluster in stops_clusters])
 
-        new_stations = [Station(id=cluster.name, name=cluster.name, lat=cluster.lat, lon=cluster.lon,
-                                ids=','.join([str(stop.id) for stop in cluster.stops]),
-                                times_count=round(cluster.times_count / total_times_count,
-                                                  int(math.log10(total_times_count)) + 1)) for cluster in
-                        stops_clusters]
-        self.sync_stations_db(new_stations)
+        new_stations = []
 
         for cluster in stops_clusters:
+            times_count = round(cluster.times_count / total_times_count,
+                                int(math.log10(total_times_count)) + 1)
+            ids = ','.join([str(stop.id) for stop in cluster.stops])
+            station = Station(id=cluster.name, name=cluster.name, lat=cluster.lat, lon=cluster.lon, ids=ids,
+                              times_count=times_count, source=self.name)
+            new_stations.append(station)
+
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
                 cluster.name, cluster.lat, cluster.lon, cluster.times_count))
             cluster_id = result.lastrowid
@@ -159,6 +161,7 @@ class GTFS(Source):
                 cur.execute('INSERT INTO stops_stops_clusters (stop_id, stop_cluster_id) VALUES (?, ?)',
                             (stop.id, cluster_id))
         self.con.commit()
+        self.sync_stations_db(new_stations)
         return True
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
