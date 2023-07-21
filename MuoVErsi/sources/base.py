@@ -1,12 +1,10 @@
 import logging
-import os
 from datetime import datetime, date
 from typing import Optional
 
-import yaml
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base, sessionmaker
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
 
 logging.basicConfig(
@@ -159,20 +157,6 @@ class Direction(Liner):
 
         return text
 
-
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-config_path = os.path.join(base_dir, 'config.yaml')
-with open(config_path, 'r') as config_file:
-    try:
-        config = yaml.safe_load(config_file)
-        logger.info(config)
-    except yaml.YAMLError as err:
-        logger.error(err)
-
-engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
-             f"{config['PGDATABASE']}"
-engine = create_engine(engine_url)
-
 Base = declarative_base()
 
 
@@ -193,10 +177,9 @@ class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
-    def __init__(self, name):
+    def __init__(self, name, session):
         self.name = name
-        self.Session = sessionmaker(bind=engine)
-        self.session = self.Session()
+        self.session = session
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
         stmt = select(Station)

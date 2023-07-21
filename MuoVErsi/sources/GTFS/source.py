@@ -41,8 +41,8 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, gtfs_version=None, location='', dev=False):
-        super().__init__(transport_type)
+    def __init__(self, transport_type, session, gtfs_version=None, location='', dev=False):
+        super().__init__(transport_type, session)
         self.transport_type = transport_type
         self.location = location
 
