@@ -8,13 +8,13 @@ from MuoVErsi.sources.base import Stop
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', 541, 'tests/data')
+    return GTFS('navigazione', None, 541, 'tests/data')
 
 
 def test_night_stop_times(db_file):
     start_time = time(0, 33, 14, 379232)
     day = date(2023, 2, 11)
-    stop = Stop(name='P.LE ROMA', ids=[5031])
+    stop = Stop(name='P.LE ROMA', ids=['5031'])
     stop_times = db_file.get_stop_times(stop, '', start_time, day, 0)
 
     check_start_dt = datetime.combine(day, time(0, 0))
@@ -26,7 +26,7 @@ def test_night_stop_times(db_file):
 def test_night_stop_times_new_service(db_file):
     start_time = time(0, 33, 14, 379232)
     day = date(2023, 2, 8)
-    stop = Stop(name='P.LE ROMA', ids=[5031])
+    stop = Stop(name='P.LE ROMA', ids=['5031'])
     stop_times = db_file.get_stop_times(stop, '', start_time, day, 0)
 
     check_start_dt = datetime.combine(day, time(0, 0))

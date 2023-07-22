@@ -1,8 +1,16 @@
+import logging
 from datetime import datetime, date
 from typing import Optional
 
+from sqlalchemy import select, func
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 
 class Stop:
@@ -149,36 +157,6 @@ class Direction(Liner):
 
         return text
 
-
-class Source:
-    LIMIT = 7
-    MINUTES_TOLERANCE = 3
-
-    def __init__(self, name):
-        self.name = name
-
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
-        raise NotImplementedError
-
-    def get_stop_times(self, stop: Stop, line, start_time, day,
-                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
-        raise NotImplementedError
-
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
-                                     offset_times, day,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
-        raise NotImplementedError
-
-    def get_stop_from_ref(self, ref) -> Stop:
-        raise NotImplementedError
-
-    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
-        raise NotImplementedError
-
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
-        raise NotImplementedError
-
-
 Base = declarative_base()
 
 
@@ -193,3 +171,73 @@ class Station(Base):
     times_count: Mapped[float] = mapped_column(server_default='0')
     source: Mapped[str] = mapped_column(server_default='treni')
     stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
+
+
+class Source:
+    LIMIT = 7
+    MINUTES_TOLERANCE = 3
+
+    def __init__(self, name, session):
+        self.name = name
+        self.session = session
+
+    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
+        stmt = select(Station)
+        if lat and lon:
+            stmt = stmt \
+                .filter(Station.lat.isnot(None), Station.source == self.name) \
+                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon))
+        else:
+            stmt = stmt \
+                .filter(Station.name.ilike(f'%{name}%'), Station.source == self.name) \
+                .order_by(Station.times_count.desc())
+        results = self.session.scalars(stmt.limit(limit)).all()
+
+        stops = []
+        for result in results:
+            stops.append(Stop(result.id, result.name, result.ids.split(',')))
+
+        return stops
+
+    def get_stop_times(self, stop: Stop, line, start_time, day,
+                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+        raise NotImplementedError
+
+    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+                                     offset_times, day,
+                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+        raise NotImplementedError
+
+    def sync_stations_db(self, new_stations: list[Station]):
+        station_codes = [s.id for s in new_stations]
+
+        for station in new_stations:
+            stmt = insert(Station).values(id=station.id, name=station.name, lat=station.lat, lon=station.lon,
+                                          ids=station.ids, source=self.name, times_count=station.times_count)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['id'],
+                set_={'name': station.name, 'lat': station.lat, 'lon': station.lon, 'ids': station.ids,
+                      'source': self.name, 'times_count': station.times_count}
+            )
+            self.session.execute(stmt)
+
+        for station in self.session.scalars(select(Station).filter_by(source=self.name)).all():
+            if station.id not in station_codes:
+                self.session.delete(station)
+
+        self.session.commit()
+
+    def get_stop_from_ref(self, ref):
+        stmt = select(Station) \
+            .filter(Station.id == ref, Station.source == self.name)
+        result: Station = self.session.scalars(stmt).first()
+        if result:
+            return Stop(result.id, result.name, result.ids.split(','))
+        else:
+            return None
+
+    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
+        raise NotImplementedError
+
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
+        raise NotImplementedError

@@ -7,10 +7,8 @@ from urllib.parse import quote
 
 import math
 import requests
-import yaml
-from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_, select, update
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
+from sqlalchemy import String, UniqueConstraint, ForeignKey, func, and_, select, update
+from sqlalchemy.orm import relationship, aliased, Mapped, mapped_column
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
@@ -21,18 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-config_path = os.path.join(base_dir, 'config.yaml')
-with open(config_path, 'r') as config_file:
-    try:
-        config = yaml.safe_load(config_file)
-        logger.info(config)
-    except yaml.YAMLError as err:
-        logger.error(err)
 
-engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
-             f"{config['PGDATABASE']}"
-engine = create_engine(engine_url)
 
 
 class TrenitaliaStopTime(BaseStopTime):
@@ -93,53 +80,23 @@ class StopTime(Base):
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, location='', force_update_stations=False):
+    def __init__(self, session, location='', force_update_stations=False):
         self.location = location
-        super().__init__('treni')
-
-        self.Session = sessionmaker(bind=engine)
-        self.session = self.Session()
+        super().__init__('treni', session)
 
         if force_update_stations or self.session.query(Station).count() == 0:
-            self.sync_stations_db()
+            current_dir = os.path.abspath(os.path.dirname(__file__))
+            datadir = os.path.abspath(current_dir + '/data')
 
-    def sync_stations_db(self):
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        datadir = os.path.abspath(current_dir + '/data')
+            with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
+                file_stations = json.load(f)
 
-        with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
-            stations = json.load(f)
+            new_stations = [
+                Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code']) for s
+                in
+                file_stations]
+            self.sync_stations_db(new_stations)
 
-        station_codes = [s['code'] for s in stations]
-
-        for station in stations:
-            _id = station.get('code', None)
-            name = station.get('long_name', None)
-
-            # if lat and long are empty strings, set them to None
-            lat = station.get('latitude', None)
-            lon = station.get('longitude', None)
-
-            if lat == '':
-                lat = None
-            if lon == '':
-                lon = None
-
-            # either update or create the station
-            stmt = insert(Station).values(id=_id, name=name, lat=lat, lon=lon, ids=_id)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=['id'],
-                set_={'name': name, 'lat': lat, 'lon': lon, 'ids': _id}
-            )
-            self.session.execute(stmt)
-
-        old_stations = self.session.scalars(select(Station)).all()
-
-        for station in old_stations:
-            if station.id not in station_codes:
-                self.session.delete(station)
-
-        self.session.commit()
 
     def save_trains(self):
         stations = self.session.query(Station).all()
@@ -222,32 +179,6 @@ class Trenitalia(Source):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
         return os.path.join(parent_dir, 'trenitalia.db')
-
-    def search_stops(self, name=None, lat=None, lon=None, limit=4):
-        if lat and lon:
-            results = self.session \
-                .query(Station.id, Station.name) \
-                .filter(Station.lat.isnot(None)) \
-                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon)) \
-                .limit(limit) \
-                .all()
-        else:
-            results = self.session \
-                .query(Station.id, Station.name) \
-                .filter(Station.name.ilike(f'%{name}%')) \
-                .order_by(Station.times_count.desc()) \
-                .limit(limit) \
-                .all()
-
-        stops = []
-        for result in results:
-            stops.append(Stop(result.id, result.name))
-
-        return stops
-
-    def get_stop_from_ref(self, ref):
-        result = self.session.query(Station.name).filter(Station.id == ref).first()
-        return Stop(ref, result.name, [ref]) if result else None
 
     def get_stop_times(self, stop: Stop, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):

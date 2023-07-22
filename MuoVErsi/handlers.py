@@ -8,6 +8,8 @@ import requests
 import uvicorn
 import yaml
 from babel.dates import format_date
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response
@@ -39,6 +41,7 @@ thismodule = sys.modules[__name__]
 thismodule.sources = {}
 thismodule.persistence = SQLitePersistence()
 
+
 SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
 
 localedir = os.path.join(parent_dir, 'locales')
@@ -50,6 +53,10 @@ with open(config_path, 'r') as config_file:
         logger.info(config)
     except yaml.YAMLError as err:
         logger.error(err)
+
+engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
+             f"{config['PGDATABASE']}"
+engine = create_engine(engine_url)
 
 
 def clean_user_data(context, keep_transport_type=True):
@@ -378,14 +385,14 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + f' {trip_id}</b>'
     try:
-        dep_stop_index = next(i for i, v in enumerate(results) if v.stop.ids[0] in stop_times_filter.dep_stop_ids)
+        dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids[0]) in stop_times_filter.dep_stop_ids)
     except StopIteration:
         raise StopIteration('No departure stop found')
     arr_stop_index = len(results) - 1
     if arr_cluster_name:
         try:
             arr_stop_index = dep_stop_index + next(
-                i for i, v in enumerate(results[dep_stop_index:]) if v.stop.ids[0] in
+                i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids[0]) in
                 stop_times_filter.arr_stop_ids)
         except StopIteration:
             raise StopIteration('No arrival stop found')
@@ -476,10 +483,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def main() -> None:
     DEV = config.get('DEV', False)
 
+    session = sessionmaker(bind=engine)()
+
     thismodule.sources = {
-        'aut': GTFS('automobilistico', dev=DEV),
-        'nav': GTFS('navigazione', dev=DEV),
-        'treni': Trenitalia()
+        'aut': GTFS('automobilistico', session, dev=DEV),
+        'nav': GTFS('navigazione', session, dev=DEV),
+        'treni': Trenitalia(session)
     }
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
