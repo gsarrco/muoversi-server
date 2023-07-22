@@ -178,6 +178,8 @@ class GTFS(Source):
 
         today_service_ids = self.get_active_service_ids(day, context)
 
+        stop_ids = list(map(int, stop.ids))
+
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -230,7 +232,7 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE dep.stop_id in ({','.join(['?'] * len(stop.ids))})
+                WHERE dep.stop_id in ({','.join(['?'] * len(stop_ids))})
                   AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
                   AND dep.departure_time <= ?) 
                   {or_other_service})
@@ -239,7 +241,7 @@ class GTFS(Source):
                 {button_elements}
                 """
 
-        params = (*stop.ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
@@ -280,6 +282,8 @@ class GTFS(Source):
             route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
+        dep_stop_ids = list(map(int, dep_stop.ids))
+        arr_stop_ids = list(map(int, arr_stop.ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -327,7 +331,7 @@ class GTFS(Source):
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
                                 INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop.ids))})
+                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop_ids))})
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
@@ -346,7 +350,7 @@ class GTFS(Source):
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
                  INNER JOIN stops s ON dep.stop_id = s.stop_id
-        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop.ids))})
+        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop_ids))})
           AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
           AND dep.departure_time <= ?) 
           {or_other_service})
@@ -356,7 +360,7 @@ class GTFS(Source):
         {button_elements}
         """
 
-        params = (*arr_stop.ids, *dep_stop.ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
