@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, ForeignKey, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
@@ -27,7 +27,7 @@ class Liner:
         raise NotImplementedError
 
 
-class StopTime(Liner):
+class BaseStopTime(Liner):
     def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
                  platform,
                  headsign, trip_id,
@@ -80,7 +80,7 @@ class StopTime(Liner):
 
 
 class Route(Liner):
-    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None):
+    def __init__(self, dep_stop_time: BaseStopTime, arr_stop_time: BaseStopTime | None):
         self.dep_stop_time = dep_stop_time
         self.arr_stop_time = arr_stop_time
 
@@ -239,5 +239,39 @@ class Source:
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         raise NotImplementedError
+
+
+class Train(Base):
+    __tablename__ = 'trains'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codOrigine: Mapped[str]
+    destinazione: Mapped[str]
+    numeroTreno: Mapped[int]
+    dataPartenzaTreno: Mapped[date]
+    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
+    categoria: Mapped[str]
+    stop_times = relationship('StopTime', back_populates='train')
+
+    __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
+
+
+class StopTime(Base):
+    __tablename__ = 'stop_times'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
+    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
+    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    station: Mapped[Station] = relationship('Station', back_populates='stop_times')
+    arrivo_teorico: Mapped[Optional[datetime]]
+    arrivo_reale: Mapped[Optional[datetime]]
+    partenza_teorica: Mapped[Optional[datetime]]
+    partenza_reale: Mapped[Optional[datetime]]
+    ritardo_arrivo: Mapped[Optional[int]]
+    ritardo_partenza: Mapped[Optional[int]]
+    binario: Mapped[Optional[str]]
+
+    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)

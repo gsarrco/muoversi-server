@@ -14,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction, Station
+from MuoVErsi.sources.base import Source, Stop, BaseStopTime, Route, Direction, Station
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
