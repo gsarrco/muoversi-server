@@ -93,14 +93,13 @@ class Trenitalia(Source):
 
             new_stations = [
                 Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code'],
-                        source='treni', times_count=0) for s
+                        source=self.name, times_count=0) for s
                 in
                 file_stations]
             self.sync_stations_db(new_stations)
 
-
     def save_trains(self):
-        stations = self.session.query(Station).all()
+        stations = self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
         total_times_count = 0
         times_count = []
