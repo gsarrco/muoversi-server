@@ -13,22 +13,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class Stop:
-    def __init__(self, ref: str = None, name: str = None, ids=None):
-        if ids is None:
-            ids = []
-        self.ref = ref
-        self.name = name
-        self.ids = ids
-
-
 class Liner:
     def format(self, number, _, source_name):
         raise NotImplementedError
 
 
 class StopTime(Liner):
-    def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+    def __init__(self, stop: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
                  platform,
                  headsign, trip_id,
                  route_name):
@@ -181,7 +172,7 @@ class Source:
         self.name = name
         self.session = session
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
+    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Station]:
         stmt = select(Station)
         if lat and lon:
             stmt = stmt \
@@ -191,19 +182,13 @@ class Source:
             stmt = stmt \
                 .filter(Station.name.ilike(f'%{name}%'), Station.source == self.name) \
                 .order_by(Station.times_count.desc())
-        results = self.session.scalars(stmt.limit(limit)).all()
+        return self.session.scalars(stmt.limit(limit)).all()
 
-        stops = []
-        for result in results:
-            stops.append(Stop(result.id, result.name, result.ids.split(',')))
-
-        return stops
-
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
@@ -227,12 +212,12 @@ class Source:
 
         self.session.commit()
 
-    def get_stop_from_ref(self, ref):
+    def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
             .filter(Station.id == ref, Station.source == self.name)
         result: Station = self.session.scalars(stmt).first()
         if result:
-            return Stop(result.id, result.name, result.ids.split(','))
+            return result
         else:
             return None
 

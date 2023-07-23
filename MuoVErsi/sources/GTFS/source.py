@@ -14,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction, Station
+from MuoVErsi.sources.base import Source, StopTime as BaseStopTime, Route, Direction, Station
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -164,7 +164,7 @@ class GTFS(Source):
         self.sync_stations_db(new_stations)
         return True
 
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
 
@@ -178,7 +178,8 @@ class GTFS(Source):
 
         today_service_ids = self.get_active_service_ids(day, context)
 
-        stop_ids = list(map(int, stop.ids))
+        stop_ids = stop.ids.split(',')
+        stop_ids = list(map(int, stop_ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -268,7 +269,7 @@ class GTFS(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
@@ -282,8 +283,11 @@ class GTFS(Source):
             route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
-        dep_stop_ids = list(map(int, dep_stop.ids))
-        arr_stop_ids = list(map(int, arr_stop.ids))
+        dep_stop_ids = dep_stop.ids.split(',')
+        dep_stop_ids = list(map(int, dep_stop_ids))
+
+        arr_stop_ids = arr_stop.ids.split(',')
+        arr_stop_ids = list(map(int, arr_stop_ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -482,7 +486,7 @@ class GTFS(Source):
         headsign = results[-1]['sc_name']
 
         for result in results:
-            stop = Stop(result['sc_id'], result['sc_name'], [int(result['sp_id'])])
+            stop = Station(id=result['sc_id'], name=result['sc_name'], ids=result['sp_id'])
             location = get_loc_from_stop_and_cluster(result['sp_name'], stop.name)
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
