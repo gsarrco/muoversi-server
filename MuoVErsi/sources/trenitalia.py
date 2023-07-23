@@ -92,7 +92,8 @@ class Trenitalia(Source):
                 file_stations = json.load(f)
 
             new_stations = [
-                Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code']) for s
+                Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code'],
+                        source='treni', times_count=0) for s
                 in
                 file_stations]
             self.sync_stations_db(new_stations)
