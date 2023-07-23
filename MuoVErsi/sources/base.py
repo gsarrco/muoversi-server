@@ -27,7 +27,7 @@ class Liner:
         raise NotImplementedError
 
 
-class StopTime(Liner):
+class BaseStopTime(Liner):
     def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
                  platform,
                  headsign, trip_id,
@@ -80,7 +80,7 @@ class StopTime(Liner):
 
 
 class Route(Liner):
-    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None):
+    def __init__(self, dep_stop_time: BaseStopTime, arr_stop_time: BaseStopTime | None):
         self.dep_stop_time = dep_stop_time
         self.arr_stop_time = arr_stop_time
 
@@ -239,5 +239,5 @@ class Source:
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         raise NotImplementedError
