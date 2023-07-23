@@ -458,7 +458,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     inline_buttons = []
 
     for stop in stops:
-        stop_id = stop.stop.ref
+        stop_id = stop.stop.name
         stop_name = stop.stop.name
         inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
 
