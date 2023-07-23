@@ -2,24 +2,23 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, time, date
-from typing import Optional
 from urllib.parse import quote
 
 import math
 import requests
-from sqlalchemy import String, UniqueConstraint, ForeignKey, func, and_, select, update
-from sqlalchemy.orm import relationship, aliased, Mapped, mapped_column
+from sqlalchemy import func, and_, select, update
+from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction, Station, Base
+import MuoVErsi.sources.base
+from MuoVErsi.sources.base import Source, Stop, BaseStopTime, Route, Direction, Station, StopTime, \
+    Train
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-
 
 
 class TrenitaliaStopTime(BaseStopTime):
@@ -41,40 +40,6 @@ class TrenitaliaStopTime(BaseStopTime):
 
 class TrenitaliaRoute(Route):
     pass
-
-
-class Train(Base):
-    __tablename__ = 'trains'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    codOrigine: Mapped[str]
-    destinazione: Mapped[str]
-    numeroTreno: Mapped[int]
-    dataPartenzaTreno: Mapped[date]
-    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
-    categoria: Mapped[str]
-    stop_times = relationship('StopTime', back_populates='train')
-
-    __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
-
-
-class StopTime(Base):
-    __tablename__ = 'stop_times'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
-    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
-    station: Mapped[Station] = relationship('Station', back_populates='stop_times')
-    arrivo_teorico: Mapped[Optional[datetime]]
-    arrivo_reale: Mapped[Optional[datetime]]
-    partenza_teorica: Mapped[Optional[datetime]]
-    partenza_reale: Mapped[Optional[datetime]]
-    ritardo_arrivo: Mapped[Optional[int]]
-    ritardo_partenza: Mapped[Optional[int]]
-    binario: Mapped[Optional[str]]
-
-    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
 
 
 class Trenitalia(Source):
@@ -452,10 +417,13 @@ class Trenitalia(Source):
         stop_times = []
         for result in results:
             stop = Stop(result.Station.id, result.Station.name, [result.Station.id])
-            stop_time = TrenitaliaStopTime(stop, result.Train.codOrigine, result.StopTime.partenza_teorica, None, 0,
-                                           result.StopTime.binario, result.Train.destinazione, trip_id,
-                                           result.Train.categoria,
-                                           result.StopTime.arrivo_teorico, result.Train.dataPartenzaTreno)
+            stop_time = TrenitaliaStopTime(stop, MuoVErsi.sources.base.Train.codOrigine,
+                                           MuoVErsi.sources.base.StopTime.partenza_teorica, None, 0,
+                                           MuoVErsi.sources.base.StopTime.binario,
+                                           MuoVErsi.sources.base.Train.destinazione, trip_id,
+                                           MuoVErsi.sources.base.Train.categoria,
+                                           MuoVErsi.sources.base.StopTime.arrivo_teorico,
+                                           MuoVErsi.sources.base.Train.dataPartenzaTreno)
             stop_times.append(stop_time)
 
         return stop_times
