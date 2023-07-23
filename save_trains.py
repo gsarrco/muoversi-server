@@ -1,5 +1,8 @@
 import logging
 
+from sqlalchemy.orm import sessionmaker
+
+from MuoVErsi.handlers import engine
 from MuoVErsi.sources.trenitalia import Trenitalia
 
 logging.basicConfig(
@@ -15,7 +18,8 @@ def run():
     args = parser.parse_args()
     force_update_stations = args.force_update_stations
 
-    trenitalia = Trenitalia(force_update_stations=force_update_stations)
+    session = sessionmaker(bind=engine)()
+    trenitalia = Trenitalia(session, force_update_stations=force_update_stations)
     trenitalia.save_trains()
 
 
