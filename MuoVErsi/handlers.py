@@ -209,7 +209,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.ref}')]
+    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.id}')]
                for cluster in stops_clusters]
 
     await update.message.reply_text(
@@ -384,16 +384,17 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + f' {trip_id}</b>'
+    dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
     try:
-        dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids[0]) in stop_times_filter.dep_stop_ids)
+        dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
     except StopIteration:
         raise StopIteration('No departure stop found')
     arr_stop_index = len(results) - 1
     if arr_cluster_name:
+        arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
         try:
             arr_stop_index = dep_stop_index + next(
-                i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids[0]) in
-                stop_times_filter.arr_stop_ids)
+                i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
         except StopIteration:
             raise StopIteration('No arrival stop found')
 

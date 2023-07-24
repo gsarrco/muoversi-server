@@ -11,9 +11,7 @@ from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
-import MuoVErsi.sources.base
-from MuoVErsi.sources.base import Source, Stop, BaseStopTime, Route, Direction, Station, StopTime, \
-    Train
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, StopTime, Train
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -22,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class TrenitaliaStopTime(BaseStopTime):
-    def __init__(self, stop: Stop, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform, headsign,
+    def __init__(self, stop: Station, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform,
+                 headsign,
                  trip_id,
                  route_name,
                  arr_time: datetime = None,
@@ -113,9 +112,8 @@ class Trenitalia(Source):
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
-        stop = Stop(station.id, station.name, [station.id])
-        departures = self.loop_get_times(10000, stop, now, type='partenze')
-        arrivals = self.loop_get_times(10000, stop, now, type='arrivi')
+        departures = self.loop_get_times(10000, station, now, type='partenze')
+        arrivals = self.loop_get_times(10000, station, now, type='arrivi')
 
         departures_arrivals = departures + arrivals
 
@@ -145,7 +143,7 @@ class Trenitalia(Source):
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
         return os.path.join(parent_dir, 'trenitalia.db')
 
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
@@ -156,7 +154,7 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        station_id = stop.ids[0]
+        station_id = stop.ids
 
         if count:
             raw_stop_times = self.session.query(
@@ -213,7 +211,7 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def loop_get_times(self, limit, stop: Stop, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
+    def loop_get_times(self, limit, stop: Station, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
         results: list[TrenitaliaStopTime] = []
 
         notimes = 0
@@ -249,11 +247,11 @@ class Trenitalia(Source):
 
         return results[:limit]
 
-    def get_stop_times_from_start_dt(self, type, stop: Stop, start_dt: datetime, train_ids: list[int] | None) -> \
+    def get_stop_times_from_start_dt(self, type, stop: Station, start_dt: datetime, train_ids: list[int] | None) -> \
             list[TrenitaliaStopTime]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
-        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.ref}/{quote(date)}'
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.id}/{quote(date)}'
         r = requests.get(url)
         if r.status_code != 200:
             return []
@@ -312,7 +310,7 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
@@ -324,8 +322,8 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        dep_station_id = next(iter(dep_stop.ids))
-        arr_station_id = next(iter(arr_stop.ids))
+        dep_station_id = dep_stop.ids
+        arr_station_id = arr_stop.ids
 
         # Define alias for stop_times
         a_stop_times = aliased(StopTime)
@@ -416,8 +414,8 @@ class Trenitalia(Source):
 
         stop_times = []
         for result in results:
-            stop = Stop(result.Station.id, result.Station.name, [result.Station.id])
-            stop_time = TrenitaliaStopTime(stop, result.Train.codOrigine, result.StopTime.partenza_teorica, None, 0,
+            stop_time = TrenitaliaStopTime(result.Station, result.Train.codOrigine, result.StopTime.partenza_teorica,
+                                           None, 0,
                                            result.StopTime.binario, result.Train.destinazione, trip_id,
                                            result.Train.categoria,
                                            result.StopTime.arrivo_teorico, result.Train.dataPartenzaTreno)
