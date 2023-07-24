@@ -400,12 +400,22 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     platform_text = _(f'{source.name}_platform')
 
-    for result in results[dep_stop_index:arr_stop_index + 1]:
-        if result.dep_time:
-            time_fmt = result.dep_time.strftime('%H:%M')
+    are_dep_and_arr_times_equal = all(
+        result.arr_time == result.dep_time for result in results[dep_stop_index:arr_stop_index + 1])
+
+    for i, result in enumerate(results[dep_stop_index:arr_stop_index + 1]):
+        arr_time = result.arr_time.strftime('%H:%M') if result.arr_time else ''
+        dep_time = result.dep_time.strftime('%H:%M') if result.dep_time else ''
+
+        if are_dep_and_arr_times_equal:
+            text += f'\n<b>{arr_time}</b> {result.stop.name}'
         else:
-            time_fmt = result.arr_time.strftime('%H:%M')
-        text += f'\n<b>{time_fmt}</b> {result.stop.name}'
+            if i == 0:
+                text += f'\n{result.stop.name} <b>{dep_time}</b>'
+            elif i == arr_stop_index:
+                text += f'\n<b>{arr_time}</b> {result.stop.name}'
+            else:
+                text += f'\n<b>{arr_time}</b> {result.stop.name} <b>{dep_time}</b>'
 
         if result.platform:
             text += f' ({platform_text} {result.platform})'
