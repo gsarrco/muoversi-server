@@ -176,11 +176,11 @@ class Source:
         stmt = select(Station)
         if lat and lon:
             stmt = stmt \
-                .filter(Station.lat.isnot(None), Station.source == self.name) \
+                .filter(Station.lat.isnot(None)) \
                 .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon))
         else:
             stmt = stmt \
-                .filter(Station.name.ilike(f'%{name}%'), Station.source == self.name) \
+                .filter(Station.name.ilike(f'%{name}%')) \
                 .order_by(Station.times_count.desc())
         return self.session.scalars(stmt.limit(limit)).all()
 

@@ -217,7 +217,13 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.id}')]
+    emoji = {
+        'aut': '🚌',
+        'nav': '⛴️',
+        'treni': '🚆'
+    }
+
+    buttons = [[InlineKeyboardButton(f'{cluster.name} {emoji[cluster.source]}', callback_data=f'S{cluster.id}-{cluster.source}')]
                for cluster in stops_clusters]
 
     await update.message.reply_text(
@@ -298,8 +304,6 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file: Source = thismodule.sources[context.user_data['transport_type']]
-
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -314,6 +318,9 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_id = update.callback_query.message.message_id
 
     stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
+    stop_ref, source_name = stop_ref.split('-')
+    db_file: Source = thismodule.sources[source_name]
+    context.user_data['transport_type'] = source_name
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
