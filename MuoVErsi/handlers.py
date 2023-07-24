@@ -44,11 +44,6 @@ thismodule.persistence = SQLitePersistence()
 
 SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(5)
 
-emoji = {
-    'aut': '🚌',
-    'nav': '⛴️',
-    'treni': '🚆'
-}
 
 localedir = os.path.join(parent_dir, 'locales')
 
@@ -203,7 +198,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(f'{cluster.name} {emoji[cluster.source]}', callback_data=f'S{cluster.id}-{cluster.source}')]
+    buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}', callback_data=f'S{cluster.id}-{cluster.source}')]
                for cluster in stops_clusters]
 
     await update.message.reply_text(
@@ -302,7 +297,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     db_file: Source = thismodule.sources[source_name]
     context.user_data['transport_type'] = source_name
     stop = db_file.get_stop_from_ref(stop_ref)
-    cluster_name = f'{stop.name} {emoji[stop.source]}'
+    cluster_name = f'{stop.name} {thismodule.sources[stop.source].emoji}'
     stop_ids = stop.ids
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
@@ -488,8 +483,8 @@ async def main() -> None:
     session = sessionmaker(bind=engine)()
 
     thismodule.sources = {
-        'aut': GTFS('automobilistico', session, dev=DEV),
-        'nav': GTFS('navigazione', session, dev=DEV),
+        'aut': GTFS('automobilistico', '🚌', session, dev=DEV),
+        'nav': GTFS('navigazione', '⛴️', session, dev=DEV),
         'treni': Trenitalia(session)
     }
 

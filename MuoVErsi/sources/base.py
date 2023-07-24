@@ -168,8 +168,9 @@ class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
-    def __init__(self, name, session):
+    def __init__(self, name, emoji, session):
         self.name = name
+        self.emoji = emoji
         self.session = session
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4, all_sources=False) -> list[Station]:

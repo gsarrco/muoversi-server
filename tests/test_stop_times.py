@@ -8,7 +8,7 @@ from MuoVErsi.sources.base import Station
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', None, 541, 'tests/data')
+    return GTFS('navigazione', '⛴️', None, 541, 'tests/data')
 
 
 def test_night_stop_times(db_file):
