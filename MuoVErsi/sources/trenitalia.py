@@ -417,13 +417,10 @@ class Trenitalia(Source):
         stop_times = []
         for result in results:
             stop = Stop(result.Station.id, result.Station.name, [result.Station.id])
-            stop_time = TrenitaliaStopTime(stop, MuoVErsi.sources.base.Train.codOrigine,
-                                           MuoVErsi.sources.base.StopTime.partenza_teorica, None, 0,
-                                           MuoVErsi.sources.base.StopTime.binario,
-                                           MuoVErsi.sources.base.Train.destinazione, trip_id,
-                                           MuoVErsi.sources.base.Train.categoria,
-                                           MuoVErsi.sources.base.StopTime.arrivo_teorico,
-                                           MuoVErsi.sources.base.Train.dataPartenzaTreno)
+            stop_time = TrenitaliaStopTime(stop, result.Train.codOrigine, result.StopTime.partenza_teorica, None, 0,
+                                           result.StopTime.binario, result.Train.destinazione, trip_id,
+                                           result.Train.categoria,
+                                           result.StopTime.arrivo_teorico, result.Train.dataPartenzaTreno)
             stop_times.append(stop_time)
 
         return stop_times
