@@ -108,6 +108,14 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     clean_user_data(context)
 
+    if command == 'fermata':
+        reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
+        reply_keyboard_markup = ReplyKeyboardMarkup(
+            reply_keyboard, resize_keyboard=True, is_persistent=True
+        )
+        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup)
+        return SEARCH_STOP
+
     if context.user_data.get('transport_type'):
         return await specify(update, context, command)
 
