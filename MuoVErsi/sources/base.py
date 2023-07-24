@@ -172,7 +172,7 @@ class Source:
         self.name = name
         self.session = session
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Station]:
+    def search_stops(self, name=None, lat=None, lon=None, limit=4, all_sources=False) -> list[Station]:
         stmt = select(Station)
         if lat and lon:
             stmt = stmt \
@@ -182,6 +182,8 @@ class Source:
             stmt = stmt \
                 .filter(Station.name.ilike(f'%{name}%')) \
                 .order_by(Station.times_count.desc())
+        if not all_sources:
+            stmt = stmt.filter(Station.source == self.name)
         return self.session.scalars(stmt.limit(limit)).all()
 
     def get_stop_times(self, stop: Station, line, start_time, day,

@@ -206,12 +206,14 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
+    saved_dep_stop_ids = 'dep_stop_ids' not in context.user_data
+
     if message.location:
         lat = message.location.latitude
         lon = message.location.longitude
-        stops_clusters = db_file.search_stops(lat=lat, lon=lon)
+        stops_clusters = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids)
     else:
-        stops_clusters = db_file.search_stops(name=message.text)
+        stops_clusters = db_file.search_stops(name=message.text, all_sources=saved_dep_stop_ids)
 
     if not stops_clusters:
         await update.message.reply_text(_('stop_not_found'))
