@@ -42,7 +42,8 @@ thismodule.sources = {}
 thismodule.persistence = SQLitePersistence()
 
 
-SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
+SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(5)
+
 
 localedir = os.path.join(parent_dir, 'locales')
 
@@ -108,8 +109,16 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     clean_user_data(context)
 
+    if command == 'fermata':
+        reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
+        reply_keyboard_markup = ReplyKeyboardMarkup(
+            reply_keyboard, resize_keyboard=True, is_persistent=True
+        )
+        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup)
+        return SEARCH_STOP
+
     if context.user_data.get('transport_type'):
-        return await specify(update, context, command)
+        return await specify_line(update, context)
 
     inline_keyboard = [[]]
 
@@ -121,13 +130,10 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
     )
 
-    if command == 'fermata':
-        return SPECIFY_STOP
-
     return SPECIFY_LINE
 
 
-async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
+async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     send_second_message = True
     if update.callback_query:
         query = update.callback_query
@@ -165,28 +171,9 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
         await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard)
 
     if send_second_message:
-        if command == 'fermata':
-            reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
-            reply_keyboard_markup = ReplyKeyboardMarkup(
-                reply_keyboard, resize_keyboard=True, is_persistent=True
-            )
-        else:
-            reply_keyboard_markup = ReplyKeyboardRemove()
-
-        if command == 'fermata':
-            text = _('insert_stop')
-        else:
-            text = _('insert_line')
-        await bot.send_message(chat_id, text, reply_markup=reply_keyboard_markup)
-
-    if command == 'fermata':
-        return SEARCH_STOP
+        await bot.send_message(chat_id, _('insert_line'), reply_markup=ReplyKeyboardRemove())
 
     return SEARCH_LINE
-
-
-async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'fermata')
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -198,18 +185,20 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
+    saved_dep_stop_ids = 'dep_stop_ids' not in context.user_data
+
     if message.location:
         lat = message.location.latitude
         lon = message.location.longitude
-        stops_clusters = db_file.search_stops(lat=lat, lon=lon)
+        stops_clusters = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids)
     else:
-        stops_clusters = db_file.search_stops(name=message.text)
+        stops_clusters = db_file.search_stops(name=message.text, all_sources=saved_dep_stop_ids)
 
     if not stops_clusters:
         await update.message.reply_text(_('stop_not_found'))
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(cluster.name, callback_data=f'S{cluster.id}')]
+    buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}', callback_data=f'S{cluster.id}-{cluster.source}')]
                for cluster in stops_clusters]
 
     await update.message.reply_text(
@@ -290,8 +279,6 @@ async def change_day_show_stop(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    db_file: Source = thismodule.sources[context.user_data['transport_type']]
-
     lang = 'it' if update.effective_user.language_code == 'it' else 'en'
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
@@ -306,6 +293,9 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_id = update.callback_query.message.message_id
 
     stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
+    stop_ref, source_name = stop_ref.split('-')
+    db_file: Source = thismodule.sources[source_name]
+    context.user_data['transport_type'] = source_name
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -426,10 +416,6 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SHOW_STOP
 
 
-async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'linea')
-
-
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
@@ -497,8 +483,8 @@ async def main() -> None:
     session = sessionmaker(bind=engine)()
 
     thismodule.sources = {
-        'aut': GTFS('automobilistico', session, dev=DEV),
-        'nav': GTFS('navigazione', session, dev=DEV),
+        'aut': GTFS('automobilistico', '🚌', session, dev=DEV),
+        'nav': GTFS('navigazione', '⛴️', session, dev=DEV),
         'treni': Trenitalia(session)
     }
 
@@ -523,10 +509,8 @@ async def main() -> None:
         name='orari',
         entry_points=[MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         states={
-            SPECIFY_STOP: [CallbackQueryHandler(specify_stop, r'^T')],
             SEARCH_STOP: [
-                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
-                CallbackQueryHandler(specify_stop, r'^T'),
+                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
             ],
             SPECIFY_LINE: [CallbackQueryHandler(specify_line, r'^T')],
             SEARCH_LINE: [

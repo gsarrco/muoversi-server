@@ -168,20 +168,23 @@ class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
-    def __init__(self, name, session):
+    def __init__(self, name, emoji, session):
         self.name = name
+        self.emoji = emoji
         self.session = session
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Station]:
+    def search_stops(self, name=None, lat=None, lon=None, limit=4, all_sources=False) -> list[Station]:
         stmt = select(Station)
         if lat and lon:
             stmt = stmt \
-                .filter(Station.lat.isnot(None), Station.source == self.name) \
+                .filter(Station.lat.isnot(None)) \
                 .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon))
         else:
             stmt = stmt \
-                .filter(Station.name.ilike(f'%{name}%'), Station.source == self.name) \
+                .filter(Station.name.ilike(f'%{name}%')) \
                 .order_by(Station.times_count.desc())
+        if not all_sources:
+            stmt = stmt.filter(Station.source == self.name)
         return self.session.scalars(stmt.limit(limit)).all()
 
     def get_stop_times(self, stop: Station, line, start_time, day,
