@@ -297,7 +297,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     db_file: Source = thismodule.sources[source_name]
     context.user_data['transport_type'] = source_name
     stop = db_file.get_stop_from_ref(stop_ref)
-    cluster_name = f'{stop.name} {thismodule.sources[stop.source].emoji}'
+    cluster_name = stop.name
     stop_ids = stop.ids
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
