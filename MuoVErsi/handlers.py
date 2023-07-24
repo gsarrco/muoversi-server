@@ -42,7 +42,7 @@ thismodule.sources = {}
 thismodule.persistence = SQLitePersistence()
 
 
-SPECIFY_STOP, SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(6)
+SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(5)
 
 localedir = os.path.join(parent_dir, 'locales')
 
@@ -117,7 +117,7 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return SEARCH_STOP
 
     if context.user_data.get('transport_type'):
-        return await specify(update, context, command)
+        return await specify_line(update, context)
 
     inline_keyboard = [[]]
 
@@ -129,13 +129,10 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_markup=InlineKeyboardMarkup(inline_keyboard)
     )
 
-    if command == 'fermata':
-        return SPECIFY_STOP
-
     return SPECIFY_LINE
 
 
-async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -> int:
+async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     send_second_message = True
     if update.callback_query:
         query = update.callback_query
@@ -173,28 +170,9 @@ async def specify(update: Update, context: ContextTypes.DEFAULT_TYPE, command) -
         await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard)
 
     if send_second_message:
-        if command == 'fermata':
-            reply_keyboard = [[KeyboardButton(_('send_location'), request_location=True)]]
-            reply_keyboard_markup = ReplyKeyboardMarkup(
-                reply_keyboard, resize_keyboard=True, is_persistent=True
-            )
-        else:
-            reply_keyboard_markup = ReplyKeyboardRemove()
-
-        if command == 'fermata':
-            text = _('insert_stop')
-        else:
-            text = _('insert_line')
-        await bot.send_message(chat_id, text, reply_markup=reply_keyboard_markup)
-
-    if command == 'fermata':
-        return SEARCH_STOP
+        await bot.send_message(chat_id, _('insert_line'), reply_markup=ReplyKeyboardRemove())
 
     return SEARCH_LINE
-
-
-async def specify_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'fermata')
 
 
 async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -443,10 +421,6 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SHOW_STOP
 
 
-async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    return await specify(update, context, 'linea')
-
-
 async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     db_file: Source = thismodule.sources[context.user_data['transport_type']]
 
@@ -540,10 +514,8 @@ async def main() -> None:
         name='orari',
         entry_points=[MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
         states={
-            SPECIFY_STOP: [CallbackQueryHandler(specify_stop, r'^T')],
             SEARCH_STOP: [
-                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
-                CallbackQueryHandler(specify_stop, r'^T'),
+                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
             ],
             SPECIFY_LINE: [CallbackQueryHandler(specify_line, r'^T')],
             SEARCH_LINE: [
