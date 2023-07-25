@@ -183,7 +183,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     message = update.message
 
-    db_file: Source = thismodule.sources[context.user_data['transport_type']]
+    db_file: Source = thismodule.sources[context.user_data.get('transport_type', 'aut')]
 
     saved_dep_stop_ids = 'dep_stop_ids' not in context.user_data
 
