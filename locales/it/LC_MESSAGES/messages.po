@@ -29,7 +29,7 @@ msgid "send_location"
 msgstr "Invia posizione"
 
 msgid "insert_stop"
-msgstr "Digita il nome della fermata oppure invia la posizione."
+msgstr "<b>Digita il nome della fermata/stazione di partenza oppure invia la posizione.</b>\n<i>Disponibili: ACTV automobilistico e navigazione, treni regionali entro 100km da Venezia.</i>"
 
 msgid "insert_line"
 msgstr "Digita il numero della linea interessata."
