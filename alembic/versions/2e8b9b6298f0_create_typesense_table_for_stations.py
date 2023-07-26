@@ -5,6 +5,7 @@ Revises: af59516d0296
 Create Date: 2023-07-26 07:12:04.490257
 
 """
+from typesense.exceptions import ObjectNotFound
 
 from MuoVErsi.typesense import connect_to_typesense
 
@@ -19,7 +20,7 @@ client = connect_to_typesense()
 def upgrade() -> None:
     try:
         client.collections['stations'].delete()
-    except Exception as e:
+    except ObjectNotFound:
         pass
     client.collections.create({
         'name': 'stations',
@@ -38,15 +39,26 @@ def upgrade() -> None:
         'synonyms': ['p.le', 'piazzale']
     })
     client.collections['stations'].synonyms.upsert('s.-santo', {
-        'synonyms': ['s.', 'santo', 'santa']
+        'synonyms': ['s.', 'santo', 'santa', 'san']
     })
     client.collections['stations'].synonyms.upsert('fs-stazione', {
         'synonyms': ['fs', 'stazione']
     })
+    client.collections['stations'].synonyms.upsert('f.te-fondamenta', {
+        'synonyms': ['f.te', 'fondamenta', 'fondamente']
+    })
+    client.collections['stations'].synonyms.upsert('cap-capolinea', {
+        'synonyms': ['cap.', 'capolinea']
+    })
 
 
 def downgrade() -> None:
-    client.collections['stations'].synonyms.delete('p-le-piazzale')
-    client.collections['stations'].synonyms.delete('s.-santo')
-    client.collections['stations'].synonyms.delete('fs-stazione')
-    client.collections['stations'].delete()
+    try:
+        client.collections['stations'].synonyms['p-le-piazzale'].delete()
+        client.collections['stations'].synonyms['s.-santo'].delete()
+        client.collections['stations'].synonyms['fs-stazione'].delete()
+        client.collections['stations'].synonyms['f.te-fondamenta'].delete()
+        client.collections['stations'].synonyms['cap-capolinea'].delete()
+        client.collections['stations'].delete()
+    except ObjectNotFound:
+        pass
