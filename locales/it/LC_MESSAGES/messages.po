@@ -38,7 +38,7 @@ msgid "stop_not_found"
 msgstr "Non abbiamo trovato la fermata che hai inserito. Riprova."
 
 msgid "choose_stop"
-msgstr "Scegli la fermata"
+msgstr "Scegli la fermata o digita di nuovo la ricerca:"
 
 msgid "back"
 msgstr "Indietro"
