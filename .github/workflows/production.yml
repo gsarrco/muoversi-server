@@ -29,7 +29,7 @@ jobs:
         script: |
           cd MuoVErsi
           git checkout production
-          git pull origin production
+          git pull
           venv/bin/python -m pip install -r requirements.txt
           venv/bin/alembic upgrade head
           sudo systemctl restart muoversi
