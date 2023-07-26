@@ -29,7 +29,7 @@ msgid "send_location"
 msgstr "Send location"
 
 msgid "insert_stop"
-msgstr "Type the stop name or send the location."
+msgstr "<b>Type the departure stop/station name or send the location.</b>\n<i>Available: ACTV busses and waterbusses, regional trains within 100km from Venice.</i>"
 
 msgid "insert_line"
 msgstr "Type in the number of the desired line."
@@ -38,7 +38,7 @@ msgid "stop_not_found"
 msgstr "We could not find the stop you entered. Please try again."
 
 msgid "choose_stop"
-msgstr "Choose the stop"
+msgstr "Choose the stop or type again the search:"
 
 msgid "back"
 msgstr "Back"
