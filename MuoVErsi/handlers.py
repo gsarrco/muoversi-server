@@ -182,18 +182,28 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    message = update.message
-
     db_file: Source = thismodule.sources[context.user_data.get('transport_type', 'aut')]
+
+    limit = 4
 
     saved_dep_stop_ids = 'dep_stop_ids' not in context.user_data
 
-    if message.location:
-        lat = message.location.latitude
-        lon = message.location.longitude
-        stops_clusters = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids)
+    if update.callback_query:
+        text, lat, lon, page = update.callback_query.data[1:].split('/')
+        page = int(page)
     else:
-        stops_clusters = db_file.search_stops(name=message.text, all_sources=saved_dep_stop_ids)
+        text, lat, lon, page = '', '', '', 1
+        message = update.message
+        if message.location:
+            lat = message.location.latitude
+            lon = message.location.longitude
+        else:
+            text = message.text
+
+    if lat == '' and lon == '':
+        stops_clusters, count = db_file.search_stops(name=text, all_sources=saved_dep_stop_ids, page=page, limit=limit)
+    else:
+        stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page, limit=limit)
 
     if not stops_clusters:
         await update.message.reply_text(_('stop_not_found'))
@@ -201,13 +211,27 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}', callback_data=f'S{cluster.id}-{cluster.source}')]
                for cluster in stops_clusters]
+    
+    paging_buttons = []
+    if page > 1:
+        paging_buttons.append(InlineKeyboardButton('<', callback_data=f'F{text}/{lat}/{lon}/{page - 1}'))
+    if page * limit < count:
+        paging_buttons.append(InlineKeyboardButton('>', callback_data=f'F{text}/{lat}/{lon}/{page + 1}'))
 
-    await update.message.reply_text(
-        _('choose_stop'),
-        reply_markup=InlineKeyboardMarkup(
-            buttons
+    if paging_buttons:
+        buttons.append(paging_buttons)
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(
+            _('choose_stop'),
+            reply_markup=InlineKeyboardMarkup(buttons)
         )
-    )
+    else:
+        await update.message.reply_text(
+            _('choose_stop'),
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
 
     return SHOW_STOP
 
@@ -528,7 +552,8 @@ async def main() -> None:
                 MessageHandler(filters.Regex(r'^\/[0-9]+$'), trip_view),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
-                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop)
+                MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
+                CallbackQueryHandler(search_stop, r'^F')
             ]
         },
         fallbacks=[CommandHandler("cancel", cancel), MessageHandler(filters.Regex(r'^\/[a-z]+$'), choose_service)],
