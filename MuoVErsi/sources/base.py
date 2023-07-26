@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import select, func, ForeignKey, UniqueConstraint, String
+from sqlalchemy import select, ForeignKey, UniqueConstraint, String
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
@@ -168,24 +168,39 @@ class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
-    def __init__(self, name, emoji, session):
+    def __init__(self, name, emoji, session, typesense):
         self.name = name
         self.emoji = emoji
         self.session = session
+        self.typesense = typesense
 
     def search_stops(self, name=None, lat=None, lon=None, limit=4, all_sources=False) -> list[Station]:
-        stmt = select(Station)
+        search_config = {'per_page': limit, 'query_by': 'name'}
+
         if lat and lon:
-            stmt = stmt \
-                .filter(Station.lat.isnot(None)) \
-                .order_by(func.abs(Station.lat - lat) + func.abs(Station.lon - lon))
+            search_config.update({
+                'q': '*',
+                'sort_by': f'location({lat},{lon}):asc'
+            })
         else:
-            stmt = stmt \
-                .filter(Station.name.ilike(f'%{name}%')) \
-                .order_by(Station.times_count.desc())
+            search_config.update({
+                'q': name,
+                'sort_by': 'times_count:desc'
+            })
         if not all_sources:
-            stmt = stmt.filter(Station.source == self.name)
-        return self.session.scalars(stmt.limit(limit)).all()
+            search_config['filter_by'] = f'source:{self.name}'
+
+        results = self.typesense.collections['stations'].documents.search(search_config)
+
+        stations = []
+
+        for result in results['hits']:
+            document = result['document']
+            lat, lon = document['location']
+            station = Station(id=document['id'], name=document['name'], lat=lat, lon=lon,
+                              ids=document['ids'], source=document['source'], times_count=document['times_count'])
+            stations.append(station)
+        return stations
 
     def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
@@ -214,6 +229,21 @@ class Source:
                 self.session.delete(station)
 
         self.session.commit()
+        self.sync_stations_typesense(new_stations)
+
+    def sync_stations_typesense(self, stations: list[Station]):
+        stations_collection = self.typesense.collections['stations']
+
+        stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
+
+        stations_collection.documents.import_([{
+            'id': station.id,
+            'name': station.name,
+            'location': [station.lat, station.lon],
+            'ids': station.ids,
+            'source': station.source,
+            'times_count': station.times_count
+        } for station in stations])
 
     def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
@@ -229,6 +259,9 @@ class Source:
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         raise NotImplementedError
+
+    def get_source_stations(self) -> list[Station]:
+        return self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
 
 class Train(Base):

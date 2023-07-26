@@ -29,6 +29,7 @@ from .sources.GTFS import GTFS
 from .sources.base import Source
 from .sources.trenitalia import Trenitalia
 from .stop_times_filter import StopTimesFilter
+from .typesense import connect_to_typesense
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -481,12 +482,16 @@ async def main() -> None:
     DEV = config.get('DEV', False)
 
     session = sessionmaker(bind=engine)()
+    typesense = connect_to_typesense()
 
     thismodule.sources = {
-        'aut': GTFS('automobilistico', '🚌', session, dev=DEV),
-        'nav': GTFS('navigazione', '⛴️', session, dev=DEV),
-        'treni': Trenitalia(session)
+        'aut': GTFS('automobilistico', '🚌', session, typesense, dev=DEV),
+        'nav': GTFS('navigazione', '⛴️', session, typesense, dev=DEV),
+        'treni': Trenitalia(session, typesense)
     }
+
+    for source in thismodule.sources.values():
+        source.sync_stations_typesense(source.get_source_stations())
 
     application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
 

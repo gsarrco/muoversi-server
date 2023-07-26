@@ -44,9 +44,9 @@ class TrenitaliaRoute(Route):
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, session, location='', force_update_stations=False):
+    def __init__(self, session, typesense, location='', force_update_stations=False):
         self.location = location
-        super().__init__('treni', '🚆', session)
+        super().__init__('treni', '🚆', session, typesense)
 
         if force_update_stations or self.session.query(Station).count() == 0:
             current_dir = os.path.abspath(os.path.dirname(__file__))
