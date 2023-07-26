@@ -1,12 +1,12 @@
 import json
 import logging
+import math
 import os
 from datetime import datetime, timedelta, time, date
 from urllib.parse import quote
 
-import math
 import requests
-from sqlalchemy import func, and_, select, update
+from sqlalchemy import func, and_, select
 from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 from tqdm import tqdm
@@ -99,16 +99,9 @@ class Trenitalia(Source):
                     self.session.add(new_stop_time)
                     self.session.commit()
 
-        stations_to_update: list[dict[str, str | int]] = []
-
         for i, station in enumerate(stations):
-            stations_to_update.append({
-                'id': station.id,
-                'times_count': round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)
-            })
-
-        self.session.execute(update(Station), stations_to_update)
-        self.session.commit()
+            station.times_count = round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)
+        self.sync_stations_db(stations)
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
