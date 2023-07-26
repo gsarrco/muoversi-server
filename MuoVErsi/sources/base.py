@@ -215,6 +215,22 @@ class Source:
                 self.session.delete(station)
 
         self.session.commit()
+        self.sync_stations_typesense(new_stations)
+
+    def sync_stations_typesense(self, stations: list[Station]):
+
+        stations_collection = self.typesense.collections['stations']
+
+        stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
+
+        stations_collection.documents.import_([{
+            'id': station.id,
+            'name': station.name,
+            'location': [station.lat, station.lon],
+            'ids': station.ids,
+            'source': station.source,
+            'times_count': station.times_count
+        } for station in stations])
 
     def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
