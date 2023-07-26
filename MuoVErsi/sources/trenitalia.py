@@ -1,17 +1,17 @@
 import json
 import logging
+import math
 import os
 from datetime import datetime, timedelta, time, date
 from urllib.parse import quote
 
 import requests
-from sqlalchemy import create_engine, String, UniqueConstraint, ForeignKey, func, and_
-from sqlalchemy import select
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship, aliased, Mapped, mapped_column
+from sqlalchemy import func, and_, select
+from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
+from tqdm import tqdm
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, StopTime, Train
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class TrenitaliaStopTime(BaseStopTime):
-    def __init__(self, stop: Stop, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform, headsign,
+    def __init__(self, stop: Station, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform,
+                 headsign,
                  trip_id,
                  route_name,
                  arr_time: datetime = None,
@@ -40,102 +41,40 @@ class TrenitaliaRoute(Route):
     pass
 
 
-Base = declarative_base()
-
-
-class Station(Base):
-    __tablename__ = 'stations'
-
-    id: Mapped[str] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    region_code: Mapped[int]
-    lat: Mapped[float]
-    lon: Mapped[float]
-
-
-class Train(Base):
-    __tablename__ = 'trains'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    codOrigine: Mapped[str] = mapped_column(ForeignKey('stations.id'))
-    destinazione: Mapped[str]
-    numeroTreno: Mapped[int]
-    dataPartenzaTreno: Mapped[date]
-    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
-    categoria: Mapped[str]
-
-    __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
-
-
-class StopTime(Base):
-    __tablename__ = 'stop_times'
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Train] = relationship('Train', backref='stop_times')
-    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
-    station: Mapped[Station] = relationship('Station', backref='stop_times')
-    arrivo_teorico: Mapped[datetime]
-    arrivo_reale: Mapped[datetime]
-    partenza_teorica: Mapped[datetime]
-    partenza_reale: Mapped[datetime]
-    ritardo_arrivo: Mapped[int]
-    ritardo_partenza: Mapped[int]
-    binario: Mapped[str]
-
-    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
-
-
 class Trenitalia(Source):
     LIMIT = 7
 
-    def __init__(self, pguser, pgpassword, pghost, pgport, pgdatabase, location='', dev=False):
+    def __init__(self, session, typesense, location='', force_update_stations=False):
         self.location = location
-        super().__init__('treni')
+        super().__init__('treni', '🚆', session, typesense)
 
-        self.engine = create_engine(f'postgresql://{pguser}:{pgpassword}@{pghost}:{pgport}/{pgdatabase}', echo=dev)
+        if force_update_stations or self.session.query(Station).count() == 0:
+            current_dir = os.path.abspath(os.path.dirname(__file__))
+            datadir = os.path.abspath(current_dir + '/data')
 
-        Base.metadata.create_all(self.engine)
+            with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
+                file_stations = json.load(f)
 
-        self.Session = sessionmaker(bind=self.engine)
-        self.session = self.Session()
-
-        self.populate_db()
-
-    def populate_db(self):
-        if self.session.query(Station).count() != 0:
-            return
-
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        datadir = os.path.abspath(current_dir + '/data')
-
-        with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
-            stations = json.load(f)
-
-        for station in stations:
-            _id = station.get('code', None)
-            name = station.get('long_name', None)
-            region_code = station.get('region', None)
-
-            # if lat and long are empty strings, set them to None
-            lat = station.get('latitude', None)
-            lon = station.get('longitude', None)
-
-            if lat == '':
-                lat = None
-            if lon == '':
-                lon = None
-
-            station = Station(id=_id, name=name, region_code=region_code, lat=lat, lon=lon)
-            self.session.add(station)
-
-        self.session.commit()
+            new_stations = [
+                Station(id=s['code'], name=s['long_name'], lat=s['latitude'], lon=s['longitude'], ids=s['code'],
+                        source=self.name, times_count=0) for s
+                in
+                file_stations]
+            self.sync_stations_db(new_stations)
 
     def save_trains(self):
-        stations = self.session.query(Station).filter(Station.region_code == 12).all()
+        stations = self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
-        for i, station in enumerate(stations):
+        total_times_count = 0
+        times_count = []
+
+        tqdm_stations = tqdm(enumerate(stations), total=len(stations))
+
+        for i, station in tqdm_stations:
+            tqdm_stations.set_description(f'Processing station {station.name}')
             stop_times = self.get_stop_times_from_station(station)
+            total_times_count += len(stop_times)
+            times_count.append(len(stop_times))
             for stop_time in stop_times:
                 train = self.session.query(Train).filter_by(codOrigine=stop_time.origin_id,
                                                             numeroTreno=stop_time.trip_id,
@@ -159,13 +98,15 @@ class Trenitalia(Source):
                                              partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
                     self.session.commit()
-            logger.info(f'{i + 1}/{len(stations)}: saved station {station.name}, stop_times: {len(stop_times)}')
+
+        for i, station in enumerate(stations):
+            station.times_count = round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)
+        self.sync_stations_db(stations)
 
     def get_stop_times_from_station(self, station) -> list[TrenitaliaStopTime]:
         now = datetime.now()
-        stop = Stop(station.id, station.name, [station.id])
-        departures = self.loop_get_times(10000, stop, now, type='partenze')
-        arrivals = self.loop_get_times(10000, stop, now, type='arrivi')
+        departures = self.loop_get_times(10000, station, now, type='partenze')
+        arrivals = self.loop_get_times(10000, station, now, type='arrivi')
 
         departures_arrivals = departures + arrivals
 
@@ -195,28 +136,7 @@ class Trenitalia(Source):
         parent_dir = os.path.abspath(current_dir + f"/../../{self.location}")
         return os.path.join(parent_dir, 'trenitalia.db')
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4):
-        if lat and lon:
-            results = self.session.query(Station.id, Station.name).filter(Station.lat.isnot(None),
-                                                                          Station.region_code == 12).order_by(
-                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
-        else:
-            lat, lon = 45.441569, 12.320882
-            results = self.session.query(Station.id, Station.name).filter(Station.name.ilike(f'%{name}%'),
-                                                                          Station.region_code == 12).order_by(
-                func.abs(Station.lat - lat) + func.abs(Station.lon - lon)).limit(limit).all()
-
-        stops = []
-        for result in results:
-            stops.append(Stop(result.id, result.name))
-
-        return stops
-
-    def get_stop_from_ref(self, ref):
-        result = self.session.query(Station.name).filter(Station.id == ref).first()
-        return Stop(ref, result.name, [ref]) if result else None
-
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
 
@@ -227,7 +147,7 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        station_id = stop.ids[0]
+        station_id = stop.ids
 
         if count:
             raw_stop_times = self.session.query(
@@ -284,7 +204,7 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def loop_get_times(self, limit, stop: Stop, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
+    def loop_get_times(self, limit, stop: Station, dt, train_ids=None, type='partenze') -> list[TrenitaliaStopTime]:
         results: list[TrenitaliaStopTime] = []
 
         notimes = 0
@@ -320,11 +240,11 @@ class Trenitalia(Source):
 
         return results[:limit]
 
-    def get_stop_times_from_start_dt(self, type, stop: Stop, start_dt: datetime, train_ids: list[int] | None) -> \
+    def get_stop_times_from_start_dt(self, type, stop: Station, start_dt: datetime, train_ids: list[int] | None) -> \
             list[TrenitaliaStopTime]:
         is_dst = start_dt.astimezone().dst() != timedelta(0)
         date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
-        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.ref}/{quote(date)}'
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.id}/{quote(date)}'
         r = requests.get(url)
         if r.status_code != 200:
             return []
@@ -383,7 +303,7 @@ class Trenitalia(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         day_start = datetime.combine(day, time(0))
@@ -395,8 +315,8 @@ class Trenitalia(Source):
 
         end_dt = day_start + timedelta(days=1)
 
-        dep_station_id = next(iter(dep_stop.ids))
-        arr_station_id = next(iter(arr_stop.ids))
+        dep_station_id = dep_stop.ids
+        arr_station_id = arr_stop.ids
 
         # Define alias for stop_times
         a_stop_times = aliased(StopTime)
@@ -487,8 +407,8 @@ class Trenitalia(Source):
 
         stop_times = []
         for result in results:
-            stop = Stop(result.Station.id, result.Station.name, [result.Station.id])
-            stop_time = TrenitaliaStopTime(stop, result.Train.codOrigine, result.StopTime.partenza_teorica, None, 0,
+            stop_time = TrenitaliaStopTime(result.Station, result.Train.codOrigine, result.StopTime.partenza_teorica,
+                                           None, 0,
                                            result.StopTime.binario, result.Train.destinazione, trip_id,
                                            result.Train.categoria,
                                            result.StopTime.arrivo_teorico, result.Train.dataPartenzaTreno)

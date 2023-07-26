@@ -29,7 +29,7 @@ msgid "send_location"
 msgstr "Invia posizione"
 
 msgid "insert_stop"
-msgstr "Digita il nome della fermata oppure invia la posizione."
+msgstr "<b>Digita il nome della fermata/stazione di partenza oppure invia la posizione.</b>\n<i>Disponibili: ACTV automobilistico e navigazione, treni regionali entro 100km da Venezia.</i>"
 
 msgid "insert_line"
 msgstr "Digita il numero della linea interessata."
@@ -38,7 +38,7 @@ msgid "stop_not_found"
 msgstr "Non abbiamo trovato la fermata che hai inserito. Riprova."
 
 msgid "choose_stop"
-msgstr "Scegli la fermata"
+msgstr "Scegli la fermata o digita di nuovo la ricerca:"
 
 msgid "back"
 msgstr "Indietro"
@@ -94,10 +94,10 @@ msgstr "invia la fermata di destinazione per maggiori dettagli"
 msgid "send_new_arr_stop"
 msgstr "puoi anche inviare una nuova fermata di destinazione"
 
-msgid "automobilistico_platform"
+msgid "aut_platform"
 msgstr "ferm."
 
-msgid "navigazione_platform"
+msgid "nav_platform"
 msgstr "appr."
 
 msgid "treni_platform"

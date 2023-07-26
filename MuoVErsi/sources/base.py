@@ -1,15 +1,16 @@
+import logging
 from datetime import datetime, date
+from typing import Optional
 
+from sqlalchemy import select, ForeignKey, UniqueConstraint, String
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
 
-
-class Stop:
-    def __init__(self, ref: str = None, name: str = None, ids=None):
-        if ids is None:
-            ids = []
-        self.ref = ref
-        self.name = name
-        self.ids = ids
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 
 class Liner:
@@ -17,8 +18,8 @@ class Liner:
         raise NotImplementedError
 
 
-class StopTime(Liner):
-    def __init__(self, stop: Stop, dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+class BaseStopTime(Liner):
+    def __init__(self, stop: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
                  platform,
                  headsign, trip_id,
                  route_name):
@@ -70,7 +71,7 @@ class StopTime(Liner):
 
 
 class Route(Liner):
-    def __init__(self, dep_stop_time: StopTime, arr_stop_time: StopTime | None):
+    def __init__(self, dep_stop_time: BaseStopTime, arr_stop_time: BaseStopTime | None):
         self.dep_stop_time = dep_stop_time
         self.arr_stop_time = arr_stop_time
 
@@ -147,31 +148,156 @@ class Direction(Liner):
 
         return text
 
+Base = declarative_base()
+
+
+class Station(Base):
+    __tablename__ = 'stations'
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    lat: Mapped[Optional[float]]
+    lon: Mapped[Optional[float]]
+    ids: Mapped[str] = mapped_column(server_default='')
+    times_count: Mapped[float] = mapped_column(server_default='0')
+    source: Mapped[str] = mapped_column(server_default='treni')
+    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
+
 
 class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
 
-    def __init__(self, name):
+    def __init__(self, name, emoji, session, typesense):
         self.name = name
+        self.emoji = emoji
+        self.session = session
+        self.typesense = typesense
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
-        raise NotImplementedError
+    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[list[Station], int]:
+        search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+        limit_hits = None
+        if lat and lon:
+            limit_hits = limit * 2
+            search_config.update({
+                'q': '*',
+                'sort_by': f'location({lat},{lon}):asc',
+                'limit_hits': limit_hits
+            })
+        else:
+            search_config.update({
+                'q': name,
+                'sort_by': 'times_count:desc'
+            })
+        if not all_sources:
+            search_config['filter_by'] = f'source:{self.name}'
+
+        results = self.typesense.collections['stations'].documents.search(search_config)
+
+        stations = []
+
+        for result in results['hits']:
+            document = result['document']
+            lat, lon = document['location']
+            station = Station(id=document['id'], name=document['name'], lat=lat, lon=lon,
+                              ids=document['ids'], source=document['source'], times_count=document['times_count'])
+            stations.append(station)
+
+        found = limit_hits if limit_hits else results['found']
+        return stations, found
+
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def get_stop_from_ref(self, ref) -> Stop:
-        raise NotImplementedError
+    def sync_stations_db(self, new_stations: list[Station]):
+        station_codes = [s.id for s in new_stations]
+
+        for station in new_stations:
+            stmt = insert(Station).values(id=station.id, name=station.name, lat=station.lat, lon=station.lon,
+                                          ids=station.ids, source=self.name, times_count=station.times_count)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['id'],
+                set_={'name': station.name, 'lat': station.lat, 'lon': station.lon, 'ids': station.ids,
+                      'source': self.name, 'times_count': station.times_count}
+            )
+            self.session.execute(stmt)
+
+        for station in self.session.scalars(select(Station).filter_by(source=self.name)).all():
+            if station.id not in station_codes:
+                self.session.delete(station)
+
+        self.session.commit()
+        self.sync_stations_typesense(new_stations)
+
+    def sync_stations_typesense(self, stations: list[Station]):
+        stations_collection = self.typesense.collections['stations']
+
+        stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
+
+        stations_collection.documents.import_([{
+            'id': station.id,
+            'name': station.name,
+            'location': [station.lat, station.lon],
+            'ids': station.ids,
+            'source': station.source,
+            'times_count': station.times_count
+        } for station in stations])
+
+    def get_stop_from_ref(self, ref) -> Station | None:
+        stmt = select(Station) \
+            .filter(Station.id == ref, Station.source == self.name)
+        result: Station = self.session.scalars(stmt).first()
+        if result:
+            return result
+        else:
+            return None
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[StopTime]:
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         raise NotImplementedError
+
+    def get_source_stations(self) -> list[Station]:
+        return self.session.scalars(select(Station).filter_by(source=self.name)).all()
+
+
+class Train(Base):
+    __tablename__ = 'trains'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    codOrigine: Mapped[str]
+    destinazione: Mapped[str]
+    numeroTreno: Mapped[int]
+    dataPartenzaTreno: Mapped[date]
+    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
+    categoria: Mapped[str]
+    stop_times = relationship('StopTime', back_populates='train')
+
+    __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
+
+
+class StopTime(Base):
+    __tablename__ = 'stop_times'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
+    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
+    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    station: Mapped[Station] = relationship('Station', back_populates='stop_times')
+    arrivo_teorico: Mapped[Optional[datetime]]
+    arrivo_reale: Mapped[Optional[datetime]]
+    partenza_teorica: Mapped[Optional[datetime]]
+    partenza_reale: Mapped[Optional[datetime]]
+    ritardo_arrivo: Mapped[Optional[int]]
+    ritardo_partenza: Mapped[Optional[int]]
+    binario: Mapped[Optional[str]]
+
+    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)

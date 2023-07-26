@@ -5,7 +5,7 @@ from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', 541, 'tests/data')
+    return GTFS('navigazione', '⛴️', None, None, 541, 'tests/data')
 
 
 @pytest.fixture
@@ -13,26 +13,6 @@ def stops_and_stops_clusters(db_file) -> tuple[list[CStop], list[CCluster]]:
     stops = db_file.get_all_stops()
     stops_clusters = get_clusters_of_stops(stops)
     return stops, stops_clusters
-
-
-def test_stops_clusters_tables_created(db_file):
-    cur = db_file.con.cursor()
-    cur.execute('DROP TABLE IF EXISTS stops_clusters')
-    cur.execute('DROP TABLE IF EXISTS stops_stops_clusters')
-    db_file.upload_stops_clusters_to_db()
-    cur.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="stops_clusters"')
-    assert cur.fetchone(), 'stops_clusters table not created'
-    cur.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="stops_stops_clusters"')
-    assert cur.fetchone(), 'stops_stops_clusters table not created'
-
-
-def test_search_stops_by_name(db_file):
-    stops = db_file.search_stops("roma")
-
-    # check if ref and name are present in each result
-    is_valid = all(hasattr(stop, 'ref') and hasattr(stop, 'name') for stop in stops)
-
-    assert is_valid, 'search_stops does not return a list of Stop objects with ref and name attributes'
 
 
 def test_clusters_stops_structure(stops_and_stops_clusters):

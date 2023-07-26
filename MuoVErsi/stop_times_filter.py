@@ -5,7 +5,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Liner, Stop
+from MuoVErsi.sources.base import Source, Liner, Station
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -54,10 +54,10 @@ class StopTimesFilter:
         return result
 
     def title(self, _, lang):
-        text = '<b>' + (_('departures') % self.dep_cluster_name).upper() + '\n'
+        text = '<b>' + (_('departures') % self.dep_cluster_name).upper() + ' ' + self.source.emoji + '\n'
 
         if self.arr_cluster_name:
-            text += (_('arrival') % self.arr_cluster_name).upper() + '\n'
+            text += (_('arrival') % self.arr_cluster_name).upper() + ' ' + self.source.emoji + '\n'
 
         text += format_date(self.day, 'EEEE d MMMM', locale=lang)
 
@@ -77,10 +77,10 @@ class StopTimesFilter:
         day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
             self.start_time
 
-        dep_stop = Stop(name=self.dep_cluster_name, ids=dep_stop_ids)
+        dep_stop = Station(name=self.dep_cluster_name, ids=dep_stop_ids)
 
         if self.arr_stop_ids:
-            arr_stop = Stop(name=self.arr_cluster_name, ids=self.arr_stop_ids)
+            arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
             results = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
                                                            line, start_time, self.offset_times, day,
                                                            context=self.context)

@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -13,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Stop, StopTime as BaseStopTime, Route, Direction
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -40,8 +41,8 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, gtfs_version=None, location='', dev=False):
-        super().__init__(transport_type)
+    def __init__(self, transport_type, emoji, session, typesense, gtfs_version=None, location='', dev=False):
+        super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
 
@@ -141,7 +142,18 @@ class GTFS(Source):
         ''')
         stops = self.get_all_stops()
         stops_clusters = get_clusters_of_stops(stops)
+        total_times_count = sum([cluster.times_count for cluster in stops_clusters])
+
+        new_stations = []
+
         for cluster in stops_clusters:
+            times_count = round(cluster.times_count / total_times_count,
+                                int(math.log10(total_times_count)) + 1)
+            ids = ','.join([str(stop.id) for stop in cluster.stops])
+            station = Station(id=cluster.name, name=cluster.name, lat=cluster.lat, lon=cluster.lon, ids=ids,
+                              times_count=times_count, source=self.name)
+            new_stations.append(station)
+
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
                 cluster.name, cluster.lat, cluster.lon, cluster.times_count))
             cluster_id = result.lastrowid
@@ -149,25 +161,10 @@ class GTFS(Source):
                 cur.execute('INSERT INTO stops_stops_clusters (stop_id, stop_cluster_id) VALUES (?, ?)',
                             (stop.id, cluster_id))
         self.con.commit()
+        self.sync_stations_db(new_stations)
         return True
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4) -> list[Stop]:
-        cur = self.con.cursor()
-        if lat and lon:
-            query = 'SELECT id, name FROM stops_clusters ' \
-                    'ORDER BY ((lat-?)*(lat-?)) + ((lon-?)*(lon-?)) LIMIT ?'
-            results = cur.execute(query, (lat, lat, lon, lon, limit)).fetchall()
-        else:
-            query = 'SELECT id, name FROM stops_clusters WHERE name LIKE ? ORDER BY times_count DESC LIMIT ?'
-            results = cur.execute(query, (f'%{name}%', limit)).fetchall()
-
-        stops = []
-        for result in results:
-            stops.append(Stop(result[0], result[1]))
-
-        return stops
-
-    def get_stop_times(self, stop: Stop, line, start_time, day,
+    def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
 
@@ -180,6 +177,9 @@ class GTFS(Source):
             route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
+
+        stop_ids = stop.ids.split(',')
+        stop_ids = list(map(int, stop_ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -233,7 +233,7 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE dep.stop_id in ({','.join(['?'] * len(stop.ids))})
+                WHERE dep.stop_id in ({','.join(['?'] * len(stop_ids))})
                   AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
                   AND dep.departure_time <= ?) 
                   {or_other_service})
@@ -242,7 +242,7 @@ class GTFS(Source):
                 {button_elements}
                 """
 
-        params = (*stop.ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
@@ -269,7 +269,7 @@ class GTFS(Source):
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stop: Stop, arr_stop: Stop, line, start_time,
+    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
                                      offset_times, day,
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         cur = self.con.cursor()
@@ -283,6 +283,11 @@ class GTFS(Source):
             route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day, context)
+        dep_stop_ids = dep_stop.ids.split(',')
+        dep_stop_ids = list(map(int, dep_stop_ids))
+
+        arr_stop_ids = arr_stop.ids.split(',')
+        arr_stop_ids = list(map(int, arr_stop_ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -330,7 +335,7 @@ class GTFS(Source):
                  INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
                              FROM stop_times
                                 INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop.ids))})
+                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop_ids))})
                             ORDER BY stop_times.departure_time
                             )
                         arr ON dep.trip_id = arr.trip_id
@@ -349,7 +354,7 @@ class GTFS(Source):
                  INNER JOIN trips t ON dep.trip_id = t.trip_id
                  INNER JOIN routes r ON t.route_id = r.route_id
                  INNER JOIN stops s ON dep.stop_id = s.stop_id
-        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop.ids))})
+        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop_ids))})
           AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
           AND dep.departure_time <= ?) 
           {or_other_service})
@@ -359,7 +364,7 @@ class GTFS(Source):
         {button_elements}
         """
 
-        params = (*arr_stop.ids, *dep_stop.ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
@@ -396,20 +401,6 @@ class GTFS(Source):
             directions.append(Direction([route]))
 
         return directions
-
-    def get_stop_from_ref(self, ref) -> Stop:
-        # get stop name
-        cur = self.con.cursor()
-        results = cur.execute('SELECT name FROM stops_clusters WHERE id = ?', (ref,)).fetchall()
-        name = results[0][0]
-
-        # get stop ids
-        cur = self.con.cursor()
-        results = cur.execute('SELECT stop_id FROM stops_stops_clusters WHERE stop_cluster_id = ?',
-                              (ref,)).fetchall()
-        ids = [result[0] for result in results]
-
-        return Stop(ref, name, ids)
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
@@ -495,7 +486,7 @@ class GTFS(Source):
         headsign = results[-1]['sc_name']
 
         for result in results:
-            stop = Stop(result['sc_id'], result['sc_name'], [int(result['sp_id'])])
+            stop = Station(id=result['sc_id'], name=result['sc_name'], ids=result['sp_id'])
             location = get_loc_from_stop_and_cluster(result['sp_name'], stop.name)
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
