@@ -490,6 +490,9 @@ async def main() -> None:
         'treni': Trenitalia(session, typesense)
     }
 
+    for source in thismodule.sources.values():
+        source.sync_stations_typesense(source.get_source_stations())
+
     application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
 
     langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]

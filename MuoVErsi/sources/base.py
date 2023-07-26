@@ -247,6 +247,9 @@ class Source:
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         raise NotImplementedError
 
+    def get_source_stations(self) -> list[Station]:
+        return self.session.scalars(select(Station).filter_by(source=self.name)).all()
+
 
 class Train(Base):
     __tablename__ = 'trains'
