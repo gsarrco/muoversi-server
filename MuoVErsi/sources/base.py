@@ -174,8 +174,8 @@ class Source:
         self.session = session
         self.typesense = typesense
 
-    def search_stops(self, name=None, lat=None, lon=None, limit=4, all_sources=False) -> list[Station]:
-        search_config = {'per_page': limit, 'query_by': 'name'}
+    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[list[Station], int]:
+        search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
         if lat and lon:
             search_config.update({
@@ -200,7 +200,7 @@ class Source:
             station = Station(id=document['id'], name=document['name'], lat=lat, lon=lon,
                               ids=document['ids'], source=document['source'], times_count=document['times_count'])
             stations.append(station)
-        return stations
+        return stations, results['found']
 
     def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):

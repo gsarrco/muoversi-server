@@ -191,9 +191,9 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     if message.location:
         lat = message.location.latitude
         lon = message.location.longitude
-        stops_clusters = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids)
+        stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids)
     else:
-        stops_clusters = db_file.search_stops(name=message.text, all_sources=saved_dep_stop_ids)
+        stops_clusters, count = db_file.search_stops(name=message.text, all_sources=saved_dep_stop_ids)
 
     if not stops_clusters:
         await update.message.reply_text(_('stop_not_found'))
