@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -9,7 +10,6 @@ import urllib.request
 from datetime import datetime, timedelta, date, time
 from sqlite3 import Connection
 
-import math
 import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
@@ -41,8 +41,8 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, emoji, session, gtfs_version=None, location='', dev=False):
-        super().__init__(transport_type[:3], emoji, session)
+    def __init__(self, transport_type, emoji, session, typesense, gtfs_version=None, location='', dev=False):
+        super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
 
