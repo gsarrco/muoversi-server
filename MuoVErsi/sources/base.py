@@ -177,10 +177,13 @@ class Source:
     def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[list[Station], int]:
         search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
+        limit_hits = None
         if lat and lon:
+            limit_hits = limit * 2
             search_config.update({
                 'q': '*',
-                'sort_by': f'location({lat},{lon}):asc'
+                'sort_by': f'location({lat},{lon}):asc',
+                'limit_hits': limit_hits
             })
         else:
             search_config.update({
@@ -200,7 +203,9 @@ class Source:
             station = Station(id=document['id'], name=document['name'], lat=lat, lon=lon,
                               ids=document['ids'], source=document['source'], times_count=document['times_count'])
             stations.append(station)
-        return stations, results['found']
+
+        found = limit_hits if limit_hits else results['found']
+        return stations, found
 
     def get_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
