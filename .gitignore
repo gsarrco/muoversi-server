@@ -4,6 +4,7 @@ venv/
 *.db-wal
 *.zip
 .idea/
+.vscode/
 __pycache__/
 cert.pem
 private.key
