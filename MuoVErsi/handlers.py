@@ -77,7 +77,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
     clean_user_data(context, False)
-    await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')))
+    await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')), disable_notification=True)
 
 
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -115,7 +115,7 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_keyboard_markup = ReplyKeyboardMarkup(
             reply_keyboard, resize_keyboard=True, is_persistent=True
         )
-        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup, parse_mode='HTML')
+        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup, parse_mode='HTML', disable_notification=True)
         return SEARCH_STOP
 
     if context.user_data.get('transport_type'):
@@ -128,7 +128,8 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await update.message.reply_text(
         _('choose_service'),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard),
+        disable_notification=True
     )
 
     return SPECIFY_LINE
@@ -169,10 +170,10 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(_('service_selected') % transport_type, reply_markup=keyboard)
     else:
-        await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard)
+        await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard, disable_notification=True)
 
     if send_second_message:
-        await bot.send_message(chat_id, _('insert_line'), reply_markup=ReplyKeyboardRemove())
+        await bot.send_message(chat_id, _('insert_line'), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
 
     return SEARCH_LINE
 
@@ -206,7 +207,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page, limit=limit)
 
     if not stops_clusters:
-        await update.message.reply_text(_('stop_not_found'))
+        await update.message.reply_text(_('stop_not_found'), disable_notification=True)
         return SEARCH_STOP
 
     buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}', callback_data=f'S{cluster.id}-{cluster.source}')]
@@ -230,7 +231,8 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     else:
         await update.message.reply_text(
             _('choose_stop'),
-            reply_markup=InlineKeyboardMarkup(buttons)
+            reply_markup=InlineKeyboardMarkup(buttons),
+            disable_notification=True
         )
 
     return SHOW_STOP
@@ -257,7 +259,7 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
     if message_id:
         await bot.edit_message_text(text, chat_id, message_id, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML')
+        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML', disable_notification=True)
 
     if stop_times_filter.first_time:
         if stop_times_filter.arr_stop_ids:
@@ -318,9 +320,13 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         message_id = update.callback_query.message.message_id
 
     stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
-    stop_ref, source_name = stop_ref.split('-')
-    db_file: Source = thismodule.sources[source_name]
-    context.user_data['transport_type'] = source_name
+    if '-' in stop_ref:
+        stop_ref, source_name = stop_ref.split('-')
+        db_file: Source = thismodule.sources[source_name]
+        context.user_data['transport_type'] = source_name
+    else:
+        db_file = thismodule.sources[context.user_data['transport_type']]
+
     stop = db_file.get_stop_from_ref(stop_ref)
     cluster_name = stop.name
     stop_ids = stop.ids
@@ -392,26 +398,32 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_stop_ids=dep_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
                                         arr_cluster_name=arr_cluster_name)
-
-    trip_id = update.message.text[1:]
+    if update.message:
+        text, all_stops = update.message.text, False
+    else:
+        text, all_stops = update.callback_query.data, True
+    trip_id = text[1:]
     results = source.get_stops_from_trip_id(trip_id, stop_times_filter.day)
 
     line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + f' {trip_id}</b>'
-    dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
-    try:
-        dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
-    except StopIteration:
-        raise StopIteration('No departure stop found')
+    
+    dep_stop_index = 0
     arr_stop_index = len(results) - 1
-    if arr_cluster_name:
-        arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
+    if not all_stops:
+        dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
         try:
-            arr_stop_index = dep_stop_index + next(
-                i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
+            dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
         except StopIteration:
-            raise StopIteration('No arrival stop found')
+            logger.warning('No departure stop found')
+        if arr_cluster_name:
+            arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
+            try:
+                arr_stop_index = dep_stop_index + next(
+                    i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
+            except StopIteration:
+                logger.warning('No arrival stop found')
 
     platform_text = _(f'{source.name}_platform')
 
@@ -435,9 +447,16 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if result.platform:
             text += f' ({platform_text} {result.platform})'
 
-    reply_markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
-    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
+    buttons = [InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]
+
+    if not all_stops:
+        buttons.append(InlineKeyboardButton(_('all_stops'), callback_data=f'M{trip_id}'))
+
+    reply_markup = InlineKeyboardMarkup([buttons])
+    if update.message:
+        await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML', disable_notification=True)
+    else:
+        await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
 
 
@@ -451,13 +470,13 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     try:
         lines = db_file.search_lines(update.message.text, context=context)
     except NotImplementedError:
-        await update.message.reply_text(_('not_implemented'))
+        await update.message.reply_text(_('not_implemented'), disable_notification=True)
         return ConversationHandler.END
 
     keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}-{line[3]}')] for line in lines]
     inline_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(_('choose_line'), reply_markup=inline_markup)
+    await update.message.reply_text(_('choose_line'), reply_markup=inline_markup, disable_notification=True)
 
     return SHOW_LINE
 
@@ -497,7 +516,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    await update.message.reply_text(_('cancel') + "\n\n" + _('home') % (_('stop'), _('line')), reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(_('cancel') + "\n\n" + _('home') % (_('stop'), _('line')), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
 
     return ConversationHandler.END
 
@@ -550,6 +569,7 @@ async def main() -> None:
             SHOW_STOP: [
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
                 MessageHandler(filters.Regex(r'^\/[0-9]+$'), trip_view),
+                CallbackQueryHandler(trip_view, r'^M'),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
                 MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
