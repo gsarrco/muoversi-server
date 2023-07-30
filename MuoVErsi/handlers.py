@@ -392,26 +392,32 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     stop_times_filter = StopTimesFilter(context, source, query_data=query_data, dep_stop_ids=dep_stop_ids,
                                         dep_cluster_name=dep_cluster_name, arr_stop_ids=arr_stop_ids,
                                         arr_cluster_name=arr_cluster_name)
-
-    trip_id = update.message.text[1:]
+    if update.message:
+        text, all_stops = update.message.text, False
+    else:
+        text, all_stops = update.callback_query.data, True
+    trip_id = text[1:]
     results = source.get_stops_from_trip_id(trip_id, stop_times_filter.day)
 
     line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + f' {trip_id}</b>'
-    dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
-    try:
-        dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
-    except StopIteration:
-        raise StopIteration('No departure stop found')
+    
+    dep_stop_index = 0
     arr_stop_index = len(results) - 1
-    if arr_cluster_name:
-        arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
+    if not all_stops:
+        dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
         try:
-            arr_stop_index = dep_stop_index + next(
-                i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
+            dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
         except StopIteration:
-            raise StopIteration('No arrival stop found')
+            logger.warning('No departure stop found')
+        if arr_cluster_name:
+            arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
+            try:
+                arr_stop_index = dep_stop_index + next(
+                    i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
+            except StopIteration:
+                logger.warning('No arrival stop found')
 
     platform_text = _(f'{source.name}_platform')
 
@@ -435,9 +441,16 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if result.platform:
             text += f' ({platform_text} {result.platform})'
 
-    reply_markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]])
-    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
+    buttons = [InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]
+
+    if not all_stops:
+        buttons.append(InlineKeyboardButton(_('all_stops'), callback_data=f'M{trip_id}'))
+
+    reply_markup = InlineKeyboardMarkup([buttons])
+    if update.message:
+        await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
+    else:
+        await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
 
 
@@ -550,6 +563,7 @@ async def main() -> None:
             SHOW_STOP: [
                 CallbackQueryHandler(filter_show_stop, r'^Q'),
                 MessageHandler(filters.Regex(r'^\/[0-9]+$'), trip_view),
+                CallbackQueryHandler(trip_view, r'^M'),
                 CallbackQueryHandler(show_stop_from_id, r'^S'),
                 MessageHandler(filters.Regex(r'^\-|\+1[a-z]$'), change_day_show_stop),
                 MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), search_stop),
