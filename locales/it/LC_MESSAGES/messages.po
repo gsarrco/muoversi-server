@@ -105,3 +105,6 @@ msgstr "bin."
 
 msgid "not_implemented"
 msgstr "Questa funzionalità non è stata ancora implementata per questo servizio."
+
+msgid "all_stops"
+msgstr "Tutte le fermate"
