@@ -12,7 +12,7 @@ def connect_to_typesense():
     return Client({
         'api_key': config['TYPESENSE_API_KEY'],
         'nodes': [{
-            'host': 'localhost',
+            'host': config.get('TYPESENSE_HOST', 'localhost'),
             'port': '8108',
             'protocol': 'http'
         }],

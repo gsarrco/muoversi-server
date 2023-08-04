@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 
 from MuoVErsi.handlers import engine
 from MuoVErsi.sources.trenitalia import Trenitalia
+from MuoVErsi.typesense import connect_to_typesense
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -19,7 +20,8 @@ def run():
     force_update_stations = args.force_update_stations
 
     session = sessionmaker(bind=engine)()
-    trenitalia = Trenitalia(session, force_update_stations=force_update_stations)
+    typesense = connect_to_typesense()
+    trenitalia = Trenitalia(session, typesense, force_update_stations=force_update_stations)
     trenitalia.save_trains()
 
 
