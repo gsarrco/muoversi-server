@@ -28,6 +28,14 @@ def get_root_from_stop_name(stop_name):
     else:
         result = stop_name
 
+    replacements = {
+        'Piazzale Roma': 'Piazzale Roma People Mover',
+        'VENEZIA': 'VENEZIA Piazzale Roma',
+    }
+
+    if result in replacements:
+        return replacements[result]
+
     result = result.replace('Favretti MESTRE FS', 'Stazione MESTRE FS')
     result = result.replace('San ', 'S. ')
 
