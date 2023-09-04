@@ -28,6 +28,14 @@ def get_root_from_stop_name(stop_name):
     else:
         result = stop_name
 
+    replacements = {
+        'Piazzale Roma': 'Piazzale Roma People Mover',
+        'VENEZIA': 'VENEZIA Piazzale Roma',
+    }
+
+    if result in replacements:
+        return replacements[result]
+
     result = result.replace('Favretti MESTRE FS', 'Stazione MESTRE FS')
     result = result.replace('San ', 'S. ')
 
@@ -44,6 +52,9 @@ def compute_centroid(stops):
 
 
 def get_loc_from_stop_and_cluster(stop_name, cluster_name):
-    stop_name = stop_name.replace('Favretti MESTRE FS', 'Stazione MESTRE FS')
-    stop_name = stop_name.replace('San ', 'S. ')
-    return stop_name.upper().replace(cluster_name.upper(), "").strip()
+    stop_name = stop_name.replace('"', ' ')
+    stop_name = stop_name.replace('  ', ' ').rstrip()
+    match = re.match(r'.*? ((?:CORSIA )?[A-Z][0-9]?)$', stop_name)
+    if match:
+        return match.group(1)
+    return ''
