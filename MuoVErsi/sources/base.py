@@ -162,6 +162,18 @@ class Station(Base):
     times_count: Mapped[float] = mapped_column(server_default='0')
     source: Mapped[str] = mapped_column(server_default='treni')
     stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
+    stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
+
+
+class Stop(Base):
+    __tablename__ = 'stops'
+
+    id: Mapped[str] = mapped_column(primary_key=True)
+    platform: Mapped[Optional[str]]
+    lat: Mapped[float]
+    lon: Mapped[float]
+    station_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    station: Mapped[Station] = relationship('Station', back_populates='stops')
 
 
 class Source:
