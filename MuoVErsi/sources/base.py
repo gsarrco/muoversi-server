@@ -228,7 +228,7 @@ class Source:
                                      context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
         raise NotImplementedError
 
-    def sync_stations_db(self, new_stations: list[Station]):
+    def sync_stations_db(self, new_stations: list[Station], new_stops: list[Stop] = None):
         station_codes = [s.id for s in new_stations]
 
         for station in new_stations:
@@ -246,6 +246,37 @@ class Source:
                 self.session.delete(station)
 
         self.session.commit()
+
+        stop_ids = [s.id for s in new_stops] if new_stops else station_codes
+
+        if new_stops:
+            for stop in new_stops:
+                stmt = insert(Stop).values(id=stop.id, platform=stop.platform, lat=stop.lat, lon=stop.lon,
+                                           station_id=stop.station_id)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['id'],
+                    set_={'platform': stop.platform, 'lat': stop.lat, 'lon': stop.lon,
+                          'station_id': stop.station_id}
+                )
+                self.session.execute(stmt)
+        else:
+            for station in new_stations:
+                stmt = insert(Stop).values(id=station.id, platform=None, lat=station.lat, lon=station.lon,
+                                           station_id=station.id)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=['id'],
+                    set_={'platform': None, 'lat': station.lat, 'lon': station.lon,
+                          'station_id': station.id}
+                )
+                self.session.execute(stmt)
+
+        # Stops with stations not in station_codes are deleted through cascade
+        for stop in self.session.scalars(select(Stop).filter(Stop.station_id.in_(station_codes))).all():
+            if stop.id not in stop_ids:
+                self.session.delete(stop)
+
+        self.session.commit()
+
         self.sync_stations_typesense(new_stations)
 
     def sync_stations_typesense(self, stations: list[Station]):

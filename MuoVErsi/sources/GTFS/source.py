@@ -14,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, Stop
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -145,6 +145,7 @@ class GTFS(Source):
         total_times_count = sum([cluster.times_count for cluster in stops_clusters])
 
         new_stations = []
+        new_stops = []
 
         for cluster in stops_clusters:
             times_count = round(cluster.times_count / total_times_count,
@@ -154,6 +155,12 @@ class GTFS(Source):
                               times_count=times_count, source=self.name)
             new_stations.append(station)
 
+            for stop in cluster.stops:
+                platform = get_loc_from_stop_and_cluster(stop.name, cluster.name)
+                platform = platform if platform != '' else None
+                stop = Stop(id=stop.id, platform=platform, lat=stop.lat, lon=stop.lon, station_id=cluster.name)
+                new_stops.append(stop)
+
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (
                 cluster.name, cluster.lat, cluster.lon, cluster.times_count))
             cluster_id = result.lastrowid
@@ -161,7 +168,7 @@ class GTFS(Source):
                 cur.execute('INSERT INTO stops_stops_clusters (stop_id, stop_cluster_id) VALUES (?, ?)',
                             (stop.id, cluster_id))
         self.con.commit()
-        self.sync_stations_db(new_stations)
+        self.sync_stations_db(new_stations, new_stops)
         return True
 
     def get_stop_times(self, stop: Station, line, start_time, day,
