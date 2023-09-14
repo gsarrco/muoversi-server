@@ -253,21 +253,21 @@ class Source:
         if new_stops:
             for stop in new_stops:
                 stmt = insert(Stop).values(id=stop.id, platform=stop.platform, lat=stop.lat, lon=stop.lon,
-                                           station_id=stop.station_id)
+                                           station_id=stop.station_id, source=self.name)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['id'],
                     set_={'platform': stop.platform, 'lat': stop.lat, 'lon': stop.lon,
-                          'station_id': stop.station_id}
+                          'station_id': stop.station_id, 'source': self.name}
                 )
                 self.session.execute(stmt)
         else:
             for station in new_stations:
                 stmt = insert(Stop).values(id=station.id, platform=None, lat=station.lat, lon=station.lon,
-                                           station_id=station.id)
+                                           station_id=station.id, source=self.name)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['id'],
                     set_={'platform': None, 'lat': station.lat, 'lon': station.lon,
-                          'station_id': station.id}
+                          'station_id': station.id, 'source': self.name}
                 )
                 self.session.execute(stmt)
 
