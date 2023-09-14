@@ -11,7 +11,7 @@ from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 from tqdm import tqdm
 
-from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, StopTime, Trip
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, Stop, StopTime, Trip
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -48,7 +48,8 @@ class Trenitalia(Source):
         self.location = location
         super().__init__('treni', '🚆', session, typesense)
 
-        if force_update_stations or self.session.query(Station).count() == 0:
+        if force_update_stations or self.session.query(Station).filter_by(source=self.name).count() == 0 or \
+                self.session.query(Stop).filter_by(source=self.name).count() == 0:
             current_dir = os.path.abspath(os.path.dirname(__file__))
             datadir = os.path.abspath(current_dir + '/data')
 
