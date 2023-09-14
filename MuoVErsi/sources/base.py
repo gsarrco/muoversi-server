@@ -312,35 +312,30 @@ class Source:
         return self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
 
-class Train(Base):
-    __tablename__ = 'trains'
+class Trip(Base):
+    __tablename__ = 'trips'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    codOrigine: Mapped[str]
-    destinazione: Mapped[str]
-    numeroTreno: Mapped[int]
-    dataPartenzaTreno: Mapped[date]
-    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
-    categoria: Mapped[str]
-    stop_times = relationship('StopTime', back_populates='train')
+    orig_id: Mapped[str]
+    dest_text: Mapped[str]
+    number: Mapped[int]
+    orig_dep_date: Mapped[date]
+    route_name: Mapped[str]
+    stop_times = relationship('StopTime', back_populates='trip')
 
-    __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
+    __table_args__ = (UniqueConstraint('orig_id', 'number', 'orig_dep_date'),)
 
 
 class StopTime(Base):
     __tablename__ = 'stop_times'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
-    idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
+    trip_id: Mapped[int] = mapped_column(ForeignKey('trips.id'))
+    trip: Mapped[Trip] = relationship('Trip', back_populates='stop_times')
+    stop_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stop_times')
-    arrivo_teorico: Mapped[Optional[datetime]]
-    arrivo_reale: Mapped[Optional[datetime]]
-    partenza_teorica: Mapped[Optional[datetime]]
-    partenza_reale: Mapped[Optional[datetime]]
-    ritardo_arrivo: Mapped[Optional[int]]
-    ritardo_partenza: Mapped[Optional[int]]
-    binario: Mapped[Optional[str]]
+    sched_arr_dt: Mapped[Optional[datetime]]
+    sched_dep_dt: Mapped[Optional[datetime]]
+    platform: Mapped[Optional[str]]
 
-    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
+    __table_args__ = (UniqueConstraint('trip_id', 'stop_id'),)
