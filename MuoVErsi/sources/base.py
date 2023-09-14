@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import select, ForeignKey, UniqueConstraint, String
+from sqlalchemy import select, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
 from telegram.ext import ContextTypes
@@ -161,7 +161,6 @@ class Station(Base):
     ids: Mapped[str] = mapped_column(server_default='')
     times_count: Mapped[float] = mapped_column(server_default='0')
     source: Mapped[str] = mapped_column(server_default='treni')
-    stop_times = relationship('StopTime', back_populates='station', cascade='all, delete-orphan')
     stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
 
 
@@ -175,6 +174,7 @@ class Stop(Base):
     station_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stops')
     source: Mapped[Optional[str]]
+    stop_times = relationship('StopTime', back_populates='stop', cascade='all, delete-orphan')
 
 
 class Source:
@@ -333,8 +333,8 @@ class StopTime(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     trip_id: Mapped[int] = mapped_column(ForeignKey('trips.id'))
     trip: Mapped[Trip] = relationship('Trip', back_populates='stop_times')
-    stop_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
-    station: Mapped[Station] = relationship('Station', back_populates='stop_times')
+    stop_id: Mapped[str] = mapped_column(ForeignKey('stops.id'))
+    stop: Mapped[Stop] = relationship('Stop', back_populates='stop_times')
     sched_arr_dt: Mapped[Optional[datetime]]
     sched_dep_dt: Mapped[Optional[datetime]]
     platform: Mapped[Optional[str]]

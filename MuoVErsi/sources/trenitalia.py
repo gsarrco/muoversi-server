@@ -396,7 +396,7 @@ class Trenitalia(Source):
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         query = select(StopTime, Trip, Station) \
             .join(StopTime.train) \
-            .join(StopTime.station) \
+            .join(StopTime.stop) \
             .filter(
             and_(
                 Trip.number == trip_id,
