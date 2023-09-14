@@ -320,7 +320,6 @@ class Trip(Base):
     destinazione: Mapped[str]
     numeroTreno: Mapped[int]
     dataPartenzaTreno: Mapped[date]
-    statoTreno: Mapped[str] = mapped_column(String, default='regol.')
     categoria: Mapped[str]
     stop_times = relationship('StopTime', back_populates='trip')
 
@@ -336,11 +335,7 @@ class StopTime(Base):
     idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stop_times')
     arrivo_teorico: Mapped[Optional[datetime]]
-    arrivo_reale: Mapped[Optional[datetime]]
     partenza_teorica: Mapped[Optional[datetime]]
-    partenza_reale: Mapped[Optional[datetime]]
-    ritardo_arrivo: Mapped[Optional[int]]
-    ritardo_partenza: Mapped[Optional[int]]
     binario: Mapped[Optional[str]]
 
     __table_args__ = (UniqueConstraint('trip_id', 'idFermata'),)
