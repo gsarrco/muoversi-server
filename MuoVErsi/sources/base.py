@@ -312,7 +312,7 @@ class Source:
         return self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
 
-class Train(Base):
+class Trip(Base):
     __tablename__ = 'trains'
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -332,7 +332,7 @@ class StopTime(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Train] = relationship('Train', back_populates='stop_times')
+    train: Mapped[Trip] = relationship('Trip', back_populates='stop_times')
     idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stop_times')
     arrivo_teorico: Mapped[Optional[datetime]]
