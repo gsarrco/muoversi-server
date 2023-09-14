@@ -158,7 +158,7 @@ class GTFS(Source):
             for stop in cluster.stops:
                 platform = get_loc_from_stop_and_cluster(stop.name, cluster.name)
                 platform = platform if platform != '' else None
-                stop = Stop(id=stop.id, platform=platform, lat=stop.lat, lon=stop.lon, station_id=cluster.name)
+                stop = Stop(id=stop.id, platform=platform, lat=stop.lat, lon=stop.lon, station_id=cluster.name, source=self.name)
                 new_stops.append(stop)
 
             result = cur.execute('INSERT INTO stops_clusters (name, lat, lon, times_count) VALUES (?, ?, ?, ?)', (

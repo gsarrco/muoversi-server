@@ -174,6 +174,7 @@ class Stop(Base):
     lon: Mapped[float]
     station_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stops')
+    source: Mapped[Optional[str]]
 
 
 class Source:
