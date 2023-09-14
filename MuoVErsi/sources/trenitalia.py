@@ -87,14 +87,14 @@ class Trenitalia(Source):
                     self.session.add(train)
                     self.session.commit()
 
-                stop_time_db = self.session.query(StopTime).filter_by(train_id=train.id, idFermata=station.id).first()
+                stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, idFermata=station.id).first()
 
                 if stop_time_db:
                     if stop_time_db.binario != stop_time.platform:
                         stop_time_db.binario = stop_time.platform
                         self.session.commit()
                 else:
-                    new_stop_time = StopTime(train_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time,
+                    new_stop_time = StopTime(trip_id=train.id, idFermata=station.id, arrivo_teorico=stop_time.arr_time,
                                              partenza_teorica=stop_time.dep_time, binario=stop_time.platform)
                     self.session.add(new_stop_time)
                     self.session.commit()
@@ -167,7 +167,7 @@ class Trenitalia(Source):
 
         raw_stop_times = raw_stop_times \
             .select_from(StopTime) \
-            .join(Trip, StopTime.train_id == Trip.id) \
+            .join(Trip, StopTime.trip_id == Trip.id) \
             .filter(
             and_(
                 StopTime.idFermata == station_id,
@@ -343,8 +343,8 @@ class Trenitalia(Source):
 
         raw_stop_times = raw_stop_times \
             .select_from(d_stop_times) \
-            .join(a_stop_times, d_stop_times.train_id == a_stop_times.train_id) \
-            .join(Trip, d_stop_times.train_id == Trip.id) \
+            .join(a_stop_times, d_stop_times.trip_id == a_stop_times.trip_id) \
+            .join(Trip, d_stop_times.trip_id == Trip.id) \
             .filter(
             and_(
                 d_stop_times.idFermata == dep_station_id,

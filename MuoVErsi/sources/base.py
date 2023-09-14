@@ -313,7 +313,7 @@ class Source:
 
 
 class Trip(Base):
-    __tablename__ = 'trains'
+    __tablename__ = 'trips'
 
     id: Mapped[int] = mapped_column(primary_key=True)
     codOrigine: Mapped[str]
@@ -322,7 +322,7 @@ class Trip(Base):
     dataPartenzaTreno: Mapped[date]
     statoTreno: Mapped[str] = mapped_column(String, default='regol.')
     categoria: Mapped[str]
-    stop_times = relationship('StopTime', back_populates='train')
+    stop_times = relationship('StopTime', back_populates='trip')
 
     __table_args__ = (UniqueConstraint('codOrigine', 'numeroTreno', 'dataPartenzaTreno'),)
 
@@ -331,8 +331,8 @@ class StopTime(Base):
     __tablename__ = 'stop_times'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    train_id: Mapped[int] = mapped_column(ForeignKey('trains.id'))
-    train: Mapped[Trip] = relationship('Trip', back_populates='stop_times')
+    trip_id: Mapped[int] = mapped_column(ForeignKey('trips.id'))
+    trip: Mapped[Trip] = relationship('Trip', back_populates='stop_times')
     idFermata: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stop_times')
     arrivo_teorico: Mapped[Optional[datetime]]
@@ -343,4 +343,4 @@ class StopTime(Base):
     ritardo_partenza: Mapped[Optional[int]]
     binario: Mapped[Optional[str]]
 
-    __table_args__ = (UniqueConstraint('train_id', 'idFermata'),)
+    __table_args__ = (UniqueConstraint('trip_id', 'idFermata'),)
