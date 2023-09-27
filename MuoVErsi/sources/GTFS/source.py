@@ -173,7 +173,7 @@ class GTFS(Source):
         return True
 
     def get_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, count=False):
+                       offset_times, count=False, limit=True):
         cur = self.con.cursor()
 
         route_name, route_id = line.split('-') if '-' in line else (line, '')
@@ -261,7 +261,8 @@ class GTFS(Source):
             params += (line,)
 
         if not count:
-            params += (self.LIMIT, offset_times)
+            limit = self.LIMIT if limit else 100000
+            params += (limit, offset_times)
 
         results = cur.execute(query, params).fetchall()
 

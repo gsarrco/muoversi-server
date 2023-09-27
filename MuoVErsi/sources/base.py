@@ -221,7 +221,7 @@ class Source:
         return stations, found
 
     def get_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, count=False):
+                       offset_times, count=False, limit=True):
         raise NotImplementedError
 
     def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,

@@ -138,7 +138,7 @@ class Trenitalia(Source):
         return os.path.join(parent_dir, 'trenitalia.db')
 
     def get_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, count=False):
+                       offset_times, count=False, limit=True):
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
