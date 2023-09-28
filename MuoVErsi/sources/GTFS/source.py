@@ -172,7 +172,7 @@ class GTFS(Source):
         return True
 
     def get_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+                       offset_times, count=False):
         cur = self.con.cursor()
 
         route_name, route_id = line.split('-') if '-' in line else (line, '')
@@ -183,7 +183,7 @@ class GTFS(Source):
             line = route_id
             route = 'AND r.route_id = ?'
 
-        today_service_ids = self.get_active_service_ids(day, context)
+        today_service_ids = self.get_active_service_ids(day)
 
         stop_ids = stop.ids.split(',')
         stop_ids = list(map(int, stop_ids))
@@ -198,7 +198,7 @@ class GTFS(Source):
         or_other_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
-            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1), context)
+            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
                 or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
@@ -289,7 +289,7 @@ class GTFS(Source):
             line = route_id
             route = 'AND r.route_id = ?'
 
-        today_service_ids = self.get_active_service_ids(day, context)
+        today_service_ids = self.get_active_service_ids(day)
         dep_stop_ids = dep_stop.ids.split(',')
         dep_stop_ids = list(map(int, dep_stop_ids))
 
@@ -306,7 +306,7 @@ class GTFS(Source):
         or_other_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
-            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1), context)
+            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
                 or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
@@ -411,7 +411,7 @@ class GTFS(Source):
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
-        service_ids = self.get_active_service_ids(today, context)
+        service_ids = self.get_active_service_ids(today)
 
         cur = self.con.cursor()
         query = """SELECT trips.trip_id, route_short_name, route_long_name, routes.route_id
@@ -426,16 +426,14 @@ class GTFS(Source):
         results = cur.execute(query, (name, *service_ids)).fetchall()
         return results
 
-    def get_active_service_ids(self, day: date, context: ContextTypes.DEFAULT_TYPE | None = None) -> tuple:
+    def get_active_service_ids(self, day: date) -> tuple:
         today_ymd = day.strftime('%Y%m%d')
 
-        if context:
-            # access safely context.bot_data['service_ids'][self.name][today_ymd]
-            service_ids = context.bot_data.setdefault('service_ids', {}).setdefault(self.name, {}).setdefault(today_ymd,
-                                                                                                              None)
-            if service_ids:
-                logger.info(f'Using cached service_ids for {today_ymd}')
-                return service_ids
+        # access safely context.bot_data['service_ids'][self.name][today_ymd]
+        service_ids = self.service_ids.setdefault(today_ymd, None)
+        if service_ids:
+            logger.info(f'Using cached service_ids for {today_ymd}')
+            return service_ids
 
         weekday = day.strftime('%A').lower()
 
@@ -461,9 +459,8 @@ class GTFS(Source):
 
         service_ids = tuple(service_ids)
 
-        if context:
-            context.bot_data.setdefault('service_ids', {}).setdefault(self.name, {})[today_ymd] = service_ids
-            logger.info(f'Cached service_ids for {today_ymd}')
+        self.service_ids[today_ymd] = service_ids
+        logger.info(f'Cached service_ids for {today_ymd}')
 
         return service_ids
 

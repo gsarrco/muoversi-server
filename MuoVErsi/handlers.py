@@ -250,7 +250,12 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
     if context.user_data.get('day') != stop_times_filter.day.isoformat():
         context.user_data['day'] = stop_times_filter.day.isoformat()
 
+    # add service_ids to Source instance, this way it can be accessed from get_stop_times
+    db_file.service_ids = context.bot_data.setdefault('service_ids', {}).setdefault(db_file.name, {})
+
     results = stop_times_filter.get_times(db_file)
+
+    context.bot_data['service_ids'][db_file.name] = db_file.service_ids
 
     context.user_data['lines'] = stop_times_filter.lines
 
