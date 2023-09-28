@@ -285,14 +285,19 @@ class Source:
 
         stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
 
-        stations_collection.documents.import_([{
+        stations_to_sync = [{
             'id': station.id,
             'name': station.name,
             'location': [station.lat, station.lon],
             'ids': station.ids,
             'source': station.source,
             'times_count': station.times_count
-        } for station in stations])
+        } for station in stations]
+
+        if not stations_to_sync:
+            return
+
+        stations_collection.documents.import_(stations_to_sync)
 
     def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
