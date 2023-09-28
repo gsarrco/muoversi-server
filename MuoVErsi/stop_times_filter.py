@@ -90,11 +90,10 @@ class StopTimesFilter:
                                                                   context=self.context, count=True)
             return results
 
-        results = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times, context=self.context)
+        results = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times)
 
         if self.lines is None:
-            self.lines = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times,
-                                                context=self.context, count=True)
+            self.lines = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times, count=True)
 
         return results
 
