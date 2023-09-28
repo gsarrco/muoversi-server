@@ -45,6 +45,7 @@ class GTFS(Source):
         super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
+        self.service_ids = {}
 
         if gtfs_version:
             self.gtfs_version = gtfs_version
