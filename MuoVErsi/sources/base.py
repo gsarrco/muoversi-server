@@ -322,7 +322,7 @@ class Trip(Base):
     __tablename__ = 'trips'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    orig_id: Mapped[Optional[str]]
+    orig_id: Mapped[str]
     dest_text: Mapped[str]
     number: Mapped[int]
     orig_dep_date: Mapped[date]
