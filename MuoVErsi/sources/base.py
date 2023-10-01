@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class Liner:
     def format(self, number, _, source_name):
         raise NotImplementedError
+    
+
+
 
 
 class BaseStopTime(Liner):
@@ -177,6 +180,24 @@ class Stop(Base):
     stop_times = relationship('StopTime', back_populates='stop', cascade='all, delete-orphan')
 
 
+class TripStopTime(BaseStopTime):
+    def __init__(self, stop: Station, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform,
+                 headsign,
+                 trip_id,
+                 route_name,
+                 arr_time: datetime = None,
+                 origin_dep_time: int = None, destination: str = None):
+        if arr_time is None:
+            arr_time = dep_time
+        super().__init__(stop, dep_time, arr_time, stop_sequence, delay, platform, headsign, trip_id, route_name)
+        self.origin_dep_time = origin_dep_time
+        self.destination = destination
+        self.origin_id = origin_id
+
+    def merge(self, arr_stop_time: 'TripStopTime'):
+        self.arr_time = arr_stop_time.arr_time
+
+
 class Source:
     LIMIT = 7
     MINUTES_TOLERANCE = 3
@@ -316,6 +337,31 @@ class Source:
 
     def get_source_stations(self) -> list[Station]:
         return self.session.scalars(select(Station).filter_by(source=self.name)).all()
+    
+    def upload_trip_stop_times_to_postgres(self, stop_times: list[TripStopTime]):
+        for stop_time in stop_times:
+            train = self.session.query(Trip).filter_by(orig_id=stop_time.origin_id,
+                                                        number=stop_time.trip_id,
+                                                        orig_dep_date=stop_time.origin_dep_time).first()
+
+            if not train:
+                train = Trip(orig_id=stop_time.origin_id, dest_text=stop_time.destination,
+                                number=stop_time.trip_id, orig_dep_date=stop_time.origin_dep_time,
+                                route_name=stop_time.route_name)
+                self.session.add(train)
+                self.session.commit()
+
+            stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_time.stop.id).first()
+
+            if stop_time_db:
+                if stop_time_db.platform != stop_time.platform:
+                    stop_time_db.platform = stop_time.platform
+                    self.session.commit()
+            else:
+                new_stop_time = StopTime(trip_id=train.id, stop_id=stop_time.stop.id, sched_arr_dt=stop_time.arr_time,
+                                            sched_dep_dt=stop_time.dep_time, platform=stop_time.platform)
+                self.session.add(new_stop_time)
+                self.session.commit()
 
 
 class Trip(Base):
