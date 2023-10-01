@@ -77,7 +77,11 @@ class Trenitalia(Source):
             total_times_count += len(stop_times)
             times_count.append(len(stop_times))
             for stop_time in stop_times:
-                train = self.session.query(Trip).filter_by(number=stop_time.trip_id, orig_dep_date=stop_time.origin_dep_time).first()
+                train = self.session.query(Trip).filter_by(
+                    number=stop_time.trip_id,
+                    orig_dep_date=stop_time.origin_dep_time,
+                    source=self.name
+                ).first()
 
                 if not train:
                     train = Trip(orig_id=stop_time.origin_id, dest_text=stop_time.destination,
