@@ -71,14 +71,14 @@ class Trenitalia(Source):
 
         departures_arrivals = departures + arrivals
 
-        # merge departures and arrivals StopTime when they have the same trip_id and origin_dep_time
-        departures_arrivals.sort(key=lambda x: (x.trip_id, x.origin_dep_time))
+        # merge departures and arrivals StopTime when they have the same trip_id and orig_dep_date
+        departures_arrivals.sort(key=lambda x: (x.trip_id, x.orig_dep_date))
         merged = []
         for i, stop_time in enumerate(departures_arrivals):
             if i == 0:
                 merged.append(stop_time)
             else:
-                if stop_time.trip_id == merged[-1].trip_id and stop_time.origin_dep_time == merged[-1].origin_dep_time:
+                if stop_time.trip_id == merged[-1].trip_id and stop_time.orig_dep_date == merged[-1].orig_dep_date:
                     if stop_time.dep_time:
                         stop_time.merge(merged[-1])
                     else:
@@ -121,7 +121,7 @@ class Trenitalia(Source):
                 Trip.orig_id.label('origin_id'),
                 Trip.dest_text.label('destination'),
                 Trip.number.label('trip_id'),
-                Trip.orig_dep_date.label('origin_dep_time'),
+                Trip.orig_dep_date.label('orig_dep_date'),
                 StopTime.platform.label('platform'),
                 Trip.route_name.label('route_name')
             )
@@ -160,7 +160,7 @@ class Trenitalia(Source):
             stop_time = TripStopTime(stop, raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
                                            raw_stop_time.destination, raw_stop_time.trip_id,
                                            raw_stop_time.route_name, arr_time=arr_time,
-                                           origin_dep_time=raw_stop_time.origin_dep_time)
+                                           orig_dep_date=raw_stop_time.orig_dep_date)
             stop_times.append(stop_time)
 
         return stop_times
@@ -252,14 +252,14 @@ class Trenitalia(Source):
                 if departure[f'binarioEffettivo{type_text}Descrizione'] != '':
                     platform = departure[f'binarioEffettivo{type_text}Descrizione']
 
-            origin_dep_time = datetime.fromtimestamp(departure['dataPartenzaTreno'] / 1000) if departure[
+            orig_dep_date = datetime.fromtimestamp(departure['dataPartenzaTreno'] / 1000).date() if departure[
                 'dataPartenzaTreno'] else None
             origin_id = departure['codOrigine']
             destination = departure.get('destinazione')
             route_name = 'RV' if 3000 <= trip_id < 4000 else 'R'
             stop_time = TripStopTime(stop, origin_id, dep_time, stop_sequence, delay, platform, headsign, trip_id,
                                            route_name,
-                                           arr_time=arr_time, origin_dep_time=origin_dep_time, destination=destination)
+                                           arr_time=arr_time, orig_dep_date=orig_dep_date, destination=destination)
             stop_times.append(stop_time)
 
         return stop_times
@@ -294,7 +294,7 @@ class Trenitalia(Source):
                 Trip.orig_id.label('origin_id'),
                 Trip.dest_text.label('destination'),
                 Trip.number.label('trip_id'),
-                Trip.orig_dep_date.label('origin_dep_time'),
+                Trip.orig_dep_date.label('orig_dep_date'),
                 Trip.route_name.label('route_name'),
                 d_stop_times.platform.label('d_platform'),
                 a_stop_times.sched_dep_dt.label('a_dep_time'),
@@ -341,12 +341,12 @@ class Trenitalia(Source):
             d_stop_time = TripStopTime(
                 dep_stop, raw_stop_time.origin_id, d_dep_time, None, 0, raw_stop_time.d_platform,
                 raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
-                arr_time=d_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
+                arr_time=d_arr_time, orig_dep_date=raw_stop_time.orig_dep_date)
 
             a_stop_time = TripStopTime(
                 arr_stop, raw_stop_time.origin_id, a_dep_time, None, 0, raw_stop_time.a_platform,
                 raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
-                arr_time=a_arr_time, origin_dep_time=raw_stop_time.origin_dep_time)
+                arr_time=a_arr_time, orig_dep_date=raw_stop_time.orig_dep_date)
 
             route = TrenitaliaRoute(d_stop_time, a_stop_time)
             directions.append(Direction([route]))

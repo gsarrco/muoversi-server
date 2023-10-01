@@ -186,11 +186,11 @@ class TripStopTime(BaseStopTime):
                  trip_id,
                  route_name,
                  arr_time: datetime = None,
-                 origin_dep_time: int = None, destination: str = None):
+                 orig_dep_date: date = None, destination: str = None):
         if arr_time is None:
             arr_time = dep_time
         super().__init__(stop, dep_time, arr_time, stop_sequence, delay, platform, headsign, trip_id, route_name)
-        self.origin_dep_time = origin_dep_time
+        self.orig_dep_date = orig_dep_date
         self.destination = destination
         self.origin_id = origin_id
 
@@ -342,11 +342,11 @@ class Source:
         for stop_time in stop_times:
             train = self.session.query(Trip).filter_by(orig_id=stop_time.origin_id,
                                                         number=stop_time.trip_id,
-                                                        orig_dep_date=stop_time.origin_dep_time).first()
+                                                        orig_dep_date=stop_time.orig_dep_date).first()
 
             if not train:
                 train = Trip(orig_id=stop_time.origin_id, dest_text=stop_time.destination,
-                                number=stop_time.trip_id, orig_dep_date=stop_time.origin_dep_time,
+                                number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
                                 route_name=stop_time.route_name)
                 self.session.add(train)
                 self.session.commit()
