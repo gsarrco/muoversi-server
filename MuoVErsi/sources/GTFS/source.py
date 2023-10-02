@@ -60,8 +60,6 @@ class GTFS(Source):
                     break
 
         self.con = self.connect_to_database()
-        if dev:
-            self.con.set_trace_callback(logger.info)
 
         stops_clusters_uploaded = self.upload_stops_clusters_to_db()
         logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
@@ -445,7 +443,6 @@ class GTFS(Source):
         # access safely context.bot_data['service_ids'][self.name][today_ymd]
         service_ids = self.service_ids.setdefault(today_ymd, None)
         if service_ids:
-            logger.info(f'Using cached service_ids for {today_ymd}')
             return service_ids
 
         weekday = day.strftime('%A').lower()
@@ -473,7 +470,6 @@ class GTFS(Source):
         service_ids = tuple(service_ids)
 
         self.service_ids[today_ymd] = service_ids
-        logger.info(f'Cached service_ids for {today_ymd}')
 
         return service_ids
 
