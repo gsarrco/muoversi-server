@@ -14,7 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, Stop
+from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, Stop, TripStopTime
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -173,7 +173,7 @@ class GTFS(Source):
         return True
 
     def get_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, count=False, limit=True):
+                       offset_times, count=False, limit=True) -> list[TripStopTime]:
         cur = self.con.cursor()
 
         route_name, route_id = line.split('-') if '-' in line else (line, '')
@@ -218,7 +218,10 @@ class GTFS(Source):
                 dep.stop_sequence       as stop_sequence,
                 s.stop_name          as dep_stop_name,
                 CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-                CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute"""
+                CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
+                orig_stop_id           as orig_stop_id,
+                CAST(SUBSTR(orig_dep_time, 1, 2) AS INTEGER) % 24 orig_dep_hour_normalized,
+                CAST(SUBSTR(orig_dep_time, 4, 2) AS INTEGER) orig_dep_minute"""
             button_elements = """
                 ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
                 LIMIT ? OFFSET ?"""
@@ -238,6 +241,11 @@ class GTFS(Source):
                                     )
                                     )
                                 hs ON dep.trip_id = hs.trip_id
+                         INNER JOIN (SELECT trip_id, departure_time as orig_dep_time, stop_id as orig_stop_id
+                             FROM stop_times
+                             WHERE stop_sequence = 1
+                            )
+                         orig ON dep.trip_id = orig.trip_id
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
@@ -272,8 +280,11 @@ class GTFS(Source):
         stop_times = []
         for result in results:
             location = get_loc_from_stop_and_cluster(result[5], stop.name)
-            dep_dt = datetime.combine(day, time(result[6], result[7]))
-            stop_time = BaseStopTime(stop, dep_dt, dep_dt, result[4], 0, location, result[2], result[3], result[1])
+            dep_time = time(result[6], result[7])
+            dep_dt = datetime.combine(day, dep_time)
+            orig_dep_time = time(result[9], result[10])
+            orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)
+            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, result[2], result[3], result[1], dep_dt, orig_dep_date, result[2])
             stop_times.append(stop_time)
 
         return stop_times
