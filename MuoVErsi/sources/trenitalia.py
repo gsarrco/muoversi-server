@@ -43,7 +43,7 @@ class Trenitalia(Source):
                 file_stations]
             self.sync_stations_db(new_stations)
 
-    def save_trains(self):
+    def save_data(self):
         stations = self.session.scalars(select(Station).filter_by(source=self.name)).all()
 
         total_times_count = 0
