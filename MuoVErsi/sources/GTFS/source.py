@@ -13,6 +13,7 @@ from sqlite3 import Connection
 import requests
 from bs4 import BeautifulSoup
 from telegram.ext import ContextTypes
+from tqdm import tqdm
 
 from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Station, Stop, TripStopTime
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
@@ -107,6 +108,25 @@ class GTFS(Source):
         """
         stops = cur.execute(query).fetchall()
         return [CStop(*stop) for stop in stops]
+    
+    def get_all_stop_times(self, day) -> list[TripStopTime]:
+        stop_times = []
+        
+        return stop_times
+    
+    def save_data(self):
+        next_3_days = [date.today() + timedelta(days=i) for i in range(3)]
+        stops = self.get_all_stops()
+
+        pbar = tqdm(total=len(next_3_days) * len(stops))
+        pbar.set_description(f'Uploading {self.name} data')
+
+        for day in next_3_days:
+            for stop in stops:
+                station = Station(id=stop.id, name=stop.name, lat=stop.lat, lon=stop.lon, ids=stop.id, times_count=stop.times_count, source=self.name)
+                stop_times = self.get_sqlite_stop_times(station, '', '', day, 0, limit=False)
+                self.upload_trip_stop_times_to_postgres(stop_times)
+                pbar.update(1)
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
@@ -170,7 +190,7 @@ class GTFS(Source):
         self.sync_stations_db(new_stations, new_stops)
         return True
 
-    def get_stop_times(self, stop: Station, line, start_time, day,
+    def get_sqlite_stop_times(self, stop: Station, line, start_time, day,
                        offset_times, count=False, limit=True) -> list[TripStopTime]:
         cur = self.con.cursor()
 
@@ -286,139 +306,6 @@ class GTFS(Source):
             stop_times.append(stop_time)
 
         return stop_times
-
-    def get_stop_times_between_stops(self, dep_stop: Station, arr_stop: Station, line, start_time,
-                                     offset_times, day,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
-        cur = self.con.cursor()
-
-        route_name, route_id = line.split('-') if '-' in line else (line, '')
-        if route_id == '':
-            line = route_name
-            route = 'AND route_short_name = ?' if line != '' else ''
-        else:
-            line = route_id
-            route = 'AND r.route_id = ?'
-
-        today_service_ids = self.get_active_service_ids(day)
-        dep_stop_ids = dep_stop.ids.split(',')
-        dep_stop_ids = list(map(int, dep_stop_ids))
-
-        arr_stop_ids = arr_stop.ids.split(',')
-        arr_stop_ids = list(map(int, arr_stop_ids))
-
-        day_start = datetime.combine(day, time(0))
-
-        if start_time == '':
-            start_dt = day_start
-        else:
-            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE))
-
-        or_other_service = ''
-        yesterday_service_ids = []
-        if start_dt.hour < 6:
-            yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
-            if yesterday_service_ids:
-                or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
-            else:
-                start_dt = datetime.combine(day, time(6))
-
-        if count:
-            select_elements = "r.route_short_name     as line"
-            button_elements = "GROUP BY route_short_name ORDER BY count(*) DESC"
-        else:
-            select_elements = """
-                   dep.departure_time      as dep_time,
-                   r.route_short_name     as line,
-                   hs_cluster_name        as headsign,
-                   t.trip_id              as trip_id,
-                   dep.stop_sequence       as stop_sequence,
-                   arr_time               as arr_time,
-                   s.stop_name          as dep_stop_name,
-                   arr_stop_name          as arr_stop_name,
-                   CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-                   CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
-                   CAST(SUBSTR(arr_time, 1, 2) AS INTEGER) % 24 arr_hour_normalized,
-                   CAST(SUBSTR(arr_time, 4, 2) AS INTEGER) arr_minute
-            """
-            button_elements = """
-                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
-                LIMIT ? OFFSET ?
-            """
-
-        query = f"""
-        SELECT {select_elements}
-        FROM stop_times dep
-                 INNER JOIN (SELECT trip_id, departure_time as arr_time, stop_sequence, stop_name as arr_stop_name
-                             FROM stop_times
-                                INNER JOIN stops ON stop_times.stop_id = stops.stop_id
-                             WHERE stop_times.stop_id in ({','.join(['?'] * len(arr_stop_ids))})
-                            ORDER BY stop_times.departure_time
-                            )
-                        arr ON dep.trip_id = arr.trip_id
-                 INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
-                     FROM stop_times st
-                        INNER JOIN stops ON st.stop_id = stops.stop_id
-                        INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
-                        INNER JOIN stops_clusters ON stops_stops_clusters.stop_cluster_id = stops_clusters.id
-                    WHERE st.stop_sequence = (
-                        SELECT MAX(stop_times.stop_sequence) 
-                        FROM stop_times 
-                        WHERE stop_times.trip_id = st.trip_id
-                    )
-                    )
-                 hs ON dep.trip_id = hs.trip_id
-                 INNER JOIN trips t ON dep.trip_id = t.trip_id
-                 INNER JOIN routes r ON t.route_id = r.route_id
-                 INNER JOIN stops s ON dep.stop_id = s.stop_id
-        WHERE dep.stop_id in ({','.join(['?'] * len(dep_stop_ids))})
-          AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
-          AND dep.departure_time <= ?) 
-          {or_other_service})
-          AND dep.pickup_type = 0
-          AND dep.stop_sequence < arr.stop_sequence
-          {route}
-        {button_elements}
-        """
-
-        params = (*arr_stop_ids, *dep_stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
-
-        if or_other_service != '':
-            # in the string add 24 hours to start_dt time
-            start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
-            params += (start_time_25, *yesterday_service_ids)
-
-        if line != '':
-            params += (line,)
-
-        if not count:
-            params += (self.LIMIT, offset_times)
-
-        results = cur.execute(query, params).fetchall()
-
-        if count:
-            return [line[0] for line in cur.execute(query, params).fetchall()]
-
-        directions = []
-
-        for result in results:
-            dep_dt = datetime.combine(day, time(result[8], result[9]))
-            dep_location = get_loc_from_stop_and_cluster(result[6], dep_stop.name)
-            dep_stop_time = BaseStopTime(dep_stop, dep_dt, dep_dt, result[4], 0, dep_location, result[2], result[3],
-                                         result[1])
-            arr_time = time(result[10], result[11])
-            if arr_time < dep_dt.time():
-                arr_dt = datetime.combine(day + timedelta(days=1), arr_time)
-            else:
-                arr_dt = datetime.combine(day, arr_time)
-            arr_location = get_loc_from_stop_and_cluster(result[7], arr_stop.name)
-            arr_stop_time = BaseStopTime(arr_stop, arr_dt, arr_dt, result[4], 0, arr_location, result[2], result[3],
-                                         result[1])
-            route = Route(dep_stop_time, arr_stop_time)
-            directions.append(Direction([route]))
-
-        return directions
 
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         today = date.today()
