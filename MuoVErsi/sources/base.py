@@ -22,11 +22,11 @@ class Liner:
 
 
 class BaseStopTime(Liner):
-    def __init__(self, stop: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+    def __init__(self, station: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
                  platform,
                  headsign, trip_id,
                  route_name):
-        self.stop = stop
+        self.station = station
         self.dep_time = dep_time
         self.arr_time = arr_time
         self.stop_sequence = stop_sequence
@@ -143,11 +143,11 @@ class Direction(Liner):
             text += route.format(number, _, source_name, left_time_bold=i == 0,
                                  right_time_bold=i == len(self.routes) - 1)
 
-            if route.arr_stop_time.stop.name and i != len(self.routes) - 1:
+            if route.arr_stop_time.station.name and i != len(self.routes) - 1:
                 next_route = self.routes[i + 1]
                 print(route.arr_stop_time.dep_time, next_route.dep_stop_time.dep_time)
                 duration_in_minutes = (next_route.dep_stop_time.dep_time - route.arr_stop_time.dep_time).seconds // 60
-                text += f'\n⎿ <i>cambio a {route.arr_stop_time.stop.name} ({duration_in_minutes}min)</i>'
+                text += f'\n⎿ <i>cambio a {route.arr_stop_time.station.name} ({duration_in_minutes}min)</i>'
 
         return text
 
@@ -181,7 +181,7 @@ class Stop(Base):
 
 
 class TripStopTime(BaseStopTime):
-    def __init__(self, stop: Station, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform,
+    def __init__(self, station: Station, origin_id, dep_time: datetime | None, stop_sequence, delay: int, platform,
                  headsign,
                  trip_id,
                  route_name,
@@ -189,7 +189,7 @@ class TripStopTime(BaseStopTime):
                  orig_dep_date: date = None, destination: str = None):
         if arr_time is None:
             arr_time = dep_time
-        super().__init__(stop, dep_time, arr_time, stop_sequence, delay, platform, headsign, trip_id, route_name)
+        super().__init__(station, dep_time, arr_time, stop_sequence, delay, platform, headsign, trip_id, route_name)
         self.orig_dep_date = orig_dep_date
         self.destination = destination
         self.origin_id = origin_id
@@ -502,14 +502,14 @@ class Source:
                 self.session.add(train)
                 self.session.commit()
 
-            stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_time.stop.id).first()
+            stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_time.station.id).first()
 
             if stop_time_db:
                 if stop_time_db.platform != stop_time.platform:
                     stop_time_db.platform = stop_time.platform
                     self.session.commit()
             else:
-                new_stop_time = StopTime(trip_id=train.id, stop_id=stop_time.stop.id, sched_arr_dt=stop_time.arr_time,
+                new_stop_time = StopTime(trip_id=train.id, stop_id=stop_time.station.id, sched_arr_dt=stop_time.arr_time,
                                             sched_dep_dt=stop_time.dep_time, platform=stop_time.platform)
                 self.session.add(new_stop_time)
                 self.session.commit()
