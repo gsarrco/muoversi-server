@@ -502,14 +502,15 @@ class Source:
                 self.session.add(train)
                 self.session.commit()
 
-            stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_time.station.id).first()
+            stop_id = self.name + '_' + stop_time.station.id if self.name != 'treni' else stop_time.station.id
+            stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_id).first()
 
             if stop_time_db:
                 if stop_time_db.platform != stop_time.platform:
                     stop_time_db.platform = stop_time.platform
                     self.session.commit()
             else:
-                new_stop_time = StopTime(trip_id=train.id, stop_id=stop_time.station.id, sched_arr_dt=stop_time.arr_time,
+                new_stop_time = StopTime(trip_id=train.id, stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
                                             sched_dep_dt=stop_time.dep_time, platform=stop_time.platform)
                 self.session.add(new_stop_time)
                 self.session.commit()
