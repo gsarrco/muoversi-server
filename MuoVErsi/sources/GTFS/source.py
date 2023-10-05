@@ -115,6 +115,8 @@ class GTFS(Source):
         return stop_times
     
     def save_data(self):
+        self.upload_stops_clusters_to_db(force=True)
+        
         next_3_days = [date.today() + timedelta(days=i) for i in range(3)]
         stops = self.get_all_stops()
 
