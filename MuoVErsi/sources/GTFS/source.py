@@ -234,7 +234,7 @@ class GTFS(Source):
             select_elements = """
                 dep.departure_time      as dep_time,
                 r.route_short_name     as line,
-                hs_cluster_name        as headsign,
+                dep.stop_headsign        as headsign,
                 t.trip_id              as trip_id,
                 dep.stop_sequence       as stop_sequence,
                 s.stop_name          as dep_stop_name,
@@ -250,18 +250,6 @@ class GTFS(Source):
         query = f"""
                 SELECT {select_elements}
                 FROM stop_times dep
-                         INNER JOIN (SELECT trip_id, stops_clusters.name as hs_cluster_name
-                                     FROM stop_times st
-                                        INNER JOIN stops ON st.stop_id = stops.stop_id
-                                        INNER JOIN stops_stops_clusters ON stops.stop_id = stops_stops_clusters.stop_id
-                                        INNER JOIN stops_clusters ON stops_stops_clusters.stop_cluster_id = stops_clusters.id
-                                    WHERE st.stop_sequence = (
-                                        SELECT MAX(stop_times.stop_sequence) 
-                                        FROM stop_times 
-                                        WHERE stop_times.trip_id = st.trip_id
-                                    )
-                                    )
-                                hs ON dep.trip_id = hs.trip_id
                          INNER JOIN (SELECT trip_id, departure_time as orig_dep_time, stop_id as orig_stop_id
                              FROM stop_times
                              WHERE stop_sequence = 1
@@ -305,7 +293,8 @@ class GTFS(Source):
             dep_dt = datetime.combine(day, dep_time)
             orig_dep_time = time(result[9], result[10])
             orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)
-            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, result[2], result[3], result[1], dep_dt, orig_dep_date, result[2])
+            headsign = result[2] if result[2] else ''
+            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, headsign, result[3], result[1], dep_dt, orig_dep_date, result[2])
             stop_times.append(stop_time)
 
         return stop_times
