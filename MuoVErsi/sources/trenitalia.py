@@ -49,14 +49,15 @@ class Trenitalia(Source):
         total_times_count = 0
         times_count = []
 
-        tqdm_stations = tqdm(enumerate(stations), total=len(stations))
+        tqdm_stations = tqdm(enumerate(stations), total=len(stations), desc=f'Uploading {self.name} data')
 
-        for i, station in tqdm_stations:
+        for i, station in enumerate(stations):
             tqdm_stations.set_description(f'Processing station {station.name}')
             stop_times = self.get_stop_times_from_station(station)
             total_times_count += len(stop_times)
             times_count.append(len(stop_times))
-            self.upload_trip_stop_times_to_postgres(stop_times)
+            for stop_time in stop_times:
+                self.upload_trip_stop_time_to_postgres(stop_time)
 
         for i, station in enumerate(stations):
             station.times_count = round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)

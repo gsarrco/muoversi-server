@@ -23,5 +23,5 @@ def test_get_root_from_stop_name(test_data):
 
 def test_get_loc_from_stop_and_cluster(test_data):
     for test_datum in test_data:
-        assert get_loc_from_stop_and_cluster(test_datum[0], test_datum[1]) == test_datum[
+        assert get_loc_from_stop_and_cluster(test_datum[0]) == test_datum[
             2], f'Failed for {test_datum[0]}'

@@ -118,17 +118,14 @@ class GTFS(Source):
         self.upload_stops_clusters_to_db(force=True)
         
         next_3_days = [date.today() + timedelta(days=i) for i in range(3)]
-        stops = self.get_all_stops()
 
-        pbar = tqdm(total=len(next_3_days) * len(stops))
-        pbar.set_description(f'Uploading {self.name} data')
+        stop_times = []
 
         for day in next_3_days:
-            for stop in stops:
-                station = Station(id=stop.id, name=stop.name, lat=stop.lat, lon=stop.lon, ids=stop.id, times_count=stop.times_count, source=self.name)
-                stop_times = self.get_sqlite_stop_times(station, '', '', day, 0, limit=False)
-                self.upload_trip_stop_times_to_postgres(stop_times)
-                pbar.update(1)
+            stop_times.extend(self.get_sqlite_stop_times('', '', day))
+        
+        for stop_time in tqdm(stop_times, desc=f'Uploading {self.name} data'):
+            self.upload_trip_stop_time_to_postgres(stop_time)
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
@@ -177,7 +174,7 @@ class GTFS(Source):
             new_stations.append(station)
 
             for stop in cluster.stops:
-                platform = get_loc_from_stop_and_cluster(stop.name, cluster.name)
+                platform = get_loc_from_stop_and_cluster(stop.name)
                 platform = platform if platform != '' else None
                 id_ = self.name + '_' + stop.id if self.name != 'treni' else stop.id
                 stop = Stop(id=id_, platform=platform, lat=stop.lat, lon=stop.lon, station_id=cluster.name, source=self.name)
@@ -193,8 +190,7 @@ class GTFS(Source):
         self.sync_stations_db(new_stations, new_stops)
         return True
 
-    def get_sqlite_stop_times(self, stop: Station, line, start_time, day,
-                       offset_times, count=False, limit=True) -> list[TripStopTime]:
+    def get_sqlite_stop_times(self, line, start_time, day) -> list[TripStopTime]:
         cur = self.con.cursor()
 
         route_name, route_id = line.split('-') if '-' in line else (line, '')
@@ -206,9 +202,6 @@ class GTFS(Source):
             route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day)
-
-        stop_ids = stop.ids.split(',')
-        stop_ids = list(map(int, stop_ids))
 
         day_start = datetime.combine(day, time(0))
 
@@ -227,25 +220,19 @@ class GTFS(Source):
             else:
                 start_dt = datetime.combine(day, time(6))
 
-        if count:
-            select_elements = "r.route_short_name     as line"
-            button_elements = "GROUP BY route_short_name ORDER BY count(*) DESC"
-        else:
-            select_elements = """
-                dep.departure_time      as dep_time,
-                r.route_short_name     as line,
-                dep.stop_headsign        as headsign,
-                t.trip_id              as trip_id,
-                dep.stop_sequence       as stop_sequence,
-                s.stop_name          as dep_stop_name,
-                CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-                CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
-                orig_stop_id           as orig_stop_id,
-                CAST(SUBSTR(orig_dep_time, 1, 2) AS INTEGER) % 24 orig_dep_hour_normalized,
-                CAST(SUBSTR(orig_dep_time, 4, 2) AS INTEGER) orig_dep_minute"""
-            button_elements = """
-                ORDER BY dep_hour_normalized, dep_minute, r.route_short_name, t.trip_headsign, dep.stop_sequence
-                LIMIT ? OFFSET ?"""
+        select_elements = """
+            dep.departure_time      as dep_time,
+            r.route_short_name     as line,
+            dep.stop_headsign        as headsign,
+            t.trip_id              as trip_id,
+            dep.stop_sequence       as stop_sequence,
+            s.stop_name          as dep_stop_name,
+            CAST(SUBSTR(dep.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
+            CAST(SUBSTR(dep.departure_time, 4, 2) AS INTEGER) dep_minute,
+            orig_stop_id           as orig_stop_id,
+            CAST(SUBSTR(orig_dep_time, 1, 2) AS INTEGER) % 24 orig_dep_hour_normalized,
+            CAST(SUBSTR(orig_dep_time, 4, 2) AS INTEGER) orig_dep_minute,
+            dep.stop_id as dep_stop_id"""
 
         query = f"""
                 SELECT {select_elements}
@@ -258,16 +245,14 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE dep.stop_id in ({','.join(['?'] * len(stop_ids))})
-                  AND ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
+                WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
                   AND dep.departure_time <= ?) 
                   {or_other_service})
                   AND dep.pickup_type = 0
                   {route}
-                {button_elements}
                 """
 
-        params = (*stop_ids, *today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*today_service_ids, start_dt.strftime('%H:%M'), '23:59')
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
@@ -277,24 +262,18 @@ class GTFS(Source):
         if line != '':
             params += (line,)
 
-        if not count:
-            limit = self.LIMIT if limit else 100000
-            params += (limit, offset_times)
-
         results = cur.execute(query, params).fetchall()
-
-        if count:
-            return [line[0] for line in cur.execute(query, params).fetchall()]
 
         stop_times = []
         for result in results:
-            location = get_loc_from_stop_and_cluster(result[5], stop.name)
+            location = get_loc_from_stop_and_cluster(result[5])
             dep_time = time(result[6], result[7])
             dep_dt = datetime.combine(day, dep_time)
             orig_dep_time = time(result[9], result[10])
             orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)
             headsign = result[2] if result[2] else ''
-            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, headsign, result[3], result[1], dep_dt, orig_dep_date, result[2])
+            stop = Station(id=result[11])
+            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, headsign, result[3], result[1], dep_dt, orig_dep_date, headsign)
             stop_times.append(stop_time)
 
         return stop_times
@@ -379,7 +358,7 @@ class GTFS(Source):
 
         for result in results:
             stop = Station(id=result['sc_id'], name=result['sc_name'], ids=result['sp_id'])
-            location = get_loc_from_stop_and_cluster(result['sp_name'], stop.name)
+            location = get_loc_from_stop_and_cluster(result['sp_name'])
             dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
             stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
                                      result['route_name'])
