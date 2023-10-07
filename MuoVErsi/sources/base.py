@@ -481,9 +481,6 @@ class Source:
     def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
         raise NotImplementedError
 
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
-        raise NotImplementedError
-
     def get_source_stations(self) -> list[Station]:
         return self.session.scalars(select(Station).filter_by(source=self.name)).all()
     
@@ -513,6 +510,30 @@ class Source:
                                         sched_dep_dt=stop_time.dep_time, platform=stop_time.platform)
             self.session.add(new_stop_time)
             self.session.commit()
+
+    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
+        query = select(StopTime, Trip, Stop) \
+            .join(StopTime.trip) \
+            .join(StopTime.stop) \
+            .filter(
+            and_(
+                Trip.number == trip_id,
+                Trip.orig_dep_date == day.isoformat()
+            )) \
+            .order_by(StopTime.sched_dep_dt)
+
+        results = self.session.execute(query)
+
+        stop_times = []
+        for result in results:
+            stop_time = TripStopTime(result.Stop, result.Trip.orig_id, result.StopTime.sched_dep_dt,
+                                           None, 0,
+                                           result.StopTime.platform, result.Trip.dest_text, trip_id,
+                                           result.Trip.route_name,
+                                           result.StopTime.sched_arr_dt, result.Trip.orig_dep_date)
+            stop_times.append(stop_time)
+
+        return stop_times
 
 
 class Trip(Base):

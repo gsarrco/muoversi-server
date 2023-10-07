@@ -419,14 +419,14 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not all_stops:
         dep_stop_ids = stop_times_filter.dep_stop_ids.split(',')
         try:
-            dep_stop_index = next(i for i, v in enumerate(results) if str(v.stop.ids) in dep_stop_ids)
+            dep_stop_index = next(i for i, v in enumerate(results) if v.station.id in dep_stop_ids)
         except StopIteration:
             logger.warning('No departure stop found')
         if arr_cluster_name:
             arr_stop_ids = stop_times_filter.arr_stop_ids.split(',')
             try:
                 arr_stop_index = dep_stop_index + next(
-                    i for i, v in enumerate(results[dep_stop_index:]) if str(v.stop.ids) in arr_stop_ids)
+                    i for i, v in enumerate(results[dep_stop_index:]) if str(v.station.id) in arr_stop_ids)
             except StopIteration:
                 logger.warning('No arrival stop found')
 
@@ -440,14 +440,14 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         dep_time = result.dep_time.strftime('%H:%M') if result.dep_time else ''
 
         if are_dep_and_arr_times_equal:
-            text += f'\n<b>{arr_time}</b> {result.stop.name}'
+            text += f'\n<b>{arr_time}</b> {result.station.station.name}'
         else:
             if i == 0:
-                text += f'\n{result.stop.name} <b>{dep_time}</b>'
+                text += f'\n{result.station.station.name} <b>{dep_time}</b>'
             elif i == arr_stop_index:
-                text += f'\n<b>{arr_time}</b> {result.stop.name}'
+                text += f'\n<b>{arr_time}</b> {result.station.station.name}'
             else:
-                text += f'\n<b>{arr_time}</b> {result.stop.name} <b>{dep_time}</b>'
+                text += f'\n<b>{arr_time}</b> {result.station.station.name} <b>{dep_time}</b>'
 
         if result.platform:
             text += f' ({platform_text} {result.platform})'
@@ -504,8 +504,9 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     inline_buttons = []
 
     for stop in stops:
-        stop_id = stop.stop.name
-        stop_name = stop.stop.name
+        station = stop.station
+        stop_id = station.id
+        stop_name = station.name
         inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])
 
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(inline_buttons))

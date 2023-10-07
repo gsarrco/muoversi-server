@@ -328,38 +328,3 @@ class GTFS(Source):
         self.service_ids[today_ymd] = service_ids
 
         return service_ids
-
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
-        cur = self.con.cursor()
-        cur.row_factory = sqlite3.Row
-        results = cur.execute('''
-            SELECT
-                sc.id as sc_id,
-                sc.name as sc_name,
-                sp.stop_id as sp_id,
-                sp.stop_name as sp_name,
-                CAST(SUBSTR(st.departure_time, 1, 2) AS INTEGER) % 24 dep_hour_normalized,
-                CAST(SUBSTR(st.departure_time, 4, 2) AS INTEGER) dep_minute,
-                r.route_short_name as route_name    
-            FROM stop_times st
-                     INNER JOIN stops sp ON sp.stop_id = st.stop_id
-                     LEFT JOIN stops_stops_clusters ssc on sp.stop_id = ssc.stop_id
-                     LEFT JOIN stops_clusters sc on ssc.stop_cluster_id = sc.id
-                     LEFT JOIN trips t on st.trip_id = t.trip_id
-                     LEFT JOIN routes r on t.route_id = r.route_id
-            WHERE st.trip_id = ?
-            ORDER BY st.stop_sequence
-        ''', (trip_id,)).fetchall()
-
-        stop_times = []
-        headsign = results[-1]['sc_name']
-
-        for result in results:
-            stop = Station(id=result['sc_id'], name=result['sc_name'], ids=result['sp_id'])
-            location = get_loc_from_stop_and_cluster(result['sp_name'])
-            dep_time = datetime.combine(day, time(result['dep_hour_normalized'], result['dep_minute']))
-            stop_time = BaseStopTime(stop, dep_time, dep_time, None, 0, location, headsign, trip_id,
-                                     result['route_name'])
-            stop_times.append(stop_time)
-
-        return stop_times

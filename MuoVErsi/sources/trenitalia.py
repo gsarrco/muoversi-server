@@ -194,27 +194,3 @@ class Trenitalia(Source):
             stop_times.append(stop_time)
 
         return stop_times
-
-    def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
-        query = select(StopTime, Trip, Station) \
-            .join(StopTime.train) \
-            .join(StopTime.stop) \
-            .filter(
-            and_(
-                Trip.number == trip_id,
-                Trip.orig_dep_date == day.isoformat()
-            )) \
-            .order_by(StopTime.sched_dep_dt)
-
-        results = self.session.execute(query)
-
-        stop_times = []
-        for result in results:
-            stop_time = TripStopTime(result.Station, result.Trip.orig_id, result.StopTime.sched_dep_dt,
-                                           None, 0,
-                                           result.StopTime.platform, result.Trip.dest_text, trip_id,
-                                           result.Trip.route_name,
-                                           result.StopTime.sched_arr_dt, result.Trip.orig_dep_date)
-            stop_times.append(stop_time)
-
-        return stop_times
