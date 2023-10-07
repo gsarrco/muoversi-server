@@ -332,9 +332,9 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     else:
         db_file = thismodule.sources[context.user_data['transport_type']]
 
-    stop = db_file.get_stop_from_ref(stop_ref)
-    cluster_name = stop.name
-    stop_ids = stop.ids
+    station = db_file.get_stop_from_ref(stop_ref)
+    cluster_name = station.name
+    stop_ids = ','.join([stop.id for stop in station.stops])
     saved_dep_stop_ids = context.user_data.get('dep_stop_ids')
     saved_dep_cluster_name = context.user_data.get('dep_cluster_name')
 
