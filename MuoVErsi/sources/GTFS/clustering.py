@@ -51,7 +51,7 @@ def compute_centroid(stops):
     return centroid
 
 
-def get_loc_from_stop_and_cluster(stop_name, cluster_name):
+def get_loc_from_stop_and_cluster(stop_name):
     stop_name = stop_name.replace('"', ' ')
     stop_name = stop_name.replace('  ', ' ').rstrip()
     match = re.match(r'.*? ((?:CORSIA )?[A-Z][0-9]?)$', stop_name)
