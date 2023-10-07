@@ -116,13 +116,20 @@ class GTFS(Source):
     
     def save_data(self):
         self.upload_stops_clusters_to_db(force=True)
-        
-        next_3_days = [date.today() + timedelta(days=i) for i in range(3)]
+
+        now = datetime.now()
+
+        # define parameters for get_sqlite_stop_times
+        all_params = (
+            (now.date(), now.time(), time(23, 59)),
+            (now.date() + timedelta(days=1), time(0, 0), time(23, 59)),
+            (now.date() + timedelta(days=2), time(0, 0), now.time())
+        )
 
         stop_times = []
 
-        for day in next_3_days:
-            stop_times.extend(self.get_sqlite_stop_times('', '', day))
+        for params in all_params:
+            stop_times += self.get_sqlite_stop_times(*params)
         
         for stop_time in tqdm(stop_times, desc=f'Uploading {self.name} data'):
             self.upload_trip_stop_time_to_postgres(stop_time)
@@ -190,25 +197,13 @@ class GTFS(Source):
         self.sync_stations_db(new_stations, new_stops)
         return True
 
-    def get_sqlite_stop_times(self, line, start_time, day) -> list[TripStopTime]:
+    def get_sqlite_stop_times(self, day: date, start_time: time, end_time: time) -> list[TripStopTime]:
         cur = self.con.cursor()
-
-        route_name, route_id = line.split('-') if '-' in line else (line, '')
-        if route_id == '':
-            line = route_name
-            route = 'AND route_short_name = ?' if line != '' else ''
-        else:
-            line = route_id
-            route = 'AND r.route_id = ?'
 
         today_service_ids = self.get_active_service_ids(day)
 
-        day_start = datetime.combine(day, time(0))
-
-        if start_time == '':
-            start_dt = day_start
-        else:
-            start_dt = max(day_start, datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE))
+        start_dt = datetime.combine(day, start_time)
+        end_dt = datetime.combine(day, end_time)
 
         or_other_service = ''
         yesterday_service_ids = []
@@ -249,18 +244,14 @@ class GTFS(Source):
                   AND dep.departure_time <= ?) 
                   {or_other_service})
                   AND dep.pickup_type = 0
-                  {route}
                 """
 
-        params = (*today_service_ids, start_dt.strftime('%H:%M'), '23:59')
+        params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
 
         if or_other_service != '':
             # in the string add 24 hours to start_dt time
             start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
             params += (start_time_25, *yesterday_service_ids)
-
-        if line != '':
-            params += (line,)
 
         results = cur.execute(query, params).fetchall()
 
