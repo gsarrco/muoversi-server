@@ -227,7 +227,8 @@ class GTFS(Source):
             orig_stop_id           as orig_stop_id,
             CAST(SUBSTR(orig_dep_time, 1, 2) AS INTEGER) % 24 orig_dep_hour_normalized,
             CAST(SUBSTR(orig_dep_time, 4, 2) AS INTEGER) orig_dep_minute,
-            dep.stop_id as dep_stop_id"""
+            dep.stop_id as dep_stop_id,
+            dep.pickup_type as dep_pickup_type"""
 
         query = f"""
                 SELECT {select_elements}
@@ -243,7 +244,6 @@ class GTFS(Source):
                 WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
                   AND dep.departure_time <= ?) 
                   {or_other_service})
-                  AND dep.pickup_type = 0
                 """
 
         params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
@@ -260,11 +260,18 @@ class GTFS(Source):
             location = get_loc_from_stop_and_cluster(result[5])
             dep_time = time(result[6], result[7])
             dep_dt = datetime.combine(day, dep_time)
+            arr_dt = dep_dt
             orig_dep_time = time(result[9], result[10])
             orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)
             headsign = result[2] if result[2] else ''
             stop = Station(id=result[11])
-            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, headsign, result[3], result[1], dep_dt, orig_dep_date, headsign)
+
+            if result[4] == 1:
+                arr_dt = None
+            if result[12] == 1:
+                dep_dt = None
+
+            stop_time = TripStopTime(stop, result[8], dep_dt, result[4], 0, location, headsign, result[3], result[1], arr_dt, orig_dep_date, headsign)
             stop_times.append(stop_time)
 
         return stop_times
