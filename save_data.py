@@ -30,7 +30,10 @@ def run():
     ]
 
     for source in sources:
-        source.save_data()
+        try:
+            source.save_data()
+        except KeyboardInterrupt:
+            session.rollback()
 
 
 if __name__ == '__main__':
