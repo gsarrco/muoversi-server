@@ -51,7 +51,7 @@ class Trenitalia(Source):
 
         tqdm_stations = tqdm(enumerate(stations), total=len(stations), desc=f'Uploading {self.name} data')
 
-        for i, station in enumerate(stations):
+        for i, station in tqdm_stations:
             tqdm_stations.set_description(f'Processing station {station.name}')
             stop_times = self.get_stop_times_from_station(station)
             total_times_count += len(stop_times)
