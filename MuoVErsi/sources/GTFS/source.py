@@ -126,13 +126,10 @@ class GTFS(Source):
             (now.date() + timedelta(days=2), time(0, 0), now.time())
         )
 
-        stop_times = []
-
-        for params in all_params:
-            stop_times += self.get_sqlite_stop_times(*params)
-        
-        for stop_time in tqdm(stop_times, desc=f'Uploading {self.name} data'):
-            self.upload_trip_stop_time_to_postgres(stop_time)
+        for params in tqdm(all_params, desc = f'Uploading {self.name} days'):
+            stop_times = self.get_sqlite_stop_times(*params)
+            for stop_time in tqdm(stop_times, desc = 'Uploading stop_times'):
+                self.upload_trip_stop_time_to_postgres(stop_time)
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
