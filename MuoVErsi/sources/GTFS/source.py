@@ -126,13 +126,17 @@ class GTFS(Source):
             (now.date() + timedelta(days=2), time(0, 0), now.time())
         )
 
-        stop_times = []
+        limit = 30000
 
         for params in all_params:
-            stop_times += self.get_sqlite_stop_times(*params)
-        
-        for stop_time in tqdm(stop_times, desc=f'Uploading {self.name} data'):
-            self.upload_trip_stop_time_to_postgres(stop_time)
+            offset = 0
+            while True:
+                stop_times = self.get_sqlite_stop_times(*params, limit, offset)
+                for stop_time in tqdm(stop_times, desc = f'Uploading {self.name} stop_times of day {params[0]}'):
+                    self.upload_trip_stop_time_to_postgres(stop_time)
+                if len(stop_times) < limit:
+                    break
+                offset += limit
 
     def upload_stops_clusters_to_db(self, force=False) -> bool:
         cur = self.con.cursor()
@@ -142,7 +146,6 @@ class GTFS(Source):
             if cur.fetchone():
                 return False
 
-        logger.info('Uploading stops clusters to db')
         cur.execute('DROP TABLE IF EXISTS stops_clusters')
         cur.execute('''
             CREATE TABLE stops_clusters (
@@ -197,7 +200,7 @@ class GTFS(Source):
         self.sync_stations_db(new_stations, new_stops)
         return True
 
-    def get_sqlite_stop_times(self, day: date, start_time: time, end_time: time) -> list[TripStopTime]:
+    def get_sqlite_stop_times(self, day: date, start_time: time, end_time: time, limit: int, offset: int) -> list[TripStopTime]:
         cur = self.con.cursor()
 
         today_service_ids = self.get_active_service_ids(day)
@@ -244,6 +247,7 @@ class GTFS(Source):
                 WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
                   AND dep.departure_time <= ?) 
                   {or_other_service})
+                LIMIT ? OFFSET ?
                 """
 
         params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
@@ -252,6 +256,8 @@ class GTFS(Source):
             # in the string add 24 hours to start_dt time
             start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
             params += (start_time_25, *yesterday_service_ids)
+
+        params += (limit, offset)
 
         results = cur.execute(query, params).fetchall()
 
