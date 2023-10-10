@@ -473,12 +473,12 @@ async def search_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     _ = trans.gettext
 
     try:
-        lines = db_file.search_lines(update.message.text, context=context)
+        lines = db_file.search_lines(update.message.text)
     except NotImplementedError:
         await update.message.reply_text(_('not_implemented'), disable_notification=True)
         return ConversationHandler.END
 
-    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}-{line[3]}')] for line in lines]
+    keyboard = [[InlineKeyboardButton(line[2], callback_data=f'L{line[0]}/{line[1]}')] for line in lines]
     inline_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(_('choose_line'), reply_markup=inline_markup, disable_notification=True)
@@ -504,7 +504,7 @@ async def show_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     inline_buttons = []
 
     for stop in stops:
-        station = stop.station
+        station = stop.station.station
         stop_id = station.id
         stop_name = station.name
         inline_buttons.append([InlineKeyboardButton(stop_name, callback_data=f'S{stop_id}/{line}')])

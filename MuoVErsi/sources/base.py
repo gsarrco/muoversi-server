@@ -478,7 +478,7 @@ class Source:
         else:
             return None
 
-    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
+    def search_lines(self, name):
         raise NotImplementedError
 
     def get_source_stations(self) -> list[Station]:
@@ -512,6 +512,7 @@ class Source:
             self.session.commit()
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
+        trip_id = int(trip_id)
         query = select(StopTime, Trip, Stop) \
             .join(StopTime.trip) \
             .join(StopTime.stop) \
@@ -522,7 +523,7 @@ class Source:
             )) \
             .order_by(StopTime.sched_dep_dt)
 
-        results = self.session.execute(query)
+        results = self.session.execute(query).all()
 
         stop_times = []
         for result in results:
