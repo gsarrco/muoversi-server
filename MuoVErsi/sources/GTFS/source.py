@@ -19,6 +19,8 @@ from MuoVErsi.sources.base import Source, BaseStopTime, Route, Direction, Statio
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
+from sqlalchemy import or_, select, func
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -282,21 +284,19 @@ class GTFS(Source):
 
         return stop_times
 
-    def search_lines(self, name, context: ContextTypes.DEFAULT_TYPE | None = None):
+    def search_lines(self, name):
         today = date.today()
-        service_ids = self.get_active_service_ids(today)
+        from MuoVErsi.sources.base import Trip
+        trips = self.session.execute(
+            select(func.max(Trip.number), Trip.dest_text)\
+            .filter(Trip.orig_dep_date == today)\
+            .filter(Trip.route_name == name)\
+            .group_by(Trip.dest_text)\
+            .order_by(func.count(Trip.id).desc()))\
+            .all()
+        
+        results = [(trip[0], name, trip[1]) for trip in trips]
 
-        cur = self.con.cursor()
-        query = """SELECT trips.trip_id, route_short_name, route_long_name, routes.route_id
-                            FROM stop_times
-                                INNER JOIN trips ON stop_times.trip_id = trips.trip_id
-                                INNER JOIN routes ON trips.route_id = routes.route_id
-                            WHERE route_short_name = ?
-                                AND trips.service_id in ({seq})
-                            GROUP BY routes.route_id ORDER BY count(stop_times.id) DESC;""".format(
-            seq=','.join(['?'] * len(service_ids)))
-
-        results = cur.execute(query, (name, *service_ids)).fetchall()
         return results
 
     def get_active_service_ids(self, day: date) -> tuple:
