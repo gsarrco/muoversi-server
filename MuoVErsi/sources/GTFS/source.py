@@ -55,11 +55,13 @@ class GTFS(Source):
             self.download_and_convert_file()
         else:
             gtfs_version = get_latest_gtfs_version(transport_type)
+            today = date.today()
 
             for try_version in range(gtfs_version, 0, -1):
                 self.gtfs_version = try_version
                 self.download_and_convert_file()
-                if self.get_calendar_services():
+                service_start_date = self.get_service_start_date()
+                if service_start_date and service_start_date <= today:
                     break
 
         self.con = self.connect_to_database()
@@ -86,16 +88,21 @@ class GTFS(Source):
 
         subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
-    def get_calendar_services(self) -> list[str]:
+    def get_service_start_date(self) -> date:
         today_ymd = datetime.today().strftime('%Y%m%d')
         weekday = datetime.today().strftime('%A').lower()
         with self.connect_to_database() as con:
+            con.row_factory = sqlite3.Row
             cur = con.cursor()
             services = cur.execute(
-                f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
+                f'SELECT start_date FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ? ORDER BY start_date ASC LIMIT 1',
                 (today_ymd, today_ymd))
-
-            return list(set([service[0] for service in services.fetchall()]))
+            
+            if not services:
+                return None
+            
+            service = services.fetchone()
+            return datetime.strptime(str(service['start_date']), '%Y%m%d').date()
 
     def connect_to_database(self) -> Connection:
         return sqlite3.connect(self.file_path('db'))
