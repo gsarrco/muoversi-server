@@ -502,11 +502,8 @@ class Source:
         stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_id).first()
 
         if stop_time_db:
-            if stop_time_db.platform != stop_time.platform or stop_time_db.sched_arr_dt != stop_time.arr_time or \
-                    stop_time_db.sched_dep_dt != stop_time.dep_time:
+            if stop_time_db.platform != stop_time.platform:
                 stop_time_db.platform = stop_time.platform
-                stop_time_db.sched_arr_dt = stop_time.arr_time
-                stop_time_db.sched_dep_dt = stop_time.dep_time
                 self.session.commit()
         else:
             new_stop_time = StopTime(trip_id=train.id, stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
