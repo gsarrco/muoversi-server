@@ -4,6 +4,7 @@ import math
 import os
 from datetime import datetime, timedelta, date
 from urllib.parse import quote
+from pytz import timezone
 
 import requests
 from sqlalchemy import and_, select
@@ -15,6 +16,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+rome_tz = timezone('Europe/Rome')
 
 
 class TrenitaliaRoute(Route):
@@ -64,7 +67,7 @@ class Trenitalia(Source):
         self.sync_stations_db(stations)
 
     def get_stop_times_from_station(self, station) -> list[TripStopTime]:
-        now = datetime.now()
+        now = datetime.now(rome_tz)
         departures = self.loop_get_times(10000, station, now, type='partenze')
         arrivals = self.loop_get_times(10000, station, now, type='arrivi')
 
@@ -134,9 +137,11 @@ class Trenitalia(Source):
 
     def get_stop_times_from_start_dt(self, type, stop: Station, start_dt: datetime, train_ids: list[int] | None) -> \
             list[TripStopTime]:
-        is_dst = start_dt.astimezone().dst() != timedelta(0)
-        date = (start_dt - timedelta(hours=(1 if is_dst else 0))).strftime("%a %b %d %Y %H:%M:%S GMT+0100")
-        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.id}/{quote(date)}'
+        num_offset = start_dt.strftime('%z')
+        sc_num_offset = f'{num_offset[:3]}:{num_offset[3:]}'
+        url_dt = start_dt.strftime('%a %b %d %Y %H:%M:%S GMT') + f'{num_offset} (GMT{sc_num_offset})'
+        url_dt = url_dt.replace(' ', '%20')
+        url = f'http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/{type}/{stop.id}/{url_dt}'
         r = requests.get(url)
         if r.status_code != 200:
             return []
@@ -153,7 +158,7 @@ class Trenitalia(Source):
                     continue
 
             try:
-                dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000) if departure[
+                dep_time = datetime.fromtimestamp(departure['orarioPartenza'] / 1000, tz=rome_tz) if departure[
                     'orarioPartenza'] else None
             except ValueError:
                 dep_time = None
@@ -163,7 +168,7 @@ class Trenitalia(Source):
                     continue
 
             try:
-                arr_time = datetime.fromtimestamp(departure['orarioArrivo'] / 1000) if departure[
+                arr_time = datetime.fromtimestamp(departure['orarioArrivo'] / 1000, tz=rome_tz) if departure[
                     'orarioArrivo'] else None
             except ValueError:
                 arr_time = None
@@ -183,7 +188,7 @@ class Trenitalia(Source):
                 if departure[f'binarioEffettivo{type_text}Descrizione'] != '':
                     platform = departure[f'binarioEffettivo{type_text}Descrizione']
 
-            orig_dep_date = datetime.fromtimestamp(departure['dataPartenzaTreno'] / 1000).date() if departure[
+            orig_dep_date = datetime.fromtimestamp(departure['dataPartenzaTreno'] / 1000, tz=rome_tz).date() if departure[
                 'dataPartenzaTreno'] else None
             origin_id = departure['codOrigine']
             destination = departure.get('destinazione')
