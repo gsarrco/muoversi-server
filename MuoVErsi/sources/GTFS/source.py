@@ -57,10 +57,12 @@ class GTFS(Source):
 
         fin_version = gtfs_versions_range[1] if gtfs_versions_range else 0
 
+        ref_dt = datetime.today()
+
         for try_version in range(init_version, fin_version, -1):
             self.gtfs_version = try_version
             self.download_and_convert_file()
-            if self.get_calendar_services():
+            if self.get_calendar_services(ref_dt):
                 break
 
         self.con = self.connect_to_database()
@@ -87,9 +89,9 @@ class GTFS(Source):
 
         subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
 
-    def get_calendar_services(self) -> list[str]:
-        today_ymd = datetime.today().strftime('%Y%m%d')
-        weekday = datetime.today().strftime('%A').lower()
+    def get_calendar_services(self, ref_dt) -> list[str]:
+        today_ymd = ref_dt.strftime('%Y%m%d')
+        weekday = ref_dt.strftime('%A').lower()
         with self.connect_to_database() as con:
             cur = con.cursor()
             services = cur.execute(
