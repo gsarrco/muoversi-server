@@ -223,15 +223,27 @@ class GTFS(Source):
         start_dt = datetime.combine(day, start_time)
         end_dt = datetime.combine(day, end_time)
 
-        or_other_service = ''
+        today_service = f"(t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? AND dep.departure_time <= ?)"
+
+        if hasattr(self, 'next_service_start_date'):
+            if day >= self.next_service_start_date:
+                today_service = ''
+
+        yesterday_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
             yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+                yesterday_service = f'(dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
             else:
                 start_dt = datetime.combine(day, time(6))
+
+        if yesterday_service == '' and today_service == '':
+            return []
+
+        if yesterday_service != '' and today_service != '':
+            today_service += ' OR '
 
         select_elements = """
             dep.departure_time      as dep_time,
@@ -259,15 +271,15 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
-                  AND dep.departure_time <= ?) 
-                  {or_other_service})
+                WHERE ({today_service} {yesterday_service})
                 LIMIT ? OFFSET ?
                 """
+        params = ()
 
-        params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
+        if today_service != '':
+            params += (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
 
-        if or_other_service != '':
+        if yesterday_service != '':
             # in the string add 24 hours to start_dt time
             start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
             params += (start_time_25, *yesterday_service_ids)
