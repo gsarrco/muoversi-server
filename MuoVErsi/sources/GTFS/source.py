@@ -44,61 +44,74 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, emoji, session, typesense, gtfs_version=None, location='', dev=False):
+    def __init__(self, transport_type, emoji, session, typesense, gtfs_versions_range: tuple[int] = None, location='', dev=False, ref_dt: datetime = None):
         super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
         self.service_ids = {}
 
-        if gtfs_version:
-            self.gtfs_version = gtfs_version
-            self.download_and_convert_file()
+        if gtfs_versions_range:
+            init_version = gtfs_versions_range[0]
         else:
-            gtfs_version = get_latest_gtfs_version(transport_type)
+            init_version = get_latest_gtfs_version(transport_type)
 
-            for try_version in range(gtfs_version, 0, -1):
+        fin_version = gtfs_versions_range[1] if gtfs_versions_range else 0
+
+        if not ref_dt:
+            ref_dt = datetime.today()
+
+        for try_version in range(init_version, fin_version-1, -1):
+            self.download_and_convert_file(try_version)
+            service_start_date = self.get_service_start_date(ref_dt, try_version)
+            if service_start_date and service_start_date <= ref_dt.date():
                 self.gtfs_version = try_version
-                self.download_and_convert_file()
-                if self.get_calendar_services():
-                    break
+                break
 
-        self.con = self.connect_to_database()
+            self.next_service_start_date = service_start_date
+
+        if not hasattr(self, 'gtfs_version'):
+            raise Exception(f'No valid GTFS version found for {transport_type}')
+
+        self.con = self.connect_to_database(self.gtfs_version)
 
         stops_clusters_uploaded = self.upload_stops_clusters_to_db()
         logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
 
-    def file_path(self, ext):
+    def file_path(self, ext, gtfs_version):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         parent_dir = os.path.abspath(current_dir + f"/../../../{self.location}")
 
-        return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
+        return os.path.join(parent_dir, f'{self.transport_type}_{gtfs_version}.{ext}')
 
-    def download_and_convert_file(self, force=False):
-        if os.path.isfile(self.file_path('db')) and not force:
+    def download_and_convert_file(self, gtfs_version, force=False):
+        if os.path.isfile(self.file_path('db', gtfs_version)) and not force:
             return
 
         url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
-              f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
+              f'{self.transport_type}/actv_{self.transport_type[:3]}_{gtfs_version}.zip'
         ssl._create_default_https_context = ssl._create_unverified_context
-        file_path = self.file_path('zip')
+        file_path = self.file_path('zip', gtfs_version)
         logger.info('Downloading %s to %s', url, file_path)
         urllib.request.urlretrieve(url, file_path)
 
-        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
+        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip', gtfs_version), '--sqlitePath', self.file_path('db', gtfs_version)])
 
-    def get_calendar_services(self) -> list[str]:
-        today_ymd = datetime.today().strftime('%Y%m%d')
-        weekday = datetime.today().strftime('%A').lower()
-        with self.connect_to_database() as con:
+    def get_service_start_date(self, ref_dt, gtfs_version) -> date:
+        weekday = ref_dt.strftime('%A').lower()
+        with self.connect_to_database(gtfs_version) as con:
+            con.row_factory = sqlite3.Row
             cur = con.cursor()
-            services = cur.execute(
-                f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
-                (today_ymd, today_ymd))
+            service = cur.execute(
+                f'SELECT start_date FROM calendar WHERE {weekday} = 1 ORDER BY start_date ASC LIMIT 1'
+            ).fetchone()
+            
+            if not service:
+                return None
+            
+            return datetime.strptime(str(service['start_date']), '%Y%m%d').date()
 
-            return list(set([service[0] for service in services.fetchall()]))
-
-    def connect_to_database(self) -> Connection:
-        return sqlite3.connect(self.file_path('db'))
+    def connect_to_database(self, gtfs_version) -> Connection:
+        return sqlite3.connect(self.file_path('db', gtfs_version))
 
     def get_all_stops(self) -> list[CStop]:
         cur = self.con.cursor()
@@ -210,15 +223,27 @@ class GTFS(Source):
         start_dt = datetime.combine(day, start_time)
         end_dt = datetime.combine(day, end_time)
 
-        or_other_service = ''
+        today_service = f"(t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? AND dep.departure_time <= ?)"
+
+        if hasattr(self, 'next_service_start_date'):
+            if day >= self.next_service_start_date:
+                today_service = ''
+
+        yesterday_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
             yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+                yesterday_service = f'(dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
             else:
                 start_dt = datetime.combine(day, time(6))
+
+        if yesterday_service == '' and today_service == '':
+            return []
+
+        if yesterday_service != '' and today_service != '':
+            today_service += ' OR '
 
         select_elements = """
             dep.departure_time      as dep_time,
@@ -246,15 +271,15 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
-                  AND dep.departure_time <= ?) 
-                  {or_other_service})
+                WHERE ({today_service} {yesterday_service})
                 LIMIT ? OFFSET ?
                 """
+        params = ()
 
-        params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
+        if today_service != '':
+            params += (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
 
-        if or_other_service != '':
+        if yesterday_service != '':
             # in the string add 24 hours to start_dt time
             start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
             params += (start_time_25, *yesterday_service_ids)

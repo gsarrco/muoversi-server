@@ -1,3 +1,4 @@
+from datetime import date, datetime, time
 import pytest
 
 from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
@@ -5,7 +6,59 @@ from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', '⛴️', None, None, 541, 'tests/data')
+    ref_dt = datetime(2023, 10, 15)
+    return GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
+
+
+def test_valid_gtfs():
+    _558_ref_df = datetime(2023, 10, 7)
+    _558_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_558_ref_df)
+    assert _558_gtfs.gtfs_version == 558, 'invalid gtfs version'
+
+    _557_ref_dt = datetime(2023, 10, 6)
+    _557_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_557_ref_dt)
+    assert _557_gtfs.gtfs_version == 557, 'invalid gtfs version'
+
+
+def test_invalid_gtfs():
+    invalid_ref_df = datetime(2023, 9, 30)
+    with pytest.raises(Exception):
+        GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=invalid_ref_df)
+
+
+def test_zero_stop_times_for_next_service():
+    db_file = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=datetime(2023, 10, 6))
+    next_service_date = date(2023, 10, 7)
+
+    # On the 2023-10-06 we already know that there will a new service starting on 2023-10-07
+    assert db_file.next_service_start_date == next_service_date
+
+    # We should get no stop times for the 2023-10-07 while using the 2023-10-06 service
+    end_time = time(23, 59, 59)
+
+    stop_times = db_file.get_sqlite_stop_times(next_service_date, time(1), end_time, 570, 0)
+    assert len(stop_times) == 569, 'there should be only night routes serviced from 2023-10-06'
+
+    stop_times = db_file.get_sqlite_stop_times(next_service_date, time(8), end_time, 1, 0)
+    assert len(stop_times) == 0, 'there should be no stop times for the 2023-10-07 while using the 2023-10-06 service'
+    
+
+def test_normal_stop_times_for_current_service():
+    ref_dt = datetime(2023, 10, 7)
+    db_file = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
+
+    # On the 2023-10-06 we already know that there will a new service starting on 2023-10-07
+    assert not hasattr(db_file, 'next_service_start_date')
+
+    # We should get no stop times for the 2023-10-07 while using the 2023-10-06 service
+    end_time = time(23, 59, 59)
+
+    stop_times = db_file.get_sqlite_stop_times(ref_dt.date(), time(1), end_time, 570, 0)
+    len_stop_times = len(stop_times)
+    assert len(stop_times) > 569, 'there should be only night routes serviced from 2023-10-06'
+
+    stop_times = db_file.get_sqlite_stop_times(ref_dt.date(), time(8), end_time, 1, 0)
+    assert len(stop_times) > 0, 'there should be normal stop times for the 2023-10-07'
 
 
 @pytest.fixture
