@@ -1,3 +1,4 @@
+from datetime import datetime
 import pytest
 
 from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
@@ -5,8 +6,23 @@ from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', '⛴️', None, None, 541, 'tests/data')
+    ref_dt = datetime(2023, 10, 15)
+    return GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
 
+
+def test_valid_gtfs():
+    _558_ref_df = datetime(2023, 10, 7)
+    _558_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_558_ref_df)
+    assert _558_gtfs.gtfs_version == 558, 'invalid gtfs version'
+
+    _557_ref_dt = datetime(2023, 10, 6)
+    _557_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_557_ref_dt)
+    assert _557_gtfs.gtfs_version == 557, 'invalid gtfs version'
+
+def test_invalid_gtfs():
+    invalid_ref_df = datetime(2023, 9, 30)
+    with pytest.raises(Exception):
+        GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=invalid_ref_df)
 
 @pytest.fixture
 def stops_and_stops_clusters(db_file) -> tuple[list[CStop], list[CCluster]]:
