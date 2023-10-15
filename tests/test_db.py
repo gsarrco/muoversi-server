@@ -5,7 +5,7 @@ from MuoVErsi.sources.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 @pytest.fixture
 def db_file():
-    return GTFS('navigazione', '⛴️', None, None, 541, 'tests/data')
+    return GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data')
 
 
 @pytest.fixture

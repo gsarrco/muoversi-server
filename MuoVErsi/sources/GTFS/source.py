@@ -44,23 +44,24 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, emoji, session, typesense, gtfs_version=None, location='', dev=False):
+    def __init__(self, transport_type, emoji, session, typesense, gtfs_versions_range: tuple[int] = None, location='', dev=False):
         super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
         self.service_ids = {}
 
-        if gtfs_version:
-            self.gtfs_version = gtfs_version
-            self.download_and_convert_file()
+        if gtfs_versions_range:
+            init_version = gtfs_versions_range[0]
         else:
-            gtfs_version = get_latest_gtfs_version(transport_type)
+            init_version = get_latest_gtfs_version(transport_type)
 
-            for try_version in range(gtfs_version, 0, -1):
-                self.gtfs_version = try_version
-                self.download_and_convert_file()
-                if self.get_calendar_services():
-                    break
+        fin_version = gtfs_versions_range[1] if gtfs_versions_range else 0
+
+        for try_version in range(init_version, fin_version, -1):
+            self.gtfs_version = try_version
+            self.download_and_convert_file()
+            if self.get_calendar_services():
+                break
 
         self.con = self.connect_to_database()
 
