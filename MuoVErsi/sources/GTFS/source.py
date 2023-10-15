@@ -62,9 +62,12 @@ class GTFS(Source):
 
         for try_version in range(init_version, fin_version-1, -1):
             self.download_and_convert_file(try_version)
-            if self.get_calendar_services(ref_dt, try_version):
+            service_start_date = self.get_service_start_date(ref_dt, try_version)
+            if service_start_date and service_start_date <= ref_dt.date():
                 self.gtfs_version = try_version
                 break
+
+            self.next_service_start_date = service_start_date
 
         if not hasattr(self, 'gtfs_version'):
             raise Exception(f'No valid GTFS version found for {transport_type}')
@@ -93,16 +96,19 @@ class GTFS(Source):
 
         subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip', gtfs_version), '--sqlitePath', self.file_path('db', gtfs_version)])
 
-    def get_calendar_services(self, ref_dt, gtfs_version) -> list[str]:
-        today_ymd = ref_dt.strftime('%Y%m%d')
+    def get_service_start_date(self, ref_dt, gtfs_version) -> date:
         weekday = ref_dt.strftime('%A').lower()
         with self.connect_to_database(gtfs_version) as con:
+            con.row_factory = sqlite3.Row
             cur = con.cursor()
-            services = cur.execute(
-                f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
-                (today_ymd, today_ymd))
-
-            return list(set([service[0] for service in services.fetchall()]))
+            service = cur.execute(
+                f'SELECT start_date FROM calendar WHERE {weekday} = 1 ORDER BY start_date ASC LIMIT 1'
+            ).fetchone()
+            
+            if not service:
+                return None
+            
+            return datetime.strptime(str(service['start_date']), '%Y%m%d').date()
 
     def connect_to_database(self, gtfs_version) -> Connection:
         return sqlite3.connect(self.file_path('db', gtfs_version))
@@ -217,15 +223,27 @@ class GTFS(Source):
         start_dt = datetime.combine(day, start_time)
         end_dt = datetime.combine(day, end_time)
 
-        or_other_service = ''
+        today_service = f"(t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? AND dep.departure_time <= ?)"
+
+        if hasattr(self, 'next_service_start_date'):
+            if day >= self.next_service_start_date:
+                today_service = ''
+
+        yesterday_service = ''
         yesterday_service_ids = []
         if start_dt.hour < 6:
             yesterday_service_ids = self.get_active_service_ids(day - timedelta(days=1))
             if yesterday_service_ids:
                 or_other_service_ids = ','.join(['?'] * len(yesterday_service_ids))
-                or_other_service = f'OR (dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
+                yesterday_service = f'(dep.departure_time >= ? AND t.service_id in ({or_other_service_ids}))'
             else:
                 start_dt = datetime.combine(day, time(6))
+
+        if yesterday_service == '' and today_service == '':
+            return []
+
+        if yesterday_service != '' and today_service != '':
+            today_service += ' OR '
 
         select_elements = """
             dep.departure_time      as dep_time,
@@ -253,15 +271,15 @@ class GTFS(Source):
                          INNER JOIN trips t ON dep.trip_id = t.trip_id
                          INNER JOIN routes r ON t.route_id = r.route_id
                          INNER JOIN stops s ON dep.stop_id = s.stop_id
-                WHERE ((t.service_id in ({','.join(['?'] * len(today_service_ids))}) AND dep.departure_time >= ? 
-                  AND dep.departure_time <= ?) 
-                  {or_other_service})
+                WHERE ({today_service} {yesterday_service})
                 LIMIT ? OFFSET ?
                 """
+        params = ()
 
-        params = (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
+        if today_service != '':
+            params += (*today_service_ids, start_dt.strftime('%H:%M'), end_dt.strftime('%H:%M'))
 
-        if or_other_service != '':
+        if yesterday_service != '':
             # in the string add 24 hours to start_dt time
             start_time_25 = f'{start_dt.hour + 24:02}:{start_dt.minute:02}'
             params += (start_time_25, *yesterday_service_ids)
