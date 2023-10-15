@@ -605,9 +605,21 @@ async def main() -> None:
             Update.de_json(data=await request.json(), bot=application.bot)
         )
         return Response()
+    
+    async def home(request: Request) -> Response:
+        sources = thismodule.sources
+        text_response = '<html><ul>'
+        for source in sources.values():
+            if hasattr(source, 'gtfs_version'):
+                text_response += f'<li>{source.name}: GTFS v.{source.gtfs_version}</li>'
+            else:
+                text_response += f'<li>{source.name}</li>'
+        text_response += '</ul></html>'
+        return Response(text_response)
 
     starlette_app = Starlette(
         routes=[
+            Route("/", home),
             Route("/tg_bot_webhook", telegram, methods=["POST"])
         ]
     )
