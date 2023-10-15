@@ -59,13 +59,13 @@ class GTFS(Source):
 
         ref_dt = datetime.today()
 
-        for try_version in range(init_version, fin_version, -1):
+        for try_version in range(init_version, fin_version-1, -1):
             self.download_and_convert_file(try_version)
             if self.get_calendar_services(ref_dt, try_version):
                 self.gtfs_version = try_version
                 break
 
-        if not self.gtfs_version:
+        if not hasattr(self, 'gtfs_version'):
             raise Exception(f'No valid GTFS version found for {transport_type}')
 
         self.con = self.connect_to_database(self.gtfs_version)
