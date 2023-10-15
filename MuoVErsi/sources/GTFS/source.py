@@ -67,6 +67,8 @@ class GTFS(Source):
                 self.gtfs_version = try_version
                 break
 
+            self.next_service_start_date = service_start_date
+
         if not hasattr(self, 'gtfs_version'):
             raise Exception(f'No valid GTFS version found for {transport_type}')
 
@@ -95,14 +97,13 @@ class GTFS(Source):
         subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip', gtfs_version), '--sqlitePath', self.file_path('db', gtfs_version)])
 
     def get_service_start_date(self, ref_dt, gtfs_version) -> date:
-        today_ymd = ref_dt.strftime('%Y%m%d')
         weekday = ref_dt.strftime('%A').lower()
         with self.connect_to_database(gtfs_version) as con:
             con.row_factory = sqlite3.Row
             cur = con.cursor()
             service = cur.execute(
-                f'SELECT start_date FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ? ORDER BY start_date ASC LIMIT 1',
-                (today_ymd, today_ymd)).fetchone()
+                f'SELECT start_date FROM calendar WHERE {weekday} = 1 ORDER BY start_date ASC LIMIT 1'
+            ).fetchone()
             
             if not service:
                 return None
