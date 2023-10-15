@@ -60,39 +60,42 @@ class GTFS(Source):
         ref_dt = datetime.today()
 
         for try_version in range(init_version, fin_version, -1):
-            self.gtfs_version = try_version
-            self.download_and_convert_file()
-            if self.get_calendar_services(ref_dt):
+            self.download_and_convert_file(try_version)
+            if self.get_calendar_services(ref_dt, try_version):
+                self.gtfs_version = try_version
                 break
 
-        self.con = self.connect_to_database()
+        if not self.gtfs_version:
+            raise Exception(f'No valid GTFS version found for {transport_type}')
+
+        self.con = self.connect_to_database(self.gtfs_version)
 
         stops_clusters_uploaded = self.upload_stops_clusters_to_db()
         logger.info('%s stops clusters uploaded: %s', self.name, stops_clusters_uploaded)
 
-    def file_path(self, ext):
+    def file_path(self, ext, gtfs_version):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         parent_dir = os.path.abspath(current_dir + f"/../../../{self.location}")
 
-        return os.path.join(parent_dir, f'{self.transport_type}_{self.gtfs_version}.{ext}')
+        return os.path.join(parent_dir, f'{self.transport_type}_{gtfs_version}.{ext}')
 
-    def download_and_convert_file(self, force=False):
-        if os.path.isfile(self.file_path('db')) and not force:
+    def download_and_convert_file(self, gtfs_version, force=False):
+        if os.path.isfile(self.file_path('db', gtfs_version)) and not force:
             return
 
         url = f'https://actv.avmspa.it/sites/default/files/attachments/opendata/' \
-              f'{self.transport_type}/actv_{self.transport_type[:3]}_{self.gtfs_version}.zip'
+              f'{self.transport_type}/actv_{self.transport_type[:3]}_{gtfs_version}.zip'
         ssl._create_default_https_context = ssl._create_unverified_context
-        file_path = self.file_path('zip')
+        file_path = self.file_path('zip', gtfs_version)
         logger.info('Downloading %s to %s', url, file_path)
         urllib.request.urlretrieve(url, file_path)
 
-        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip'), '--sqlitePath', self.file_path('db')])
+        subprocess.run(["gtfs-import", "--gtfsPath", self.file_path('zip', gtfs_version), '--sqlitePath', self.file_path('db', gtfs_version)])
 
-    def get_calendar_services(self, ref_dt) -> list[str]:
+    def get_calendar_services(self, ref_dt, gtfs_version) -> list[str]:
         today_ymd = ref_dt.strftime('%Y%m%d')
         weekday = ref_dt.strftime('%A').lower()
-        with self.connect_to_database() as con:
+        with self.connect_to_database(gtfs_version) as con:
             cur = con.cursor()
             services = cur.execute(
                 f'SELECT service_id FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ?',
@@ -100,8 +103,8 @@ class GTFS(Source):
 
             return list(set([service[0] for service in services.fetchall()]))
 
-    def connect_to_database(self) -> Connection:
-        return sqlite3.connect(self.file_path('db'))
+    def connect_to_database(self, gtfs_version) -> Connection:
+        return sqlite3.connect(self.file_path('db', gtfs_version))
 
     def get_all_stops(self) -> list[CStop]:
         cur = self.con.cursor()
