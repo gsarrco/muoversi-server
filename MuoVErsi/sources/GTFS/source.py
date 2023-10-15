@@ -94,14 +94,13 @@ class GTFS(Source):
         with self.connect_to_database() as con:
             con.row_factory = sqlite3.Row
             cur = con.cursor()
-            services = cur.execute(
+            service = cur.execute(
                 f'SELECT start_date FROM calendar WHERE {weekday} = 1 AND start_date <= ? AND end_date >= ? ORDER BY start_date ASC LIMIT 1',
-                (today_ymd, today_ymd))
+                (today_ymd, today_ymd)).fetchone()
             
-            if not services:
+            if not service:
                 return None
             
-            service = services.fetchone()
             return datetime.strptime(str(service['start_date']), '%Y%m%d').date()
 
     def connect_to_database(self) -> Connection:
