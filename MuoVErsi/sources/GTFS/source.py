@@ -44,7 +44,7 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, emoji, session, typesense, gtfs_versions_range: tuple[int] = None, location='', dev=False):
+    def __init__(self, transport_type, emoji, session, typesense, gtfs_versions_range: tuple[int] = None, location='', dev=False, ref_dt: datetime = None):
         super().__init__(transport_type[:3], emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
@@ -57,7 +57,8 @@ class GTFS(Source):
 
         fin_version = gtfs_versions_range[1] if gtfs_versions_range else 0
 
-        ref_dt = datetime.today()
+        if not ref_dt:
+            ref_dt = datetime.today()
 
         for try_version in range(init_version, fin_version-1, -1):
             self.download_and_convert_file(try_version)
