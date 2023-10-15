@@ -8,7 +8,7 @@ import requests
 import uvicorn
 import yaml
 from babel.dates import format_date
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -608,7 +608,17 @@ async def main() -> None:
     
     async def home(request: Request) -> Response:
         sources = thismodule.sources
-        text_response = '<html><ul>'
+        text_response = '<html>'
+
+        try:
+            sources['treni'].session.execute(text('SELECT 1'))
+        except Exception:
+            return Response(status_code=500)
+        else:
+            text_response += '<p>Postgres connection OK</p>'
+        
+
+        text_response += '<ul>'
         for source in sources.values():
             if hasattr(source, 'gtfs_version'):
                 text_response += f'<li>{source.name}: GTFS v.{source.gtfs_version}</li>'
