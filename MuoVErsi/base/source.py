@@ -393,7 +393,7 @@ class Source:
                 raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
                 arr_time=a_arr_time, orig_dep_date=raw_stop_time.orig_dep_date)
 
-            from MuoVErsi.sources.trenitalia import TrenitaliaRoute
+            from MuoVErsi.trenitalia import TrenitaliaRoute
             route = TrenitaliaRoute(d_stop_time, a_stop_time)
             directions.append(Direction([route]))
 
