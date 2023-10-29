@@ -3,8 +3,8 @@ import logging
 from sqlalchemy.orm import sessionmaker
 
 from MuoVErsi.handlers import engine
-from MuoVErsi.sources.trenitalia import Trenitalia
-from MuoVErsi.sources.GTFS import GTFS
+from MuoVErsi.trenitalia import Trenitalia
+from MuoVErsi.GTFS import GTFS
 from MuoVErsi.typesense import connect_to_typesense
 
 logging.basicConfig(

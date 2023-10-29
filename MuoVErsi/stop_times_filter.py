@@ -5,7 +5,7 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from MuoVErsi.sources.base import Source, Liner, Station
+from MuoVErsi.base import Source, Liner, Station
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
