@@ -1,16 +1,12 @@
 import json
-import logging
 import math
 import os
-from datetime import datetime, timedelta, date
-from urllib.parse import quote
 from pytz import timezone
 
 import requests
-from sqlalchemy import and_, select
 from tqdm import tqdm
 
-from MuoVErsi.sources.base import *
+from MuoVErsi.base import *
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO

@@ -25,9 +25,9 @@ from telegram.ext import (
     filters, CallbackQueryHandler, )
 
 from .persistence import SQLitePersistence
-from .sources.GTFS import GTFS
-from .sources.base import Source
-from .sources.trenitalia import Trenitalia
+from .GTFS import GTFS
+from .base import Source
+from .trenitalia import Trenitalia
 from .stop_times_filter import StopTimesFilter
 from .typesense import connect_to_typesense
 

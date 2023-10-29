@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.orm import sessionmaker
 
-from MuoVErsi.sources.base import Station
+from MuoVErsi.base import Station
 
 # revision identifiers, used by Alembic.
 revision = '6c9ef3a680e3'
