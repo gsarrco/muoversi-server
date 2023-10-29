@@ -12,13 +12,12 @@ from sqlite3 import Connection
 
 import requests
 from bs4 import BeautifulSoup
+from sqlalchemy import select, func
 from tqdm import tqdm
 
-from MuoVErsi.base import Source, Station, Stop, TripStopTime
+from server.base import Source, Station, Stop, TripStopTime
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
-
-from sqlalchemy import select, func
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -310,7 +309,7 @@ class GTFS(Source):
 
     def search_lines(self, name):
         today = date.today()
-        from MuoVErsi.base import Trip
+        from server.base import Trip
         trips = self.session.execute(
             select(func.max(Trip.number), Trip.dest_text)\
             .filter(Trip.orig_dep_date == today)\

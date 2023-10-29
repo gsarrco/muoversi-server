@@ -24,11 +24,11 @@ from telegram.ext import (
     MessageHandler,
     filters, CallbackQueryHandler, )
 
-from .persistence import SQLitePersistence
 from .GTFS import GTFS
 from .base import Source
-from .trenitalia import Trenitalia
+from .persistence import SQLitePersistence
 from .stop_times_filter import StopTimesFilter
+from .trenitalia import Trenitalia
 from .typesense import connect_to_typesense
 
 logging.basicConfig(

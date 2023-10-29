@@ -1,6 +1,6 @@
 import pytest
 
-from MuoVErsi.GTFS.clustering import get_root_from_stop_name, get_loc_from_stop_and_cluster
+from server.GTFS.clustering import get_root_from_stop_name, get_loc_from_stop_and_cluster
 
 
 @pytest.fixture
