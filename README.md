@@ -3,7 +3,7 @@ supports Venice, Italy's public transit system (by using public GTFS files) and 
 Venice (parsed from the Trenitalia api). However, since it can build on any GTFS file, it will be easily extended to
 other cities in the future.
 
-Separated from the core code, there is a Telegram bot that uses the web service to provide a more user-friendly
+Separated from the core code and optional to set up, a Telegram bot uses the web service to provide a more user-friendly
 interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). Also, a mobile app is in the works.
 
 ## Features
