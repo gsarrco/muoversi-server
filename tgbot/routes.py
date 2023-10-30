@@ -8,7 +8,7 @@ from config import config
 
 def get_routes(application):
     async def telegram(request: Request) -> Response:
-        if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['SECRET_TOKEN']:
+        if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['TG_SECRET_TOKEN']:
             return Response(status_code=403)
         await application.update_queue.put(
             Update.de_json(data=await request.json(), bot=application.bot)

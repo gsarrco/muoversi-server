@@ -17,7 +17,7 @@ async def run() -> None:
     routes = server_routes
 
     tgbot_application = None
-    if config['TGBOT']:
+    if config['TG_BOT_ENABLED']:
         from tgbot.handlers import set_up_application
         tgbot_application = await set_up_application()
         from tgbot.routes import get_routes as get_tgbot_routes

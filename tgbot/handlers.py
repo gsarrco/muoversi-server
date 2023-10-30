@@ -21,29 +21,6 @@ from server.base import Source
 from server.sources import sources as defined_sources
 from .persistence import SQLitePersistence
 from .stop_times_filter import StopTimesFilter
-import gettext
-import logging
-import os
-import sys
-from datetime import timedelta, datetime, date
-
-import requests
-from babel.dates import format_date
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, \
-    ReplyKeyboardRemove, Bot
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ConversationHandler,
-    MessageHandler,
-    filters, CallbackQueryHandler, )
-from telegram.ext import ContextTypes
-
-from config import config
-from server.base import Source
-from server.sources import sources as defined_sources
-from .persistence import SQLitePersistence
-from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -82,7 +59,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if config.get('ADMIN_TG_ID') != update.effective_user.id:
+    if config.get('TG_ADMIN_ID') != update.effective_user.id:
         return
 
     persistence: SQLitePersistence = thismodule.persistence
@@ -537,7 +514,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def set_up_application():
     persistence = SQLitePersistence()
-    application = Application.builder().token(config['TOKEN']).persistence(persistence=persistence).build()
+    application = Application.builder().token(config['TG_TOKEN']).persistence(persistence=persistence).build()
     thismodule.sources = defined_sources
     thismodule.persistence = persistence
 
@@ -548,7 +525,7 @@ async def set_up_application():
         trans = gettext.translation('messages', localedir, languages=[lang])
         _ = trans.gettext
         language_code = lang if lang != default_lang else ''
-        r = requests.post(f'https://api.telegram.org/bot{config["TOKEN"]}/setMyCommands', json={
+        r = requests.post(f'https://api.telegram.org/bot{config["TG_TOKEN"]}/setMyCommands', json={
             'commands': [
                 {'command': _('stop'), 'description': _('search_by_stop')},
                 {'command': _('line'), 'description': _('search_by_line')}
@@ -587,10 +564,10 @@ async def set_up_application():
     application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
     bot: Bot = application.bot
-    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
+    webhook_url = config['TG_WEBHOOK_URL'] + '/tg_bot_webhook'
     if config.get('DEV', False):
-        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['SECRET_TOKEN'])
+        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['TG_SECRET_TOKEN'])
     else:
-        await bot.set_webhook(webhook_url, secret_token=config['SECRET_TOKEN'])
+        await bot.set_webhook(webhook_url, secret_token=config['TG_SECRET_TOKEN'])
 
     return application
