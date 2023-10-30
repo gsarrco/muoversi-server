@@ -1,7 +1,8 @@
 from datetime import date, datetime, time
+
 import pytest
 
-from MuoVErsi.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
+from server.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 
 
 @pytest.fixture
