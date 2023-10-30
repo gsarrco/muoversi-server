@@ -3,7 +3,7 @@ import logging
 from sqlalchemy.orm import sessionmaker
 
 from server.GTFS import GTFS
-from server.handlers import engine
+from server.sources import engine
 from server.trenitalia import Trenitalia
 from server.typesense import connect_to_typesense
 

@@ -18,8 +18,31 @@ from telegram.ext import ContextTypes
 
 from config import config
 from server.base import Source
+from server.sources import sources as defined_sources
 from .persistence import SQLitePersistence
-from .routes import get_routes
+from .stop_times_filter import StopTimesFilter
+import gettext
+import logging
+import os
+import sys
+from datetime import timedelta, datetime, date
+
+import requests
+from babel.dates import format_date
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, \
+    ReplyKeyboardRemove, Bot
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ConversationHandler,
+    MessageHandler,
+    filters, CallbackQueryHandler, )
+from telegram.ext import ContextTypes
+
+from config import config
+from server.base import Source
+from server.sources import sources as defined_sources
+from .persistence import SQLitePersistence
 from .stop_times_filter import StopTimesFilter
 
 logging.basicConfig(
@@ -31,7 +54,7 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
 thismodule.sources = {}
-thismodule.persistence = SQLitePersistence()
+thismodule.persistence = None
 
 SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(5)
 
@@ -512,12 +535,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-async def setup(config, sources):
-    DEV = config.get('DEV', False)
-
-    thismodule.sources = sources
-
-    application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
+async def set_up_application():
+    persistence = SQLitePersistence()
+    application = Application.builder().token(config['TOKEN']).persistence(persistence=persistence).build()
+    thismodule.sources = defined_sources
+    thismodule.persistence = persistence
 
     langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]
     default_lang = 'en'
@@ -564,13 +586,11 @@ async def setup(config, sources):
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
-
-    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
     bot: Bot = application.bot
-
-    if DEV:
+    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
+    if config.get('DEV', False):
         await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['SECRET_TOKEN'])
     else:
         await bot.set_webhook(webhook_url, secret_token=config['SECRET_TOKEN'])
 
-    return application, get_routes(application)
+    return application

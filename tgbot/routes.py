@@ -3,7 +3,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 from telegram import Update
 
-from server.handlers import config
+from config import config
 
 
 def get_routes(application):
