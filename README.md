@@ -1,23 +1,36 @@
-MuoVErsi is a Telegram bot for advanced users of Venice, Italy's public transit. You can check it out
-here: [@MuoVErsiBot](https://t.me/MuoVErsiBot).
+MuoVErsi is a web service that parses and serves timetables of buses, trams, trains and waterbusses. As of now, it
+supports Venice, Italy's public transit system (by using public GTFS files) and Trenitalia trains within 100km from
+Venice (parsed from the Trenitalia api). However, since it can build on any GTFS file, it will be easily extended to
+other cities in the future.
 
-It allows you to get departure times for the next buses, trams and vaporetti (waterbusses) from a given stop or
-location, or starting from a specific line. You can then use filters to get the right results and see all the
-stops/times of that specific route.
+Separated from the core code, there is a Telegram bot that uses the web service to provide a more user-friendly
+interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). Also, a mobile app is in the works.
 
-## Infrastructure
+## Features
 
-The bot is written in Python 3 and uses
-the [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) library, both for interacting with
-Telegram bot API and for the http server.
-The program downloads the data from Venice transit agency Actv's GTFS files and stores it in SQLite databases, thanks to
-the
-[gtfs](https://www.npmjs.com/package/gtfs) CLI. New data is checked every time the
-server service restarts, or every night at 4:00 AM with a cronjob.
+MuoVErsi allows you to get departure times from a given stop or location, or starting from a specific line. You can then
+use filters to get the right results and see all the stops/times of that specific route.
 
-When new data arrives, stops are not simply stored in the database, but they are clustered by name and location. This
-way it is easier to search for bus stations with more than one bus stop. For example, "Piazzale Roma" has 15
-different bus stops from the GTFS file, but they are all clustered together.
+When new data is parsed and saved to the database, stops are not simply stored as-is, but they are clustered
+by name and location. This way it is easier to search for bus stations with more than one bus stop. For example,
+"Piazzale Roma" has 15 different bus stops from the GTFS file, but they are all clustered together.
 
-The code is not written specifically for Venice, so it can be easily adapted to other cities that use GTFS files.
+## Installation
 
+### Requirements
+
+- Python 3
+- PostgreSQL for the database
+- [Typesense](https://typesense.org/) for the stop search engine
+- [Telegram bot token](https://core.telegram.org/bots/features#botfather) if you also want to run the bot
+
+### Steps
+
+1. Download the repo and install the dependencies with `pip install -r requirements.txt`.
+2. Fill out the config file `config.example.yaml` and rename it to `config.yaml`. If you don't want to run the Telegram,
+   bot, set `TG_BOT_ENABLED` to `False` and skip the all the variables starting with `TG_`. You won't need the `tgbot`
+   folder.
+3. Run PostgreSQL migrations with `alembic upgrade head`.
+4. Run the server by executing `run.py`. For saving data from the GTFS files and, more importantly, for the parsing and
+   saving of Trenitalia trains, make sure you schedule the execution of `save_data.py` once a day. As of now, also
+   a daily restart of `run.py` is required to set the service calendar to the current day.
