@@ -27,12 +27,12 @@ async def home(request: Request) -> Response:
 
 
 async def search_stations(request: Request) -> Response:
-    query = request.path_params['query']
+    query = request.query_params.get('q', '')
     stations, count = sources['aut'].search_stops(name=query, all_sources=True)
     return JSONResponse([station.as_dict() for station in stations])
 
 
 routes = [
     Route("/", home),
-    Route("/search/stations/{query:str}", search_stations)
+    Route("/search/stations", search_stations)
 ]
