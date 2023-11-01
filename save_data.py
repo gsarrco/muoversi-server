@@ -2,10 +2,10 @@ import logging
 
 from sqlalchemy.orm import sessionmaker
 
-from MuoVErsi.handlers import engine
-from MuoVErsi.sources.trenitalia import Trenitalia
-from MuoVErsi.sources.GTFS import GTFS
-from MuoVErsi.typesense import connect_to_typesense
+from server.GTFS import GTFS
+from server.sources import engine
+from server.trenitalia import Trenitalia
+from server.typesense import connect_to_typesense
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO

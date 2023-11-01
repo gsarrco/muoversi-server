@@ -1,13 +1,14 @@
-TOKEN:
-WEBHOOK_URL:
-SECRET_TOKEN:
+TG_BOT_ENABLED: # True or False (if True, the bot will be used)
+TG_TOKEN: # required if TG_BOT_ENABLED is True
+TG_WEBHOOK_URL: # required if TG_BOT_ENABLED is True
+TG_SECRET_TOKEN: # required if TG_BOT_ENABLED is True
 DEV: # True or False
 PGUSER:
 PGPASSWORD:
 PGPORT:
 PGHOST:
 PGDATABASE:
-ADMIN_TG_ID: # Telegram user ID of the admin
+TG_ADMIN_ID: # Telegram user ID of the admin, required if TG_BOT_ENABLED is True
 SSL_KEYFILE: # Path to the SSL key file
 SSL_CERTFILE: # Path to the SSL certificate file
 TYPESENSE_API_KEY:

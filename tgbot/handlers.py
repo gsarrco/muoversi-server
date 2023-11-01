@@ -2,34 +2,25 @@ import gettext
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, date
+from datetime import timedelta, datetime, date
 
 import requests
-import uvicorn
-import yaml
 from babel.dates import format_date
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.routing import Route
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, InlineKeyboardMarkup, \
-    InlineKeyboardButton, Bot
+from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, \
+    ReplyKeyboardRemove, Bot
 from telegram.ext import (
     Application,
     CommandHandler,
-    ContextTypes,
     ConversationHandler,
     MessageHandler,
     filters, CallbackQueryHandler, )
+from telegram.ext import ContextTypes
 
+from config import config
+from server.base import Source
+from server.sources import sources as defined_sources
 from .persistence import SQLitePersistence
-from .sources.GTFS import GTFS
-from .sources.base import Source
-from .sources.trenitalia import Trenitalia
 from .stop_times_filter import StopTimesFilter
-from .typesense import connect_to_typesense
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -40,25 +31,11 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 parent_dir = os.path.abspath(current_dir + "/../")
 thismodule = sys.modules[__name__]
 thismodule.sources = {}
-thismodule.persistence = SQLitePersistence()
-
+thismodule.persistence = None
 
 SEARCH_STOP, SPECIFY_LINE, SEARCH_LINE, SHOW_LINE, SHOW_STOP = range(5)
 
-
 localedir = os.path.join(parent_dir, 'locales')
-
-config_path = os.path.join(parent_dir, 'config.yaml')
-with open(config_path, 'r') as config_file:
-    try:
-        config = yaml.safe_load(config_file)
-        logger.info(config)
-    except yaml.YAMLError as err:
-        logger.error(err)
-
-engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
-             f"{config['PGDATABASE']}"
-engine = create_engine(engine_url)
 
 
 def clean_user_data(context, keep_transport_type=True):
@@ -77,11 +54,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
     clean_user_data(context, False)
-    await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')), disable_notification=True)
+    await update.message.reply_text(_('welcome') + "\n\n" + _('home') % (_('stop'), _('line')),
+                                    disable_notification=True)
 
 
 async def announce(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if config.get('ADMIN_TG_ID') != update.effective_user.id:
+    if config.get('TG_ADMIN_ID') != update.effective_user.id:
         return
 
     persistence: SQLitePersistence = thismodule.persistence
@@ -115,7 +93,8 @@ async def choose_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply_keyboard_markup = ReplyKeyboardMarkup(
             reply_keyboard, resize_keyboard=True, is_persistent=True
         )
-        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup, parse_mode='HTML', disable_notification=True)
+        await update.message.reply_text(_('insert_stop'), reply_markup=reply_keyboard_markup, parse_mode='HTML',
+                                        disable_notification=True)
         return SEARCH_STOP
 
     if context.user_data.get('transport_type'):
@@ -170,7 +149,8 @@ async def specify_line(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(_('service_selected') % transport_type, reply_markup=keyboard)
     else:
-        await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard, disable_notification=True)
+        await bot.send_message(chat_id, _('service_selected') % transport_type, reply_markup=keyboard,
+                               disable_notification=True)
 
     if send_second_message:
         await bot.send_message(chat_id, _('insert_line'), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
@@ -204,15 +184,17 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     if lat == '' and lon == '':
         stops_clusters, count = db_file.search_stops(name=text, all_sources=saved_dep_stop_ids, page=page, limit=limit)
     else:
-        stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page, limit=limit)
+        stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page,
+                                                     limit=limit)
 
     if not stops_clusters:
         await update.message.reply_text(_('stop_not_found'), disable_notification=True)
         return SEARCH_STOP
 
-    buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}', callback_data=f'S{cluster.id}-{cluster.source}')]
+    buttons = [[InlineKeyboardButton(f'{cluster.name} {thismodule.sources[cluster.source].emoji}',
+                                     callback_data=f'S{cluster.id}-{cluster.source}')]
                for cluster in stops_clusters]
-    
+
     paging_buttons = []
     if page > 1:
         paging_buttons.append(InlineKeyboardButton('<', callback_data=f'F{text}/{lat}/{lon}/{page - 1}'))
@@ -264,7 +246,8 @@ async def send_stop_times(_, lang, db_file: Source, stop_times_filter: StopTimes
     if message_id:
         await bot.edit_message_text(text, chat_id, message_id, reply_markup=reply_markup, parse_mode='HTML')
     else:
-        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML', disable_notification=True)
+        await bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode='HTML',
+                               disable_notification=True)
 
     if stop_times_filter.first_time:
         if stop_times_filter.arr_stop_ids:
@@ -413,7 +396,7 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     line = results[0].route_name
     text = '<b>' + format_date(stop_times_filter.day, 'EEEE d MMMM', locale=lang) + ' - ' + _(
         'line') + ' ' + line + f' {trip_id}</b>'
-    
+
     dep_stop_index = 0
     arr_stop_index = len(results) - 1
     if not all_stops:
@@ -459,7 +442,8 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     reply_markup = InlineKeyboardMarkup([buttons])
     if update.message:
-        await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML', disable_notification=True)
+        await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode='HTML',
+                                        disable_notification=True)
     else:
         await update.callback_query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode='HTML')
     return SHOW_STOP
@@ -522,27 +506,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    await update.message.reply_text(_('cancel') + "\n\n" + _('home') % (_('stop'), _('line')), reply_markup=ReplyKeyboardRemove(), disable_notification=True)
+    await update.message.reply_text(_('cancel') + "\n\n" + _('home') % (_('stop'), _('line')),
+                                    reply_markup=ReplyKeyboardRemove(), disable_notification=True)
 
     return ConversationHandler.END
 
 
-async def main() -> None:
-    DEV = config.get('DEV', False)
-
-    session = sessionmaker(bind=engine)()
-    typesense = connect_to_typesense()
-
-    thismodule.sources = {
-        'aut': GTFS('automobilistico', '🚌', session, typesense, dev=DEV),
-        'nav': GTFS('navigazione', '⛴️', session, typesense, dev=DEV),
-        'treni': Trenitalia(session, typesense)
-    }
-
-    for source in thismodule.sources.values():
-        source.sync_stations_typesense(source.get_source_stations())
-
-    application = Application.builder().token(config['TOKEN']).persistence(persistence=thismodule.persistence).build()
+async def set_up_application():
+    persistence = SQLitePersistence()
+    application = Application.builder().token(config['TG_TOKEN']).persistence(persistence=persistence).build()
+    thismodule.sources = defined_sources
+    thismodule.persistence = persistence
 
     langs = [f for f in os.listdir(localedir) if os.path.isdir(os.path.join(localedir, f))]
     default_lang = 'en'
@@ -551,7 +525,7 @@ async def main() -> None:
         trans = gettext.translation('messages', localedir, languages=[lang])
         _ = trans.gettext
         language_code = lang if lang != default_lang else ''
-        r = requests.post(f'https://api.telegram.org/bot{config["TOKEN"]}/setMyCommands', json={
+        r = requests.post(f'https://api.telegram.org/bot{config["TG_TOKEN"]}/setMyCommands', json={
             'commands': [
                 {'command': _('stop'), 'description': _('search_by_stop')},
                 {'command': _('line'), 'description': _('search_by_line')}
@@ -589,71 +563,11 @@ async def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.Regex(r'^\/announce '), announce))
     application.add_handler(conv_handler)
-
-    webhook_url = config['WEBHOOK_URL'] + '/tg_bot_webhook'
     bot: Bot = application.bot
-
-    if DEV:
-        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['SECRET_TOKEN'])
+    webhook_url = config['TG_WEBHOOK_URL'] + '/tg_bot_webhook'
+    if config.get('DEV', False):
+        await bot.set_webhook(webhook_url, os.path.join(parent_dir, 'cert.pem'), secret_token=config['TG_SECRET_TOKEN'])
     else:
-        await bot.set_webhook(webhook_url, secret_token=config['SECRET_TOKEN'])
+        await bot.set_webhook(webhook_url, secret_token=config['TG_SECRET_TOKEN'])
 
-    async def telegram(request: Request) -> Response:
-        if request.headers['X-Telegram-Bot-Api-Secret-Token'] != config['SECRET_TOKEN']:
-            return Response(status_code=403)
-        await application.update_queue.put(
-            Update.de_json(data=await request.json(), bot=application.bot)
-        )
-        return Response()
-    
-    async def home(request: Request) -> Response:
-        sources = thismodule.sources
-        text_response = '<html>'
-
-        try:
-            sources['treni'].session.execute(text('SELECT 1'))
-        except Exception:
-            return Response(status_code=500)
-        else:
-            text_response += '<p>Postgres connection OK</p>'
-        
-
-        text_response += '<ul>'
-        for source in sources.values():
-            if hasattr(source, 'gtfs_version'):
-                text_response += f'<li>{source.name}: GTFS v.{source.gtfs_version}</li>'
-            else:
-                text_response += f'<li>{source.name}</li>'
-        text_response += '</ul></html>'
-        return Response(text_response)
-
-    starlette_app = Starlette(
-        routes=[
-            Route("/", home),
-            Route("/tg_bot_webhook", telegram, methods=["POST"])
-        ]
-    )
-
-    if DEV:
-        webserver = uvicorn.Server(
-            config=uvicorn.Config(
-                app=starlette_app,
-                port=8000,
-                host="127.0.0.1",
-            )
-        )
-    else:
-        webserver = uvicorn.Server(
-            config=uvicorn.Config(
-                app=starlette_app,
-                port=443,
-                host="0.0.0.0",
-                ssl_keyfile=config['SSL_KEYFILE'],
-                ssl_certfile=config['SSL_CERTFILE']
-            )
-        )
-
-    async with application:
-        await application.start()
-        await webserver.serve()
-        await application.stop()
+    return application
