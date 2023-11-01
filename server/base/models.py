@@ -19,6 +19,14 @@ class Station(Base):
     source: Mapped[str] = mapped_column(server_default='treni')
     stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
 
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'lat': self.lat,
+            'lon': self.lon,
+            'source': self.source
+        }
 
 class Stop(Base):
     __tablename__ = 'stops'

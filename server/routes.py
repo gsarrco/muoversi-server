@@ -1,6 +1,6 @@
 from sqlalchemy import text
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 from starlette.routing import Route
 
 from server.sources import sources
@@ -26,6 +26,15 @@ async def home(request: Request) -> Response:
     return Response(text_response)
 
 
+async def search_stations(request: Request) -> Response:
+    query = request.query_params.get('q', '')
+    limit = int(request.query_params.get('limit', 4))
+    limit = max(1, min(limit, 10))
+    stations, count = sources['aut'].search_stops(name=query, all_sources=True, limit=limit)
+    return JSONResponse([station.as_dict() for station in stations])
+
+
 routes = [
-    Route("/", home)
+    Route("/", home),
+    Route("/search/stations", search_stations)
 ]
