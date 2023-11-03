@@ -1,10 +1,12 @@
+# Muoversi Server
+
 MuoVErsi is a web service that parses and serves timetables of buses, trams, trains and waterbusses. As of now, it
 supports Venice, Italy's public transit system (by using public GTFS files) and Trenitalia trains within 100km from
 Venice (parsed from the Trenitalia api). However, since it can build on any GTFS file, it will be easily extended to
 other cities in the future.
 
 Separated from the core code and optional to set up, a Telegram bot uses the web service to provide a more user-friendly
-interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). Also, a mobile app is in the works.
+interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). Also, the mobile app is under development: [muoversi-app](https://github.com/gsarrco/muoversi-app).
 
 ## Features
 
