@@ -1,9 +1,7 @@
 import logging
 
-from sqlalchemy.orm import sessionmaker
-
 from server.GTFS import GTFS
-from server.sources import engine
+from server.sources import session
 from server.trenitalia import Trenitalia
 from server.typesense import connect_to_typesense
 
@@ -20,7 +18,6 @@ def run():
     args = parser.parse_args()
     force_update_stations = args.force_update_stations
 
-    session = sessionmaker(bind=engine)()
     typesense = connect_to_typesense()
 
     sources = [
