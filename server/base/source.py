@@ -242,10 +242,13 @@ class Source:
                 StopTime.route_name.label('route_name')
             )
 
+        day_minus_one = day - timedelta(days=1)
+
         raw_stop_times = raw_stop_times \
             .select_from(StopTime) \
             .filter(
             and_(
+                StopTime.orig_dep_date.between(day_minus_one, day),
                 StopTime.stop_id.in_(stops_ids),
                 StopTime.sched_dep_dt >= start_dt,
                 StopTime.sched_dep_dt < end_dt
@@ -318,6 +321,8 @@ class Source:
                 a_stop_times.platform.label('a_platform')
             )
 
+        day_minus_one = day - timedelta(days=1)
+
         raw_stop_times = raw_stop_times \
             .select_from(d_stop_times) \
             .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
@@ -325,6 +330,7 @@ class Source:
                                      d_stop_times.source == a_stop_times.source)) \
             .filter(
             and_(
+                d_stop_times.orig_dep_date.between(day_minus_one, day),
                 d_stop_times.stop_id.in_(dep_stops_ids),
                 d_stop_times.sched_dep_dt >= start_dt,
                 d_stop_times.sched_dep_dt < end_dt,
@@ -465,23 +471,20 @@ class Source:
     
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
         stop_id = self.name + '_' + stop_time.station.id if self.name != 'treni' else stop_time.station.id
-        stop_time_db = self.session.query(StopTime). \
-            filter_by(number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                      source=self.name, stop_id=stop_id).first()
 
-        if stop_time_db:
-            if stop_time_db.platform != stop_time.platform:
-                stop_time_db.platform = stop_time.platform
-                self.session.commit()
-        else:
-            new_stop_time = StopTime(stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
-                                     sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
-                                     orig_id=stop_time.origin_id, dest_text=stop_time.destination,
-                                     number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                                     route_name=stop_time.route_name, source=self.name)
+        stmt = insert(StopTime).values(stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
+                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
+                                        orig_id=stop_time.origin_id, dest_text=stop_time.destination,
+                                        number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
+                                        route_name=stop_time.route_name, source=self.name)
 
-            self.session.add(new_stop_time)
-            self.session.commit()
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['stop_id', 'number', 'orig_dep_date', 'source'],
+            set_={'platform': stop_time.platform}
+        )
+
+        self.session.execute(stmt)
+        self.session.commit()
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         trip_id = int(trip_id)
