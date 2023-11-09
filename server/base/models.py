@@ -18,6 +18,7 @@ class Station(Base):
     times_count: Mapped[float] = mapped_column(server_default='0')
     source: Mapped[str] = mapped_column(server_default='treni')
     stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
+    active: Mapped[bool] = mapped_column(server_default='true')
 
     def as_dict(self):
         return {
@@ -39,6 +40,7 @@ class Stop(Base):
     station: Mapped[Station] = relationship('Station', back_populates='stops')
     source: Mapped[Optional[str]]
     stop_times = relationship('StopTime', back_populates='stop', cascade='all, delete-orphan')
+    active: Mapped[bool] = mapped_column(server_default='true')
 
 
 class Trip(Base):
