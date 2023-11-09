@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select, func
 from tqdm import tqdm
 
-from server.base import Source, Station, Stop, TripStopTime
+from server.base import Source, Station, Stop, TripStopTime, StopTime
 from .clustering import get_clusters_of_stops, get_loc_from_stop_and_cluster
 from .models import CStop
 
@@ -309,13 +309,12 @@ class GTFS(Source):
 
     def search_lines(self, name):
         today = date.today()
-        from server.base import Trip
         trips = self.session.execute(
-            select(func.max(Trip.number), Trip.dest_text)\
-            .filter(Trip.orig_dep_date == today)\
-            .filter(Trip.route_name == name)\
-            .group_by(Trip.dest_text)\
-            .order_by(func.count(Trip.id).desc()))\
+            select(func.max(StopTime.number), StopTime.dest_text) \
+                .filter(StopTime.orig_dep_date == today) \
+                .filter(StopTime.route_name == name) \
+                .group_by(StopTime.dest_text) \
+                .order_by(func.count(StopTime.number).desc())) \
             .all()
         
         results = [(trip[0], name, trip[1]) for trip in trips]

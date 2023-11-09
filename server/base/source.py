@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 
-from .models import Station, Stop, Trip, StopTime
+from .models import Station, Stop, StopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -17,13 +17,11 @@ logger = logging.getLogger(__name__)
 class Liner:
     def format(self, number, _, source_name):
         raise NotImplementedError
-    
-
-
 
 
 class BaseStopTime(Liner):
-    def __init__(self, station: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence, delay: int,
+    def __init__(self, station: 'Station', dep_time: datetime | None, arr_time: datetime | None, stop_sequence,
+                 delay: int,
                  platform,
                  headsign, trip_id,
                  route_name):
@@ -181,7 +179,8 @@ class Source:
         self.session = session
         self.typesense = typesense
 
-    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[list[Station], int]:
+    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[
+        list[Station], int]:
         search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
         limit_hits = None
@@ -213,7 +212,7 @@ class Source:
 
         found = limit_hits if limit_hits else results['found']
         return stations, found
-    
+
     def get_stop_times(self, station: Station, line, start_time, day,
                        offset_times, count=False, limit=True):
         day_start = datetime.combine(day, time(0))
@@ -229,25 +228,27 @@ class Source:
 
         if count:
             raw_stop_times = self.session.query(
-                Trip.route_name.label('route_name')
+                StopTime.route_name.label('route_name')
             )
         else:
             raw_stop_times = self.session.query(
                 StopTime.sched_arr_dt.label('arr_time'),
                 StopTime.sched_dep_dt.label('dep_time'),
-                Trip.orig_id.label('origin_id'),
-                Trip.dest_text.label('destination'),
-                Trip.number.label('trip_id'),
-                Trip.orig_dep_date.label('orig_dep_date'),
+                StopTime.orig_id.label('origin_id'),
+                StopTime.dest_text.label('destination'),
+                StopTime.number.label('trip_id'),
+                StopTime.orig_dep_date.label('orig_dep_date'),
                 StopTime.platform.label('platform'),
-                Trip.route_name.label('route_name')
+                StopTime.route_name.label('route_name')
             )
+
+        day_minus_one = day - timedelta(days=1)
 
         raw_stop_times = raw_stop_times \
             .select_from(StopTime) \
-            .join(Trip, StopTime.trip_id == Trip.id) \
             .filter(
             and_(
+                StopTime.orig_dep_date.between(day_minus_one, day),
                 StopTime.stop_id.in_(stops_ids),
                 StopTime.sched_dep_dt >= start_dt,
                 StopTime.sched_dep_dt < end_dt
@@ -255,12 +256,12 @@ class Source:
         )
 
         if line != '':
-            raw_stop_times = raw_stop_times.filter(Trip.route_name == line)
+            raw_stop_times = raw_stop_times.filter(StopTime.route_name == line)
 
         if count:
             raw_stop_times = raw_stop_times \
-                .group_by(Trip.route_name) \
-                .order_by(func.count(Trip.route_name).desc())
+                .group_by(StopTime.route_name) \
+                .order_by(func.count(StopTime.route_name).desc())
         else:
             raw_stop_times = raw_stop_times.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
 
@@ -275,9 +276,9 @@ class Source:
             dep_time = raw_stop_time.dep_time
             arr_time = raw_stop_time.arr_time
             stop_time = TripStopTime(station, raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
-                                           raw_stop_time.destination, raw_stop_time.trip_id,
-                                           raw_stop_time.route_name, arr_time=arr_time,
-                                           orig_dep_date=raw_stop_time.orig_dep_date)
+                                     raw_stop_time.destination, raw_stop_time.trip_id,
+                                     raw_stop_time.route_name, arr_time=arr_time,
+                                     orig_dep_date=raw_stop_time.orig_dep_date)
             stop_times.append(stop_time)
 
         return stop_times
@@ -303,29 +304,33 @@ class Source:
 
         if count:
             raw_stop_times = self.session.query(
-                Trip.route_name.label('route_name'),
+                d_stop_times.route_name.label('route_name'),
             )
         else:
             raw_stop_times = self.session.query(
                 d_stop_times.sched_arr_dt.label('d_arr_time'),
                 d_stop_times.sched_dep_dt.label('d_dep_time'),
-                Trip.orig_id.label('origin_id'),
-                Trip.dest_text.label('destination'),
-                Trip.number.label('trip_id'),
-                Trip.orig_dep_date.label('orig_dep_date'),
-                Trip.route_name.label('route_name'),
+                d_stop_times.orig_id.label('origin_id'),
+                d_stop_times.dest_text.label('destination'),
+                d_stop_times.number.label('trip_id'),
+                d_stop_times.orig_dep_date.label('orig_dep_date'),
+                d_stop_times.route_name.label('route_name'),
                 d_stop_times.platform.label('d_platform'),
                 a_stop_times.sched_dep_dt.label('a_dep_time'),
                 a_stop_times.sched_arr_dt.label('a_arr_time'),
                 a_stop_times.platform.label('a_platform')
             )
 
+        day_minus_one = day - timedelta(days=1)
+
         raw_stop_times = raw_stop_times \
             .select_from(d_stop_times) \
-            .join(a_stop_times, d_stop_times.trip_id == a_stop_times.trip_id) \
-            .join(Trip, d_stop_times.trip_id == Trip.id) \
+            .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
+                                     d_stop_times.orig_dep_date == a_stop_times.orig_dep_date,
+                                     d_stop_times.source == a_stop_times.source)) \
             .filter(
             and_(
+                d_stop_times.orig_dep_date.between(day_minus_one, day),
                 d_stop_times.stop_id.in_(dep_stops_ids),
                 d_stop_times.sched_dep_dt >= start_dt,
                 d_stop_times.sched_dep_dt < end_dt,
@@ -335,10 +340,11 @@ class Source:
         )
 
         if line != '':
-            raw_stop_times = raw_stop_times.filter(Trip.route_name == line)
+            raw_stop_times = raw_stop_times.filter(d_stop_times.route_name == line)
 
         if count:
-            raw_stop_times = raw_stop_times.group_by(Trip.route_name).order_by(func.count(Trip.route_name).desc())
+            raw_stop_times = raw_stop_times.group_by(d_stop_times.route_name).order_by(
+                func.count(d_stop_times.route_name).desc())
         else:
             raw_stop_times = raw_stop_times.order_by(
                 d_stop_times.sched_dep_dt
@@ -464,41 +470,30 @@ class Source:
         return self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
     
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
-        train = self.session.query(Trip).filter_by(
-            number=stop_time.trip_id,
-            orig_dep_date=stop_time.orig_dep_date,
-            source=self.name
-        ).first()
-
-        if not train:
-            train = Trip(orig_id=stop_time.origin_id, dest_text=stop_time.destination,
-                            number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                            route_name=stop_time.route_name, source=self.name)
-            self.session.add(train)
-            self.session.commit()
-
         stop_id = self.name + '_' + stop_time.station.id if self.name != 'treni' else stop_time.station.id
-        stop_time_db = self.session.query(StopTime).filter_by(trip_id=train.id, stop_id=stop_id).first()
 
-        if stop_time_db:
-            if stop_time_db.platform != stop_time.platform:
-                stop_time_db.platform = stop_time.platform
-                self.session.commit()
-        else:
-            new_stop_time = StopTime(trip_id=train.id, stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
-                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform)
-            self.session.add(new_stop_time)
-            self.session.commit()
+        stmt = insert(StopTime).values(stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
+                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
+                                        orig_id=stop_time.origin_id, dest_text=stop_time.destination,
+                                        number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
+                                        route_name=stop_time.route_name, source=self.name)
+
+        stmt = stmt.on_conflict_do_update(
+            index_elements=['stop_id', 'number', 'orig_dep_date', 'source'],
+            set_={'platform': stop_time.platform}
+        )
+
+        self.session.execute(stmt)
+        self.session.commit()
 
     def get_stops_from_trip_id(self, trip_id, day: date) -> list[BaseStopTime]:
         trip_id = int(trip_id)
-        query = select(StopTime, Trip, Stop) \
-            .join(StopTime.trip) \
+        query = select(StopTime, Stop) \
             .join(StopTime.stop) \
             .filter(
             and_(
-                Trip.number == trip_id,
-                Trip.orig_dep_date == day.isoformat()
+                StopTime.number == trip_id,
+                StopTime.orig_dep_date == day.isoformat()
             )) \
             .order_by(StopTime.sched_dep_dt)
 
@@ -506,13 +501,11 @@ class Source:
 
         stop_times = []
         for result in results:
-            stop_time = TripStopTime(result.Stop, result.Trip.orig_id, result.StopTime.sched_dep_dt,
-                                           None, 0,
-                                           result.StopTime.platform, result.Trip.dest_text, trip_id,
-                                           result.Trip.route_name,
-                                           result.StopTime.sched_arr_dt, result.Trip.orig_dep_date)
+            stop_time = TripStopTime(result.Stop, result.StopTime.orig_id, result.StopTime.sched_dep_dt,
+                                     None, 0,
+                                     result.StopTime.platform, result.StopTime.dest_text, trip_id,
+                                     result.StopTime.route_name,
+                                     result.StopTime.sched_arr_dt, result.StopTime.orig_dep_date)
             stop_times.append(stop_time)
 
         return stop_times
-
-
