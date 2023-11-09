@@ -27,8 +27,8 @@ class Trenitalia(Source):
         self.location = location
         super().__init__('treni', '🚆', session, typesense)
 
-        if force_update_stations or self.session.query(Station).filter_by(source=self.name).count() == 0 or \
-                self.session.query(Stop).filter_by(source=self.name).count() == 0:
+        if force_update_stations or self.session.query(Station).filter_by(source=self.name, active=True).count() == 0 or \
+                self.session.query(Stop).filter_by(source=self.name, active=True).count() == 0:
             current_dir = os.path.abspath(os.path.dirname(__file__))
             datadir = os.path.abspath(current_dir + '/data')
 
@@ -43,7 +43,7 @@ class Trenitalia(Source):
             self.sync_stations_db(new_stations)
 
     def save_data(self):
-        stations = self.session.scalars(select(Station).filter_by(source=self.name)).all()
+        stations = self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
 
         total_times_count = 0
         times_count = []

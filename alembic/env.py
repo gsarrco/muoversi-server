@@ -5,12 +5,14 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from server.base.models import Base
-from server.sources import engine_url
+from config import config as engine_config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
+engine_url = f"postgresql://{engine_config['PGUSER']}:{engine_config['PGPASSWORD']}@{engine_config['PGHOST']}:{engine_config['PGPORT']}/" \
+             f"{engine_config['PGDATABASE']}"
 config.set_main_option('sqlalchemy.url', engine_url)
 
 # Interpret the config file for Python logging.
