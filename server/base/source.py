@@ -377,17 +377,23 @@ class Source:
 
         for station in new_stations:
             stmt = insert(Station).values(id=station.id, name=station.name, lat=station.lat, lon=station.lon,
-                                          ids=station.ids, source=self.name, times_count=station.times_count)
+                                          ids=station.ids, source=self.name, times_count=station.times_count,
+                                          active=True)
             stmt = stmt.on_conflict_do_update(
                 index_elements=['id'],
                 set_={'name': station.name, 'lat': station.lat, 'lon': station.lon, 'ids': station.ids,
-                      'source': self.name, 'times_count': station.times_count}
+                      'source': self.name, 'times_count': station.times_count, 'active': True}
             )
             self.session.execute(stmt)
 
-        for station in self.session.scalars(select(Station).filter_by(source=self.name)).all():
+        for station in self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all():
             if station.id not in station_codes:
-                self.session.delete(station)
+                # set station as inactive and set all stops as inactive
+                station.active = False
+                for stop in station.stops:
+                    stop.active = False
+
+
 
         self.session.commit()
 
@@ -396,28 +402,28 @@ class Source:
         if new_stops:
             for stop in new_stops:
                 stmt = insert(Stop).values(id=stop.id, platform=stop.platform, lat=stop.lat, lon=stop.lon,
-                                           station_id=stop.station_id, source=self.name)
+                                           station_id=stop.station_id, source=self.name, active=True)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['id'],
                     set_={'platform': stop.platform, 'lat': stop.lat, 'lon': stop.lon,
-                          'station_id': stop.station_id, 'source': self.name}
+                          'station_id': stop.station_id, 'source': self.name, 'active': True}
                 )
                 self.session.execute(stmt)
         else:
             for station in new_stations:
                 stmt = insert(Stop).values(id=station.id, platform=None, lat=station.lat, lon=station.lon,
-                                           station_id=station.id, source=self.name)
+                                           station_id=station.id, source=self.name, active=True)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=['id'],
                     set_={'platform': None, 'lat': station.lat, 'lon': station.lon,
-                          'station_id': station.id, 'source': self.name}
+                          'station_id': station.id, 'source': self.name, 'active': True}
                 )
                 self.session.execute(stmt)
 
-        # Stops with stations not in station_codes are deleted through cascade
-        for stop in self.session.scalars(select(Stop).filter(Stop.station_id.in_(station_codes))).all():
+        # Stops with stations not in station_codes are set as inactive
+        for stop in self.session.scalars(select(Stop).filter(Stop.station_id.in_(station_codes), Stop.active is True)).all():
             if stop.id not in stop_ids:
-                self.session.delete(stop)
+                stop.active = False
 
         self.session.commit()
 
@@ -455,7 +461,7 @@ class Source:
         raise NotImplementedError
 
     def get_source_stations(self) -> list[Station]:
-        return self.session.scalars(select(Station).filter_by(source=self.name)).all()
+        return self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
     
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
         train = self.session.query(Trip).filter_by(
