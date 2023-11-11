@@ -415,10 +415,12 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     platform_text = _(f'{source.name}_platform')
 
-    are_dep_and_arr_times_equal = all(
-        result.arr_time == result.dep_time for result in results[dep_stop_index:arr_stop_index + 1])
+    route_results = results[dep_stop_index:arr_stop_index + 1]
 
-    for i, result in enumerate(results[dep_stop_index:arr_stop_index + 1]):
+    are_dep_and_arr_times_equal = all(
+        result.arr_time == result.dep_time for result in route_results if result.arr_time and result.dep_time)
+
+    for i, result in enumerate(route_results):
         arr_time = result.arr_time.strftime('%H:%M') if result.arr_time else ''
         dep_time = result.dep_time.strftime('%H:%M') if result.dep_time else ''
 
