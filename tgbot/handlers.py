@@ -424,18 +424,19 @@ async def trip_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         arr_time = result.arr_time.strftime('%H:%M') if result.arr_time else ''
         dep_time = result.dep_time.strftime('%H:%M') if result.dep_time else ''
 
+        stop_name = result.station.station.name
+        if result.platform:
+            stop_name += f' ({platform_text} {result.platform})'
+
         if are_dep_and_arr_times_equal:
-            text += f'\n<b>{arr_time}</b> {result.station.station.name}'
+            text += f'\n<b>{arr_time}</b> {stop_name}'
         else:
             if i == 0:
-                text += f'\n{result.station.station.name} <b>{dep_time}</b>'
+                text += f'\n{stop_name} <b>{dep_time}</b>'
             elif i == arr_stop_index:
-                text += f'\n<b>{arr_time}</b> {result.station.station.name}'
+                text += f'\n<b>{arr_time}</b> {stop_name}'
             else:
-                text += f'\n<b>{arr_time}</b> {result.station.station.name} <b>{dep_time}</b>'
-
-        if result.platform:
-            text += f' ({platform_text} {result.platform})'
+                text += f'\n<b>{arr_time}</b> {stop_name} <b>{dep_time}</b>'
 
     buttons = [InlineKeyboardButton(_('back'), callback_data=context.user_data['query_data'])]
 
