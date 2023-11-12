@@ -6,6 +6,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from server.base import Source, Liner, Station
+from server.base.models import StopTime
+from server.base.source import TripStopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -90,10 +92,15 @@ class StopTimesFilter:
                                                                   context=self.context, count=True)
             return results
 
-        results = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times)
+        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times)
+        results: list[TripStopTime] = [
+            TripStopTime(stop_time.stop.station, stop_time.orig_id, stop_time.sched_dep_dt, None, 0, stop_time.platform,
+                         stop_time.dest_text, stop_time.number, stop_time.route_name, stop_time.sched_arr_dt,
+                         stop_time.orig_dep_date, stop_time.dest_text) for stop_time in stop_times]
 
         if self.lines is None:
-            self.lines = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times, count=True)
+            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times,
+                                                           count=True)
 
         return results
 

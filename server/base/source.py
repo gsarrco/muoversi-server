@@ -213,8 +213,8 @@ class Source:
         found = limit_hits if limit_hits else results['found']
         return stations, found
 
-    def get_stop_times(self, station: Station, line, start_time, day,
-                       offset_times, count=False, limit=True):
+    def get_stop_times(self, stops_ids, line, start_time, day,
+                       offset_times, count=False, limit=True) -> list[StopTime] | list[str]:
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -224,28 +224,16 @@ class Source:
 
         end_dt = day_start + timedelta(days=1)
 
-        stops_ids = station.ids.split(',')
+        stops_ids = stops_ids.split(',')
 
         if count:
-            raw_stop_times = self.session.query(
-                StopTime.route_name.label('route_name')
-            )
+            stmt = select(StopTime.route_name)
         else:
-            raw_stop_times = self.session.query(
-                StopTime.sched_arr_dt.label('arr_time'),
-                StopTime.sched_dep_dt.label('dep_time'),
-                StopTime.orig_id.label('origin_id'),
-                StopTime.dest_text.label('destination'),
-                StopTime.number.label('trip_id'),
-                StopTime.orig_dep_date.label('orig_dep_date'),
-                StopTime.platform.label('platform'),
-                StopTime.route_name.label('route_name')
-            )
+            stmt = select(StopTime)
 
         day_minus_one = day - timedelta(days=1)
 
-        raw_stop_times = raw_stop_times \
-            .select_from(StopTime) \
+        stmt = stmt \
             .filter(
             and_(
                 StopTime.orig_dep_date.between(day_minus_one, day),
@@ -256,30 +244,19 @@ class Source:
         )
 
         if line != '':
-            raw_stop_times = raw_stop_times.filter(StopTime.route_name == line)
+            stmt = stmt.filter(StopTime.route_name == line)
 
         if count:
-            raw_stop_times = raw_stop_times \
+            stmt = stmt \
                 .group_by(StopTime.route_name) \
                 .order_by(func.count(StopTime.route_name).desc())
+            stop_times = self.session.execute(stmt).all()
         else:
-            raw_stop_times = raw_stop_times.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
-
-        raw_stop_times = raw_stop_times.all()
+            stmt = stmt.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
+            stop_times = self.session.scalars(stmt).all()
 
         if count:
-            return [train.route_name for train in raw_stop_times]
-
-        stop_times = []
-
-        for raw_stop_time in raw_stop_times:
-            dep_time = raw_stop_time.dep_time
-            arr_time = raw_stop_time.arr_time
-            stop_time = TripStopTime(station, raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
-                                     raw_stop_time.destination, raw_stop_time.trip_id,
-                                     raw_stop_time.route_name, arr_time=arr_time,
-                                     orig_dep_date=raw_stop_time.orig_dep_date)
-            stop_times.append(stop_time)
+            return [train.route_name for train in stop_times]
 
         return stop_times
 
