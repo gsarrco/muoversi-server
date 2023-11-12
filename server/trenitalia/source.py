@@ -16,10 +16,6 @@ logger = logging.getLogger(__name__)
 rome_tz = timezone('Europe/Rome')
 
 
-class TrenitaliaRoute(Route):
-    pass
-
-
 class Trenitalia(Source):
     LIMIT = 7
 
