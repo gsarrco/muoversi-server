@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 
 from server.base import Source, Liner, Station
 from server.base.models import StopTime
-from server.base.source import TripStopTime
+from server.base.source import Direction, Route, TripStopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -83,11 +83,25 @@ class StopTimesFilter:
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
-            results = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
-                                                           line, start_time, self.offset_times, day,
+            stop_times_tuples: list[tuple[StopTime, StopTime]] = db_file.get_stop_times_between_stops(dep_stop.ids, 
+                                                            arr_stop.ids, line, start_time, self.offset_times, day,
                                                            context=self.context)
+            results: list[Direction] = []
+            for stop_time_tuple in stop_times_tuples:
+                dep_stop_time, arr_stop_time = stop_time_tuple
+                dep_trip_stop_time = TripStopTime(dep_stop_time.stop.station, dep_stop_time.orig_id,
+                                                    dep_stop_time.sched_dep_dt, None, 0, dep_stop_time.platform,
+                                                    dep_stop_time.dest_text, dep_stop_time.number,
+                                                    dep_stop_time.route_name, dep_stop_time.sched_arr_dt,
+                                                    dep_stop_time.orig_dep_date, dep_stop_time.dest_text)
+                arr_trip_stop_time = TripStopTime(arr_stop_time.stop.station, arr_stop_time.orig_id,
+                                                    arr_stop_time.sched_dep_dt, None, 0, arr_stop_time.platform,
+                                                    arr_stop_time.dest_text, arr_stop_time.number,
+                                                    arr_stop_time.route_name, arr_stop_time.sched_arr_dt,
+                                                    arr_stop_time.orig_dep_date, arr_stop_time.dest_text)
+                results.append(Direction([Route(dep_trip_stop_time, arr_trip_stop_time)]))
             if self.lines is None:
-                self.lines = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
+                self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids,
                                                                   line, start_time, self.offset_times, day,
                                                                   context=self.context, count=True)
             return results
