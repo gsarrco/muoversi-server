@@ -5,7 +5,9 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from server.base import Source, Liner, Station
+from server.base import Source, Station
+from server.base.models import StopTime
+from tgbot.formatting import Liner, NamedStopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -81,19 +83,29 @@ class StopTimesFilter:
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
-            results = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
-                                                           line, start_time, self.offset_times, day,
-                                                           context=self.context)
+            stop_times_tuples: list[tuple[StopTime, StopTime]] = db_file.get_stop_times_between_stops(dep_stop.ids,
+                                                                                                      arr_stop.ids,
+                                                                                                      line, start_time,
+                                                                                                      self.offset_times,
+                                                                                                      day,
+                                                                                                      context=self.context)
+            results: list[Direction] = []
+            for stop_time_tuple in stop_times_tuples:
+                dep_stop_time, arr_stop_time = stop_time_tuple
+                dep_named_stop_time = NamedStopTime(dep_stop_time, self.dep_cluster_name)
+                arr_named_stop_time = NamedStopTime(arr_stop_time, self.arr_cluster_name)
+                results.append(Direction([Route(dep_named_stop_time, arr_named_stop_time)]))
             if self.lines is None:
-                self.lines = db_file.get_stop_times_between_stops(dep_stop, arr_stop,
-                                                                  line, start_time, self.offset_times, day,
-                                                                  context=self.context, count=True)
+                self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids,
+                                                                             line, start_time, self.offset_times, day,
+                                                                             context=self.context, count=True)
             return results
 
-        results = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times)
-
+        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times)
+        results: list[NamedStopTime] = [NamedStopTime(stop_time, self.dep_cluster_name) for stop_time in stop_times]
         if self.lines is None:
-            self.lines = db_file.get_stop_times(dep_stop, line, start_time, day, self.offset_times, count=True)
+            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times,
+                                                           count=True)
 
         return results
 

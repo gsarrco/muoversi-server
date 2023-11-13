@@ -6,17 +6,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased
 from telegram.ext import ContextTypes
 
+from tgbot.formatting import Liner
 from .models import Station, Stop, StopTime
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-
-class Liner:
-    def format(self, number, _, source_name):
-        raise NotImplementedError
 
 
 class BaseStopTime(Liner):
@@ -34,121 +30,6 @@ class BaseStopTime(Liner):
         self.headsign = headsign
         self.trip_id = trip_id
         self.route_name = route_name
-
-    def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
-        headsign, trip_id, stop_sequence = self.headsign, self.trip_id, self.stop_sequence
-
-        # First line of text
-        time_format = ""
-
-        if left_time_bold:
-            time_format += "<b>"
-
-        time_format += self.dep_time.strftime('%H:%M')
-
-        if self.delay > 0:
-            time_format += f'+{self.delay}m'
-
-        if left_time_bold:
-            time_format += "</b>"
-
-        headsign = headsign[:21]
-        route_name = f'{self.route_name} ' if self.route_name else ''
-        line = f'{time_format} {route_name}{headsign}'
-
-        # Second line of text
-        trip_id = f'/{self.trip_id} ' if self.trip_id else ''
-        platform = self.platform if self.platform else '/'
-        platform_text = _(f'{source_name}_platform')
-        line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
-
-        # Modifications for all lines of text
-        if self.dep_time < datetime.now():
-            line = f'<del>{line}</del>'
-
-        if number:
-            return f'\n{number}. {line}'
-        else:
-            return f'\n⎿ {line}'
-
-
-class Route(Liner):
-    def __init__(self, dep_stop_time: BaseStopTime, arr_stop_time: BaseStopTime | None):
-        self.dep_stop_time = dep_stop_time
-        self.arr_stop_time = arr_stop_time
-
-    def format(self, number, _, source_name, left_time_bold=True, right_time_bold=True):
-        line, headsign, trip_id, stop_sequence = self.dep_stop_time.route_name, self.dep_stop_time.headsign, \
-            self.dep_stop_time.trip_id, self.dep_stop_time.stop_sequence
-
-        # First line of text
-        time_format = ""
-
-        if left_time_bold:
-            time_format += "<b>"
-
-        time_format += self.dep_stop_time.dep_time.strftime('%H:%M')
-
-        if self.dep_stop_time.delay > 0:
-            time_format += f'+{self.dep_stop_time.delay}m'
-
-        if left_time_bold:
-            time_format += "</b>"
-
-        if self.arr_stop_time:
-            arr_time = self.arr_stop_time.arr_time.strftime('%H:%M')
-
-            time_format += "->"
-
-            if right_time_bold:
-                time_format += "<b>"
-
-            time_format += arr_time
-
-            if self.arr_stop_time.delay > 0:
-                time_format += f'+{self.arr_stop_time.delay}m'
-
-            if right_time_bold:
-                time_format += "</b>"
-
-        headsign = headsign[:14]
-        route_name = f'{self.dep_stop_time.route_name} ' if self.dep_stop_time.route_name else ''
-        line = f'{time_format} {route_name}{headsign}'
-
-        # Second line of text
-        platform_text = _(f'{source_name}_platform')
-        dep_platform = self.dep_stop_time.platform if self.dep_stop_time.platform else '/'
-        arr_platform = self.arr_stop_time.platform if self.arr_stop_time.platform else '/'
-        line += f'\n⎿ <i>/{self.dep_stop_time.trip_id} {platform_text} {dep_platform} -> {arr_platform}</i>'
-
-        # Modifications for all lines of text
-        if self.dep_stop_time.dep_time < datetime.now():
-            line = f'<del>{line}</del>'
-
-        if number:
-            return f'\n{number}. {line}'
-        else:
-            return f'\n⎿ {line}'
-
-
-class Direction(Liner):
-    def __init__(self, routes: list[Route]):
-        self.routes = routes
-
-    def format(self, number, _, source_name):
-        text = ""
-        for i, route in enumerate(self.routes):
-            number = number if i == 0 else None
-            text += route.format(number, _, source_name, left_time_bold=i == 0,
-                                 right_time_bold=i == len(self.routes) - 1)
-
-            if route.arr_stop_time.station.name and i != len(self.routes) - 1:
-                next_route = self.routes[i + 1]
-                print(route.arr_stop_time.dep_time, next_route.dep_stop_time.dep_time)
-                duration_in_minutes = (next_route.dep_stop_time.dep_time - route.arr_stop_time.dep_time).seconds // 60
-                text += f'\n⎿ <i>cambio a {route.arr_stop_time.station.name} ({duration_in_minutes}min)</i>'
-
-        return text
 
 
 class TripStopTime(BaseStopTime):
@@ -213,8 +94,8 @@ class Source:
         found = limit_hits if limit_hits else results['found']
         return stations, found
 
-    def get_stop_times(self, station: Station, line, start_time, day,
-                       offset_times, count=False, limit=True):
+    def get_stop_times(self, stops_ids, line, start_time, day,
+                       offset_times, count=False, limit=True) -> list[StopTime] | list[str]:
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -224,28 +105,16 @@ class Source:
 
         end_dt = day_start + timedelta(days=1)
 
-        stops_ids = station.ids.split(',')
+        stops_ids = stops_ids.split(',')
 
         if count:
-            raw_stop_times = self.session.query(
-                StopTime.route_name.label('route_name')
-            )
+            stmt = select(StopTime.route_name)
         else:
-            raw_stop_times = self.session.query(
-                StopTime.sched_arr_dt.label('arr_time'),
-                StopTime.sched_dep_dt.label('dep_time'),
-                StopTime.orig_id.label('origin_id'),
-                StopTime.dest_text.label('destination'),
-                StopTime.number.label('trip_id'),
-                StopTime.orig_dep_date.label('orig_dep_date'),
-                StopTime.platform.label('platform'),
-                StopTime.route_name.label('route_name')
-            )
+            stmt = select(StopTime)
 
         day_minus_one = day - timedelta(days=1)
 
-        raw_stop_times = raw_stop_times \
-            .select_from(StopTime) \
+        stmt = stmt \
             .filter(
             and_(
                 StopTime.orig_dep_date.between(day_minus_one, day),
@@ -256,36 +125,25 @@ class Source:
         )
 
         if line != '':
-            raw_stop_times = raw_stop_times.filter(StopTime.route_name == line)
+            stmt = stmt.filter(StopTime.route_name == line)
 
         if count:
-            raw_stop_times = raw_stop_times \
+            stmt = stmt \
                 .group_by(StopTime.route_name) \
                 .order_by(func.count(StopTime.route_name).desc())
+            stop_times = self.session.execute(stmt).all()
         else:
-            raw_stop_times = raw_stop_times.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
-
-        raw_stop_times = raw_stop_times.all()
+            stmt = stmt.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
+            stop_times = self.session.scalars(stmt).all()
 
         if count:
-            return [train.route_name for train in raw_stop_times]
-
-        stop_times = []
-
-        for raw_stop_time in raw_stop_times:
-            dep_time = raw_stop_time.dep_time
-            arr_time = raw_stop_time.arr_time
-            stop_time = TripStopTime(station, raw_stop_time.origin_id, dep_time, None, 0, raw_stop_time.platform,
-                                     raw_stop_time.destination, raw_stop_time.trip_id,
-                                     raw_stop_time.route_name, arr_time=arr_time,
-                                     orig_dep_date=raw_stop_time.orig_dep_date)
-            stop_times.append(stop_time)
+            return [train.route_name for train in stop_times]
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_station: Station, arr_station: Station, line, start_time,
-                                     offset_times, day,
-                                     context: ContextTypes.DEFAULT_TYPE | None = None, count=False):
+    def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_time,
+                                     offset_times, day, context: ContextTypes.DEFAULT_TYPE | None = None, count=False) \
+            -> list[tuple[StopTime, StopTime]] | list[str]:
         day_start = datetime.combine(day, time(0))
 
         if start_time == '':
@@ -295,35 +153,22 @@ class Source:
 
         end_dt = day_start + timedelta(days=1)
 
-        dep_stops_ids = dep_station.ids.split(',')
-        arr_stops_ids = arr_station.ids.split(',')
+        dep_stops_ids = dep_stops_ids.split(',')
+        arr_stops_ids = arr_stops_ids.split(',')
 
         # Define alias for stop_times
         a_stop_times = aliased(StopTime)
         d_stop_times = aliased(StopTime)
 
         if count:
-            raw_stop_times = self.session.query(
-                d_stop_times.route_name.label('route_name'),
-            )
+            stmt = select(d_stop_times.route_name)
         else:
-            raw_stop_times = self.session.query(
-                d_stop_times.sched_arr_dt.label('d_arr_time'),
-                d_stop_times.sched_dep_dt.label('d_dep_time'),
-                d_stop_times.orig_id.label('origin_id'),
-                d_stop_times.dest_text.label('destination'),
-                d_stop_times.number.label('trip_id'),
-                d_stop_times.orig_dep_date.label('orig_dep_date'),
-                d_stop_times.route_name.label('route_name'),
-                d_stop_times.platform.label('d_platform'),
-                a_stop_times.sched_dep_dt.label('a_dep_time'),
-                a_stop_times.sched_arr_dt.label('a_arr_time'),
-                a_stop_times.platform.label('a_platform')
-            )
+            stmt = select(d_stop_times, a_stop_times)
+            
 
         day_minus_one = day - timedelta(days=1)
 
-        raw_stop_times = raw_stop_times \
+        stmt = stmt \
             .select_from(d_stop_times) \
             .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
                                      d_stop_times.orig_dep_date == a_stop_times.orig_dep_date,
@@ -340,42 +185,28 @@ class Source:
         )
 
         if line != '':
-            raw_stop_times = raw_stop_times.filter(d_stop_times.route_name == line)
+            stmt = stmt.filter(d_stop_times.route_name == line)
 
         if count:
-            raw_stop_times = raw_stop_times.group_by(d_stop_times.route_name).order_by(
+            stmt = stmt.group_by(d_stop_times.route_name).order_by(
                 func.count(d_stop_times.route_name).desc())
         else:
-            raw_stop_times = raw_stop_times.order_by(
+            stmt = stmt.order_by(
                 d_stop_times.sched_dep_dt
             ).limit(self.LIMIT).offset(offset_times)
 
-        raw_stop_times = raw_stop_times.all()
+        raw_stop_times = self.session.execute(stmt).all()
 
         if count:
             return [train.route_name for train in raw_stop_times]
 
-        directions = []
+        stop_times_tuples: list[tuple[StopTime, StopTime]] = []
 
         for raw_stop_time in raw_stop_times:
-            d_dep_time = raw_stop_time.d_dep_time
-            d_arr_time = raw_stop_time.d_arr_time
-            a_dep_time = raw_stop_time.a_dep_time
-            a_arr_time = raw_stop_time.a_arr_time
-            d_stop_time = TripStopTime(
-                dep_station, raw_stop_time.origin_id, d_dep_time, None, 0, raw_stop_time.d_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
-                arr_time=d_arr_time, orig_dep_date=raw_stop_time.orig_dep_date)
+            d_stop_time, a_stop_time = raw_stop_time
+            stop_times_tuples.append((d_stop_time, a_stop_time))
 
-            a_stop_time = TripStopTime(
-                arr_station, raw_stop_time.origin_id, a_dep_time, None, 0, raw_stop_time.a_platform,
-                raw_stop_time.destination, raw_stop_time.trip_id, raw_stop_time.route_name,
-                arr_time=a_arr_time, orig_dep_date=raw_stop_time.orig_dep_date)
-
-            route = Route(d_stop_time, a_stop_time)
-            directions.append(Direction([route]))
-
-        return directions
+        return stop_times_tuples
 
     def sync_stations_db(self, new_stations: list[Station], new_stops: list[Stop] = None):
         station_codes = [s.id for s in new_stations]
