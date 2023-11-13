@@ -5,9 +5,9 @@ from babel.dates import format_date
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from server.base import Source, Liner, Station
+from server.base import Source, Station
 from server.base.models import StopTime
-from server.base.source import Direction, NamedStopTime, Route
+from tgbot.formatting import Liner, NamedStopTime, Route, Direction
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
