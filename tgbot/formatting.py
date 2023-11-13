@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from server.base import StopTime
+from server.base.models import StopTime
 
 
 class Liner:
