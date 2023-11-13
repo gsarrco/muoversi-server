@@ -2,8 +2,8 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import ForeignKey, UniqueConstraint, event
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship, declared_attr
 from sqlalchemy.ext.declarative import DeclarativeMeta
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship, declared_attr
 from sqlalchemy.sql.ddl import DDL
 
 Base = declarative_base()
@@ -79,27 +79,6 @@ class PartitionByOrigDepDateMeta(DeclarativeMeta):
                 cls_.partitions[key] = Partition
 
             return cls_.partitions[key]
-        
-        @classmethod
-        def detach_partition(cls_, day: date):
-            key = day.strftime('%Y%m%d')
-            if key not in cls_.partitions:
-                raise Exception(f'Partition {key} does not exist')
-            Partition = type(
-                f'{clsname}{key}',
-                bases,
-                {'__tablename__': cls_.get_partition_name(key)}
-            )
-            event.listen(
-                Partition.__table__,
-                'after_create',
-                DDL(
-                    f"""
-                    ALTER TABLE {cls_.__tablename__}
-                    DETACH PARTITION {Partition.__tablename__}
-                    """
-                )
-            )
 
         attrs.update(
             {
@@ -108,8 +87,7 @@ class PartitionByOrigDepDateMeta(DeclarativeMeta):
                 'partitions': {},
                 'partitioned_by': partition_by,
                 'get_partition_name': get_partition_name,
-                'create_partition': create_partition,
-                'detach_partition': detach_partition
+                'create_partition': create_partition
             }
         )
 

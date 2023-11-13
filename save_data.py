@@ -1,7 +1,7 @@
 import logging
 from datetime import date, timedelta
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from server.base.models import StopTime
 from server.sources import engine, session, sources
@@ -23,13 +23,17 @@ def run():
         if not inspect(engine).has_table(partition.__table__.name):
             partition.__table__.create(bind=engine)
 
+    # start from the day before yesterday for detaching partitions
+    i = 2
     while True:
-        i = -2
-        day = today + timedelta(days=i)
+        day = today - timedelta(days=i)
         try:
-            StopTime.detach_partition(day)
-        except Exception:
+            session.execute(text(f'ALTER TABLE stop_times DETACH PARTITION stop_times_{day.strftime("%Y%m%d")}'))
+            session.commit()
+        except:
+            session.rollback()
             break
+        i += 1
 
     for source in sources.values():
         try:
