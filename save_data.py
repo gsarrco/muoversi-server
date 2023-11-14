@@ -28,7 +28,7 @@ def run():
     while True:
         day = today - timedelta(days=i)
         try:
-            session.execute(text(f'ALTER TABLE stop_times DETACH PARTITION stop_times_{day.strftime("%Y%m%d")}'))
+            session.execute(text(f'ALTER TABLE stop_times DETACH PARTITION stop_times_{day.strftime("%Y%m%d")} CONCURRENTLY'))
             session.commit()
         except:
             session.rollback()
