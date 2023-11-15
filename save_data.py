@@ -17,18 +17,22 @@ def run():
 
     today = date.today()
 
+    def part_name(day: date):
+        return f'stop_times_{day.strftime("%Y%m%d")}'
+
     for i in range(3):
         day: date = today + timedelta(days=i)
-        partition = StopTime.create_partition(day)
-        if not inspect(engine).has_table(partition.__table__.name):
-            partition.__table__.create(bind=engine)
-
+        day_after: date = day + timedelta(days=1)
+        partition_name = part_name(day)
+        if not inspect(engine).has_table(partition_name):
+            session.execute(text(f"CREATE TABLE {partition_name} PARTITION OF stop_times FOR VALUES FROM ('{day}') TO ('{day_after}')"))
+            session.commit()
     # start from the day before yesterday for detaching partitions
     i = 2
     while True:
         day = today - timedelta(days=i)
         try:
-            session.execute(text(f'ALTER TABLE stop_times DETACH PARTITION stop_times_{day.strftime("%Y%m%d")} CONCURRENTLY'))
+            session.execute(text(f'ALTER TABLE stop_times DETACH PARTITION {part_name(day)} CONCURRENTLY'))
             session.commit()
         except:
             session.rollback()
