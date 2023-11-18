@@ -1,10 +1,8 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, UniqueConstraint, event
-from sqlalchemy.ext.declarative import DeclarativeMeta
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship, declared_attr
-from sqlalchemy.sql.ddl import DDL
+from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 
 Base = declarative_base()
 
@@ -28,7 +26,8 @@ class Station(Base):
             'name': self.name,
             'lat': self.lat,
             'lon': self.lon,
-            'source': self.source
+            'source': self.source,
+            'ids': self.ids
         }
 
 
@@ -62,3 +61,18 @@ class StopTime(Base):
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
     __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date"),)
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'sched_arr_dt': self.sched_arr_dt.isoformat() if self.sched_arr_dt else None,
+            'sched_dep_dt': self.sched_dep_dt.isoformat() if self.sched_dep_dt else None,
+            'orig_dep_date': self.orig_dep_date.isoformat(),
+            'platform': self.platform,
+            'orig_id': self.orig_id,
+            'dest_text': self.dest_text,
+            'number': self.number,
+            'route_name': self.route_name,
+            'source': self.source,
+            'stop_id': self.stop_id,
+        }
