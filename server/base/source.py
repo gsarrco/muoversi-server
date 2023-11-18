@@ -164,7 +164,6 @@ class Source:
             stmt = select(d_stop_times.route_name)
         else:
             stmt = select(d_stop_times, a_stop_times)
-            
 
         day_minus_one = day - timedelta(days=1)
 
@@ -229,8 +228,6 @@ class Source:
                 for stop in station.stops:
                     stop.active = False
 
-
-
         self.session.commit()
 
         stop_ids = [s.id for s in new_stops] if new_stops else station_codes
@@ -257,15 +254,27 @@ class Source:
                 self.session.execute(stmt)
 
         # Stops with stations not in station_codes are set as inactive
-        for stop in self.session.scalars(select(Stop).filter(Stop.station_id.in_(station_codes), Stop.active is True)).all():
+        for stop in self.session.scalars(
+                select(Stop).filter(Stop.station_id.in_(station_codes), Stop.active is True)).all():
             if stop.id not in stop_ids:
                 stop.active = False
 
         self.session.commit()
 
-        self.sync_stations_typesense(new_stations)
+        stations_dict = {station.id: station for station in new_stations}
 
-    def sync_stations_typesense(self, stations: list[Station]):
+        results: dict[str, list[Station, str]] = {}
+        for stop in new_stops:
+            station = stations_dict.get(stop.station_id)
+            if station:
+                if station.id in results:
+                    results[station.id][1] += ',' + stop.id
+                else:
+                    results[station.id] = [station, stop.id]
+
+        self.sync_stations_typesense(list(results.values()))
+
+    def sync_stations_typesense(self, stations_with_stop_ids: list[list[Station, str]]):
         stations_collection = self.typesense.collections['stations']
 
         stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
@@ -274,10 +283,10 @@ class Source:
             'id': station.id,
             'name': station.name,
             'location': [station.lat, station.lon],
-            'ids': station.ids,
+            'ids': stop_ids,
             'source': station.source,
             'times_count': station.times_count
-        } for station in stations]
+        } for station, stop_ids in stations_with_stop_ids]
 
         if not stations_to_sync:
             return
@@ -296,17 +305,29 @@ class Source:
     def search_lines(self, name):
         raise NotImplementedError
 
-    def get_source_stations(self) -> list[Station]:
-        return self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
-    
+    def get_source_stations(self) -> list[list[Station, str]]:
+        stmt = select(Station, Stop.id).select_from(Stop).join(Stop.station).filter(Stop.source == self.name,
+                                                                                    Stop.active)
+        stops_stations = self.session.execute(stmt).all()
+
+        results: dict[str, list[Station, str]] = {}
+        for stop_station in stops_stations:
+            station, stop_id = stop_station
+            if station.id in results:
+                results[station.id][1] += ',' + stop_id
+            else:
+                results[station.id] = [station, stop_id]
+
+        return list(results.values())
+
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
         stop_id = self.name + '_' + stop_time.station.id if self.name != 'treni' else stop_time.station.id
 
         stmt = insert(StopTime).values(stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
-                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
-                                        orig_id=stop_time.origin_id, dest_text=stop_time.destination,
-                                        number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                                        route_name=stop_time.route_name, source=self.name)
+                                       sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
+                                       orig_id=stop_time.origin_id, dest_text=stop_time.destination,
+                                       number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
+                                       route_name=stop_time.route_name, source=self.name)
 
         stmt = stmt.on_conflict_do_update(
             index_elements=['stop_id', 'number', 'orig_dep_date', 'source'],

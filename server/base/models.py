@@ -1,10 +1,8 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import ForeignKey, UniqueConstraint, event
-from sqlalchemy.ext.declarative import DeclarativeMeta
-from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship, declared_attr
-from sqlalchemy.sql.ddl import DDL
+from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 
 Base = declarative_base()
 
@@ -28,7 +26,8 @@ class Station(Base):
             'name': self.name,
             'lat': self.lat,
             'lon': self.lon,
-            'source': self.source
+            'source': self.source,
+            'ids': self.ids
         }
 
 
