@@ -48,8 +48,8 @@ async def get_stop_times(request: Request) -> Response:
     day = request.query_params.get('day')
     if not day:
         return Response(status_code=400, content='Missing day')
-    offset = request.query_params.get('offset', 0)
-    limit = request.query_params.get('limit', 10)
+    offset = int(request.query_params.get('offset', 0))
+    limit = int(request.query_params.get('limit', 10))
 
     day = date.fromisoformat(day)
 
