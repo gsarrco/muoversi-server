@@ -95,8 +95,11 @@ class Source:
         return stations, found
 
     def get_stop_times(self, stops_ids, line, start_time, day,
-                       offset_times, count=False, limit=True) -> list[StopTime] | list[str]:
+                       offset_times, count=False, limit: int | None = None) -> list[StopTime] | list[str]:
         day_start = datetime.combine(day, time(0))
+
+        if limit is None:
+            limit = self.LIMIT
 
         if start_time == '':
             start_dt = day_start
@@ -133,7 +136,7 @@ class Source:
                 .order_by(func.count(StopTime.route_name).desc())
             stop_times = self.session.execute(stmt).all()
         else:
-            stmt = stmt.order_by(StopTime.sched_dep_dt).limit(self.LIMIT).offset(offset_times)
+            stmt = stmt.order_by(StopTime.sched_dep_dt).limit(limit).offset(offset_times)
             stop_times = self.session.scalars(stmt).all()
 
         if count:
