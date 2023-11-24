@@ -155,9 +155,12 @@ class Source:
 
     def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_time,
                                      offset: int | tuple[int], day,
-                                     count=False, direction=1) \
+                                     count=False, limit: int | None = None, direction=1) \
             -> list[tuple[StopTime, StopTime]] | list[str]:
         day_start = datetime.combine(day, time(0))
+
+        if limit is None:
+            limit = self.LIMIT
 
         if start_time == '':
             start_dt = day_start
@@ -214,7 +217,7 @@ class Source:
             if isinstance(offset, int):
                 stmt = stmt.offset(offset)
 
-            stmt = stmt.limit(self.LIMIT)
+            stmt = stmt.limit(limit)
 
         raw_stop_times = self.session.execute(stmt).all()
 
