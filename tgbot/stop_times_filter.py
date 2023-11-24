@@ -87,8 +87,7 @@ class StopTimesFilter:
                                                                                                       arr_stop.ids,
                                                                                                       line, start_time,
                                                                                                       self.offset_times,
-                                                                                                      day,
-                                                                                                      context=self.context)
+                                                                                                      day)
             results: list[Direction] = []
             for stop_time_tuple in stop_times_tuples:
                 dep_stop_time, arr_stop_time = stop_time_tuple
@@ -98,7 +97,7 @@ class StopTimesFilter:
             if self.lines is None:
                 self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids,
                                                                              line, start_time, self.offset_times, day,
-                                                                             context=self.context, count=True)
+                                                                             count=True)
             return results
 
         stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times)

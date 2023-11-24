@@ -4,7 +4,6 @@ from datetime import datetime, date, timedelta, time
 from sqlalchemy import select, func, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased
-from telegram.ext import ContextTypes
 
 from tgbot.formatting import Liner
 from .models import Station, Stop, StopTime
@@ -145,7 +144,7 @@ class Source:
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_time,
-                                     offset_times, day, context: ContextTypes.DEFAULT_TYPE | None = None, count=False) \
+                                     offset_times, day, count=False) \
             -> list[tuple[StopTime, StopTime]] | list[str]:
         day_start = datetime.combine(day, time(0))
 
