@@ -121,7 +121,7 @@ class Source:
         if direction == 1:
             stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt, StopTime.sched_dep_dt < end_dt)
         else:
-            stmt = stmt.filter(StopTime.sched_dep_dt < start_dt, StopTime.sched_dep_dt >= end_dt)
+            stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt, StopTime.sched_dep_dt >= end_dt)
 
         # if we are offsetting by ids of stop times (tuple[int])
         if isinstance(offset, tuple):
@@ -196,7 +196,7 @@ class Source:
         if direction == 1:
             stmt = stmt.filter(d_stop_times.sched_dep_dt >= start_dt, d_stop_times.sched_dep_dt < end_dt)
         else:
-            stmt = stmt.filter(d_stop_times.sched_dep_dt < start_dt, d_stop_times.sched_dep_dt >= end_dt)
+            stmt = stmt.filter(d_stop_times.sched_dep_dt <= start_dt, d_stop_times.sched_dep_dt >= end_dt)
 
         # if we are offsetting by ids of stop times (tuple[int])
         if isinstance(offset, tuple):
