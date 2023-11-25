@@ -76,19 +76,22 @@ class StopTimesFilter:
         return InlineKeyboardButton(text, callback_data=self.query_data(**new_params))
 
     def get_times(self, db_file: Source) -> list[Liner]:
-        day, dep_stop_ids, line, start_time = self.day, self.dep_stop_ids, self.line, \
-            self.start_time
+        dep_stop = Station(name=self.dep_cluster_name, ids=self.dep_stop_ids)
 
-        dep_stop = Station(name=self.dep_cluster_name, ids=dep_stop_ids)
+        start_time = self.start_time
+
+        if start_time != '' and self.first_time:
+            start_time = datetime.combine(self.day, start_time) - timedelta(minutes=self.source.MINUTES_TOLERANCE)
+            start_time = start_time.time()
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
             stop_times_tuples: list[tuple[StopTime, StopTime]] = db_file.get_stop_times_between_stops(dep_stop.ids,
                                                                                                       arr_stop.ids,
-                                                                                                      line, start_time,
+                                                                                                      self.line,
+                                                                                                      start_time,
                                                                                                       self.offset_times,
-                                                                                                      day,
-                                                                                                      context=self.context)
+                                                                                                      self.day)
             results: list[Direction] = []
             for stop_time_tuple in stop_times_tuples:
                 dep_stop_time, arr_stop_time = stop_time_tuple
@@ -96,16 +99,17 @@ class StopTimesFilter:
                 arr_named_stop_time = NamedStopTime(arr_stop_time, self.arr_cluster_name)
                 results.append(Direction([Route(dep_named_stop_time, arr_named_stop_time)]))
             if self.lines is None:
-                self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids,
-                                                                             line, start_time, self.offset_times, day,
-                                                                             context=self.context, count=True)
+                self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids, self.line,
+                                                                             start_time, self.offset_times,
+                                                                             self.day, count=True)
             return results
 
-        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times)
+        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, self.line, start_time, self.day,
+                                                            self.offset_times)
         results: list[NamedStopTime] = [NamedStopTime(stop_time, self.dep_cluster_name) for stop_time in stop_times]
         if self.lines is None:
-            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, line, start_time, day, self.offset_times,
-                                                           count=True)
+            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, self.line, start_time, self.day,
+                                                           self.offset_times, count=True)
 
         return results
 

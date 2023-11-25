@@ -42,24 +42,44 @@ async def get_stop_times(request: Request) -> Response:
     dep_stops_ids = request.query_params.get('dep_stops_ids')
     if not dep_stops_ids:
         return Response(status_code=400, content='Missing dep_stops_ids')
+    arr_stops_ids = request.query_params.get('arr_stops_ids')
+    direction = int(request.query_params.get('direction', 1))
     source_name = request.query_params.get('source')
     if not source_name:
         return Response(status_code=400, content='Missing source')
     day = request.query_params.get('day')
     if not day:
         return Response(status_code=400, content='Missing day')
-    offset = int(request.query_params.get('offset', 0))
+    start_time = request.query_params.get('start_time', '')
+    if start_time != '':
+        start_time = datetime.strptime(start_time, '%H:%M').time()
+
+    str_offset = request.query_params.get('offset_by_ids', '')
+
+    if str_offset == '':
+        offset: int = 0
+    else:
+        offset: tuple[int] = tuple(map(int, str_offset.split(',')))
+
     limit = int(request.query_params.get('limit', 10))
+
+    if limit > 15:
+        limit = 15
 
     day = date.fromisoformat(day)
 
-    # start time can only be either now, if today, or empty (start of the day) for next days
-    start_time = datetime.now().time() if day == date.today() else ''
-
     source: Source = sources[source_name]
 
-    stop_times: list[StopTime] = source.get_stop_times(dep_stops_ids, '', start_time, day, offset, limit=limit)
-    return JSONResponse([stop_time.as_dict() for stop_time in stop_times])
+    if arr_stops_ids:
+        stop_times: list[tuple[StopTime, StopTime]] = source.get_stop_times_between_stops(dep_stops_ids, arr_stops_ids,
+                                                                                          '', start_time,
+                                                                                          offset, day, limit=limit,
+                                                                                          direction=direction)
+        return JSONResponse([[stop_time[0].as_dict(), stop_time[1].as_dict()] for stop_time in stop_times])
+    else:
+        stop_times: list[StopTime] = source.get_stop_times(dep_stops_ids, '', start_time, day, offset, limit=limit,
+                                                           direction=direction)
+        return JSONResponse([[stop_time.as_dict()] for stop_time in stop_times])
     
 
 
