@@ -148,6 +148,9 @@ class Source:
 
             stop_times = self.session.scalars(stmt).all()
 
+            if direction == -1:
+                stop_times.reverse()
+
         if count:
             return [train.route_name for train in stop_times]
 
@@ -220,6 +223,9 @@ class Source:
             stmt = stmt.limit(limit)
 
         raw_stop_times = self.session.execute(stmt).all()
+
+        if direction == -1:
+            raw_stop_times.reverse()
 
         if count:
             return [train.route_name for train in raw_stop_times]
