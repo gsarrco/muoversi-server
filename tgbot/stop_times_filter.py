@@ -78,12 +78,18 @@ class StopTimesFilter:
     def get_times(self, db_file: Source) -> list[Liner]:
         dep_stop = Station(name=self.dep_cluster_name, ids=self.dep_stop_ids)
 
+        start_time = self.start_time
+
+        if start_time != '' and self.first_time:
+            start_time = datetime.combine(self.day, start_time) - timedelta(minutes=self.source.MINUTES_TOLERANCE)
+            start_time = start_time.time()
+
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
             stop_times_tuples: list[tuple[StopTime, StopTime]] = db_file.get_stop_times_between_stops(dep_stop.ids,
                                                                                                       arr_stop.ids,
                                                                                                       self.line,
-                                                                                                      self.start_time,
+                                                                                                      start_time,
                                                                                                       self.offset_times,
                                                                                                       self.day)
             results: list[Direction] = []
@@ -94,15 +100,15 @@ class StopTimesFilter:
                 results.append(Direction([Route(dep_named_stop_time, arr_named_stop_time)]))
             if self.lines is None:
                 self.lines: list[str] = db_file.get_stop_times_between_stops(dep_stop.ids, arr_stop.ids, self.line,
-                                                                             self.start_time, self.offset_times,
+                                                                             start_time, self.offset_times,
                                                                              self.day, count=True)
             return results
 
-        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, self.line, self.start_time, self.day,
+        stop_times: list[StopTime] = db_file.get_stop_times(dep_stop.ids, self.line, start_time, self.day,
                                                             self.offset_times)
         results: list[NamedStopTime] = [NamedStopTime(stop_time, self.dep_cluster_name) for stop_time in stop_times]
         if self.lines is None:
-            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, self.line, self.start_time, self.day,
+            self.lines: list[str] = db_file.get_stop_times(dep_stop.ids, self.line, start_time, self.day,
                                                            self.offset_times, count=True)
 
         return results

@@ -93,8 +93,8 @@ class Source:
         found = limit_hits if limit_hits else results['found']
         return stations, found
 
-    def get_stop_times(self, stops_ids, line, start_time, day,
-                       offset_times, count=False, limit: int | None = None) -> list[StopTime] | list[str]:
+    def get_stop_times(self, stops_ids, line, start_time, day, offset: int | tuple[int], count=False,
+                       limit: int | None = None, direction=1) -> list[StopTime] | list[str]:
         day_start = datetime.combine(day, time(0))
 
         if limit is None:
@@ -103,9 +103,9 @@ class Source:
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE)
+            start_dt = datetime.combine(day, start_time)
 
-        end_dt = day_start + timedelta(days=1)
+        end_dt = day_start + timedelta(days=1) if direction == 1 else day_start
 
         stops_ids = stops_ids.split(',')
 
@@ -116,15 +116,16 @@ class Source:
 
         day_minus_one = day - timedelta(days=1)
 
-        stmt = stmt \
-            .filter(
-            and_(
-                StopTime.orig_dep_date.between(day_minus_one, day),
-                StopTime.stop_id.in_(stops_ids),
-                StopTime.sched_dep_dt >= start_dt,
-                StopTime.sched_dep_dt < end_dt
-            )
-        )
+        stmt = stmt.filter(StopTime.orig_dep_date.between(day_minus_one, day), StopTime.stop_id.in_(stops_ids))
+
+        if direction == 1:
+            stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt, StopTime.sched_dep_dt < end_dt)
+        else:
+            stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt, StopTime.sched_dep_dt >= end_dt)
+
+        # if we are offsetting by ids of stop times (tuple[int])
+        if isinstance(offset, tuple):
+            stmt = stmt.filter(StopTime.id.notin_(offset))
 
         if line != '':
             stmt = stmt.filter(StopTime.route_name == line)
@@ -135,8 +136,20 @@ class Source:
                 .order_by(func.count(StopTime.route_name).desc())
             stop_times = self.session.execute(stmt).all()
         else:
-            stmt = stmt.order_by(StopTime.sched_dep_dt).limit(limit).offset(offset_times)
+            if direction == 1:
+                stmt = stmt.order_by(StopTime.sched_dep_dt.asc())
+            else:
+                stmt = stmt.order_by(StopTime.sched_arr_dt.desc())
+
+            if isinstance(offset, int):
+                stmt = stmt.offset(offset)
+
+            stmt = stmt.limit(limit)
+
             stop_times = self.session.scalars(stmt).all()
+
+            if direction == -1:
+                stop_times.reverse()
 
         if count:
             return [train.route_name for train in stop_times]
@@ -144,16 +157,20 @@ class Source:
         return stop_times
 
     def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_time,
-                                     offset_times, day, count=False) \
+                                     offset: int | tuple[int], day,
+                                     count=False, limit: int | None = None, direction=1) \
             -> list[tuple[StopTime, StopTime]] | list[str]:
         day_start = datetime.combine(day, time(0))
+
+        if limit is None:
+            limit = self.LIMIT
 
         if start_time == '':
             start_dt = day_start
         else:
-            start_dt = datetime.combine(day, start_time) - timedelta(minutes=self.MINUTES_TOLERANCE)
+            start_dt = datetime.combine(day, start_time)
 
-        end_dt = day_start + timedelta(days=1)
+        end_dt = day_start + timedelta(days=1) if direction == 1 else day_start
 
         dep_stops_ids = dep_stops_ids.split(',')
         arr_stops_ids = arr_stops_ids.split(',')
@@ -173,17 +190,20 @@ class Source:
             .select_from(d_stop_times) \
             .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
                                      d_stop_times.orig_dep_date == a_stop_times.orig_dep_date,
-                                     d_stop_times.source == a_stop_times.source)) \
-            .filter(
-            and_(
-                d_stop_times.orig_dep_date.between(day_minus_one, day),
-                d_stop_times.stop_id.in_(dep_stops_ids),
-                d_stop_times.sched_dep_dt >= start_dt,
-                d_stop_times.sched_dep_dt < end_dt,
-                d_stop_times.sched_dep_dt < a_stop_times.sched_arr_dt,
-                a_stop_times.stop_id.in_(arr_stops_ids)
-            )
-        )
+                                     d_stop_times.source == a_stop_times.source))
+
+        stmt = stmt.filter(d_stop_times.orig_dep_date.between(day_minus_one, day),
+                           d_stop_times.stop_id.in_(dep_stops_ids), a_stop_times.stop_id.in_(arr_stops_ids),
+                           d_stop_times.sched_dep_dt < a_stop_times.sched_arr_dt)
+
+        if direction == 1:
+            stmt = stmt.filter(d_stop_times.sched_dep_dt >= start_dt, d_stop_times.sched_dep_dt < end_dt)
+        else:
+            stmt = stmt.filter(d_stop_times.sched_dep_dt <= start_dt, d_stop_times.sched_dep_dt >= end_dt)
+
+        # if we are offsetting by ids of stop times (tuple[int])
+        if isinstance(offset, tuple):
+            stmt = stmt.filter(d_stop_times.id.notin_(offset))
 
         if line != '':
             stmt = stmt.filter(d_stop_times.route_name == line)
@@ -192,11 +212,20 @@ class Source:
             stmt = stmt.group_by(d_stop_times.route_name).order_by(
                 func.count(d_stop_times.route_name).desc())
         else:
-            stmt = stmt.order_by(
-                d_stop_times.sched_dep_dt
-            ).limit(self.LIMIT).offset(offset_times)
+            if direction == 1:
+                stmt = stmt.order_by(d_stop_times.sched_dep_dt.asc())
+            else:
+                stmt = stmt.order_by(d_stop_times.sched_arr_dt.desc())
+
+            if isinstance(offset, int):
+                stmt = stmt.offset(offset)
+
+            stmt = stmt.limit(limit)
 
         raw_stop_times = self.session.execute(stmt).all()
+
+        if direction == -1:
+            raw_stop_times.reverse()
 
         if count:
             return [train.route_name for train in raw_stop_times]
