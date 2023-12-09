@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from sqlalchemy import text
 from starlette.requests import Request
@@ -47,12 +47,16 @@ async def get_stop_times(request: Request) -> Response:
     source_name = request.query_params.get('source')
     if not source_name:
         return Response(status_code=400, content='Missing source')
-    day = request.query_params.get('day')
-    if not day:
-        return Response(status_code=400, content='Missing day')
-    start_time = request.query_params.get('start_time', '')
-    if start_time != '':
-        start_time = datetime.strptime(start_time, '%H:%M').time()
+
+    start_dt_str = request.query_params.get('start_dt')
+    if not start_dt_str:
+        return Response(status_code=400, content='Missing start_dt')
+    start_dt = datetime.fromisoformat(start_dt_str)
+
+    end_dt_str = request.query_params.get('end_dt')
+    end_dt = None
+    if end_dt_str:
+        end_dt = datetime.fromisoformat(end_dt_str)
 
     str_offset = request.query_params.get('offset_by_ids', '')
 
@@ -66,19 +70,18 @@ async def get_stop_times(request: Request) -> Response:
     if limit > 15:
         limit = 15
 
-    day = date.fromisoformat(day)
-
     source: Source = sources[source_name]
 
     if arr_stops_ids:
         stop_times: list[tuple[StopTime, StopTime]] = source.get_stop_times_between_stops(dep_stops_ids, arr_stops_ids,
-                                                                                          '', start_time,
-                                                                                          offset, day, limit=limit,
-                                                                                          direction=direction)
+                                                                                          '', start_dt,
+                                                                                          offset, limit=limit,
+                                                                                          direction=direction,
+                                                                                          end_dt=end_dt)
         return JSONResponse([[stop_time[0].as_dict(), stop_time[1].as_dict()] for stop_time in stop_times])
     else:
-        stop_times: list[StopTime] = source.get_stop_times(dep_stops_ids, '', start_time, day, offset, limit=limit,
-                                                           direction=direction)
+        stop_times: list[StopTime] = source.get_stop_times(dep_stops_ids, '', start_dt, offset, limit=limit,
+                                                           direction=direction, end_dt=end_dt)
         return JSONResponse([[stop_time.as_dict()] for stop_time in stop_times])
     
 

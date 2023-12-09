@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, date, timedelta, time
+from datetime import datetime, date, timedelta
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.dialects.postgresql import insert
@@ -93,19 +93,11 @@ class Source:
         found = limit_hits if limit_hits else results['found']
         return stations, found
 
-    def get_stop_times(self, stops_ids, line, start_time, day, offset: int | tuple[int], count=False,
-                       limit: int | None = None, direction=1) -> list[StopTime] | list[str]:
-        day_start = datetime.combine(day, time(0))
+    def get_stop_times(self, stops_ids, line, start_dt: datetime, offset: int | tuple[int], count=False,
+                       limit: int | None = None, direction=1, end_dt: datetime = None) -> list[StopTime] | list[str]:
 
         if limit is None:
             limit = self.LIMIT
-
-        if start_time == '':
-            start_dt = day_start
-        else:
-            start_dt = datetime.combine(day, start_time)
-
-        end_dt = day_start + timedelta(days=1) if direction == 1 else day_start
 
         stops_ids = stops_ids.split(',')
 
@@ -114,14 +106,19 @@ class Source:
         else:
             stmt = select(StopTime)
 
+        day = start_dt.date()
         day_minus_one = day - timedelta(days=1)
 
         stmt = stmt.filter(StopTime.orig_dep_date.between(day_minus_one, day), StopTime.stop_id.in_(stops_ids))
 
         if direction == 1:
-            stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt, StopTime.sched_dep_dt < end_dt)
+            stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt)
+            if end_dt:
+                stmt = stmt.filter(StopTime.sched_dep_dt < end_dt)
         else:
-            stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt, StopTime.sched_dep_dt >= end_dt)
+            stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt)
+            if end_dt:
+                stmt = stmt.filter(StopTime.sched_dep_dt >= end_dt)
 
         # if we are offsetting by ids of stop times (tuple[int])
         if isinstance(offset, tuple):
@@ -156,21 +153,13 @@ class Source:
 
         return stop_times
 
-    def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_time,
-                                     offset: int | tuple[int], day,
-                                     count=False, limit: int | None = None, direction=1) \
+    def get_stop_times_between_stops(self, dep_stops_ids, arr_stops_ids, line, start_dt: datetime,
+                                     offset: int | tuple[int],
+                                     count=False, limit: int | None = None, direction=1, end_dt: datetime = None) \
             -> list[tuple[StopTime, StopTime]] | list[str]:
-        day_start = datetime.combine(day, time(0))
 
         if limit is None:
             limit = self.LIMIT
-
-        if start_time == '':
-            start_dt = day_start
-        else:
-            start_dt = datetime.combine(day, start_time)
-
-        end_dt = day_start + timedelta(days=1) if direction == 1 else day_start
 
         dep_stops_ids = dep_stops_ids.split(',')
         arr_stops_ids = arr_stops_ids.split(',')
@@ -184,6 +173,7 @@ class Source:
         else:
             stmt = select(d_stop_times, a_stop_times)
 
+        day = start_dt.date()
         day_minus_one = day - timedelta(days=1)
 
         stmt = stmt \
@@ -197,9 +187,13 @@ class Source:
                            d_stop_times.sched_dep_dt < a_stop_times.sched_arr_dt)
 
         if direction == 1:
-            stmt = stmt.filter(d_stop_times.sched_dep_dt >= start_dt, d_stop_times.sched_dep_dt < end_dt)
+            stmt = stmt.filter(d_stop_times.sched_dep_dt >= start_dt)
+            if end_dt:
+                stmt = stmt.filter(d_stop_times.sched_dep_dt < end_dt)
         else:
-            stmt = stmt.filter(d_stop_times.sched_dep_dt <= start_dt, d_stop_times.sched_dep_dt >= end_dt)
+            stmt = stmt.filter(d_stop_times.sched_dep_dt <= start_dt)
+            if end_dt:
+                stmt = stmt.filter(d_stop_times.sched_dep_dt >= end_dt)
 
         # if we are offsetting by ids of stop times (tuple[int])
         if isinstance(offset, tuple):
