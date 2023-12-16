@@ -36,8 +36,15 @@ async def search_stations(request: Request) -> Response:
     hide_ids = request.query_params.get('hide_ids')
     if hide_ids:
         hide_ids = hide_ids.split(',')
+    only_source = request.query_params.get('only_source')
+    if only_source:
+        source = sources[only_source]
+        all_sources = False
+    else:
+        source = sources['aut']
+        all_sources = True
     limit = max(1, min(limit, 10))
-    stations, count = sources['aut'].search_stops(name=query, all_sources=True, limit=limit, hide_ids=hide_ids)
+    stations, count = source.search_stops(name=query, all_sources=all_sources, limit=limit, hide_ids=hide_ids)
     return JSONResponse([station.as_dict() for station in stations])
 
 
