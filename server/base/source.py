@@ -114,7 +114,7 @@ class Source:
         if direction == 1:
             stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt)
             if end_dt:
-                stmt = stmt.filter(StopTime.sched_dep_dt < end_dt)
+                stmt = stmt.filter(StopTime.sched_dep_dt <= end_dt)
         else:
             stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt)
             if end_dt:

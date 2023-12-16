@@ -90,7 +90,8 @@ class StopTimesFilter:
                 if start_dt.day < self.day.day:
                     start_dt = datetime.combine(self.day, time())
 
-        end_dt = datetime.combine(self.day + timedelta(days=1), time())
+        # end_at is same day as start_at at 23:59
+        end_dt = datetime.combine(self.day, time(23, 59))
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
