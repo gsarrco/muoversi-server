@@ -106,15 +106,18 @@ class Source:
         else:
             stmt = select(StopTime)
 
-        day = start_dt.date()
-        day_minus_one = day - timedelta(days=1)
+        start_day_minus_one = start_dt.date() - timedelta(days=1)
+        stmt = stmt.filter(StopTime.orig_dep_date >= start_day_minus_one)
 
-        stmt = stmt.filter(StopTime.orig_dep_date.between(day_minus_one, day), StopTime.stop_id.in_(stops_ids))
+        if end_dt:
+            stmt = stmt.filter(StopTime.orig_dep_date <= end_dt.date())
+
+        stmt = stmt.filter(StopTime.stop_id.in_(stops_ids))
 
         if direction == 1:
             stmt = stmt.filter(StopTime.sched_dep_dt >= start_dt)
             if end_dt:
-                stmt = stmt.filter(StopTime.sched_dep_dt < end_dt)
+                stmt = stmt.filter(StopTime.sched_dep_dt <= end_dt)
         else:
             stmt = stmt.filter(StopTime.sched_dep_dt <= start_dt)
             if end_dt:
