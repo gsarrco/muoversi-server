@@ -186,15 +186,20 @@ class Source:
             .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
                                      d_stop_times.orig_dep_date == a_stop_times.orig_dep_date,
                                      d_stop_times.source == a_stop_times.source))
+        
+        start_day_minus_one = start_dt.date() - timedelta(days=1)
+        stmt = stmt.filter(d_stop_times.orig_dep_date >= start_day_minus_one)
 
-        stmt = stmt.filter(d_stop_times.orig_dep_date.between(day_minus_one, day),
-                           d_stop_times.stop_id.in_(dep_stops_ids), a_stop_times.stop_id.in_(arr_stops_ids),
+        if end_dt:
+            stmt = stmt.filter(d_stop_times.orig_dep_date <= end_dt.date())
+
+        stmt = stmt.filter(d_stop_times.stop_id.in_(dep_stops_ids), a_stop_times.stop_id.in_(arr_stops_ids),
                            d_stop_times.sched_dep_dt < a_stop_times.sched_arr_dt)
 
         if direction == 1:
             stmt = stmt.filter(d_stop_times.sched_dep_dt >= start_dt)
             if end_dt:
-                stmt = stmt.filter(d_stop_times.sched_dep_dt < end_dt)
+                stmt = stmt.filter(d_stop_times.sched_dep_dt <= end_dt)
         else:
             stmt = stmt.filter(d_stop_times.sched_dep_dt <= start_dt)
             if end_dt:
