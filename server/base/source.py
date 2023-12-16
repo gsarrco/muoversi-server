@@ -59,8 +59,8 @@ class Source:
         self.session = session
         self.typesense = typesense
 
-    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False) -> tuple[
-        list[Station], int]:
+    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False,
+                     hide_ids: list[str] = None) -> tuple[list[Station], int]:
         search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
         limit_hits = None
@@ -78,6 +78,8 @@ class Source:
             })
         if not all_sources:
             search_config['filter_by'] = f'source:{self.name}'
+        if hide_ids:
+            search_config['hidden_hits'] = ','.join(hide_ids)
 
         results = self.typesense.collections['stations'].documents.search(search_config)
 
