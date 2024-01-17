@@ -41,7 +41,7 @@ class Trenitalia(Source):
     def save_data(self):
         stations = self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
 
-        total_times_count = 0
+        max_times_count = 0
         times_count = []
 
         tqdm_stations = tqdm(enumerate(stations), total=len(stations), desc=f'Uploading {self.name} data')
@@ -49,13 +49,15 @@ class Trenitalia(Source):
         for i, station in tqdm_stations:
             tqdm_stations.set_description(f'Processing station {station.name}')
             stop_times = self.get_stop_times_from_station(station)
-            total_times_count += len(stop_times)
-            times_count.append(len(stop_times))
+            stop_times_count = len(stop_times)
+            if stop_times_count > max_times_count:
+                max_times_count = stop_times_count
+            times_count.append(stop_times_count)
             for stop_time in stop_times:
                 self.upload_trip_stop_time_to_postgres(stop_time)
 
         for i, station in enumerate(stations):
-            station.times_count = round(times_count[i] / total_times_count, int(math.log10(total_times_count)) + 1)
+            station.times_count = round(times_count[i] / max_times_count, int(math.log10(max_times_count)) + 1)
         self.sync_stations_db(stations)
 
     def get_stop_times_from_station(self, station) -> list[TripStopTime]:

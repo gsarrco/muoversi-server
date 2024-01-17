@@ -183,14 +183,14 @@ class GTFS(Source):
         ''')
         stops = self.get_all_stops()
         stops_clusters = get_clusters_of_stops(stops)
-        total_times_count = sum([cluster.times_count for cluster in stops_clusters])
+        max_times_count = max([cluster.times_count for cluster in stops_clusters])
 
         new_stations = []
         new_stops = []
 
         for cluster in stops_clusters:
-            times_count = round(cluster.times_count / total_times_count,
-                                int(math.log10(total_times_count)) + 1)
+            times_count = round(cluster.times_count / max_times_count,
+                                int(math.log10(max_times_count)) + 1)
             ids = ','.join([str(stop.id) for stop in cluster.stops])
             station = Station(id=cluster.name, name=cluster.name, lat=cluster.lat, lon=cluster.lon, ids=ids,
                               times_count=times_count, source=self.name)
