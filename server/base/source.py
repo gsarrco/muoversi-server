@@ -356,6 +356,9 @@ class Source:
         return list(results.values())
 
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
+        if stop_time.orig_dep_date > date.today() + timedelta(days=2):
+            return
+
         stop_id = self.name + '_' + stop_time.station.id if self.name != 'treni' else stop_time.station.id
 
         stmt = insert(StopTime).values(stop_id=stop_id, sched_arr_dt=stop_time.arr_time,
