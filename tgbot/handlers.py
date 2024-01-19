@@ -163,7 +163,7 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     trans = gettext.translation('messages', localedir, languages=[lang])
     _ = trans.gettext
 
-    db_file: Source = thismodule.sources[context.user_data.get('transport_type', 'aut')]
+    db_file: Source = thismodule.sources[context.user_data.get('transport_type', 'venezia-aut')]
 
     limit = 4
 
