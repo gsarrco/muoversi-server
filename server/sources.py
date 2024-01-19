@@ -14,8 +14,8 @@ session = sessionmaker(bind=engine)()
 typesense = connect_to_typesense()
 
 sources = {
-    'venezia-aut': GTFS('automobilistico', '🚌', session, typesense, dev=config.get('DEV', False)),
-    'venezia-nav': GTFS('navigazione', '⛴️', session, typesense, dev=config.get('DEV', False)),
+    'venezia-aut': GTFS('automobilistico', 'venezia-aut', '🚌', session, typesense, dev=config.get('DEV', False)),
+    'venezia-nav': GTFS('navigazione', 'venezia-nav', '⛴️', session, typesense, dev=config.get('DEV', False)),
     'venezia-treni': Trenitalia(session, typesense)
 }
 
