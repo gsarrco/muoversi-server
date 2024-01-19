@@ -8,27 +8,28 @@ from server.GTFS import GTFS, get_clusters_of_stops, CCluster, CStop
 @pytest.fixture
 def db_file():
     ref_dt = datetime(2023, 10, 15)
-    return GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
+    return GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
 
 
 def test_valid_gtfs():
     _558_ref_df = datetime(2023, 10, 7)
-    _558_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_558_ref_df)
+    _558_gtfs = GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_558_ref_df)
     assert _558_gtfs.gtfs_version == 558, 'invalid gtfs version'
 
     _557_ref_dt = datetime(2023, 10, 6)
-    _557_gtfs = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_557_ref_dt)
+    _557_gtfs = GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=_557_ref_dt)
     assert _557_gtfs.gtfs_version == 557, 'invalid gtfs version'
 
 
 def test_invalid_gtfs():
     invalid_ref_df = datetime(2023, 9, 30)
     with pytest.raises(Exception):
-        GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=invalid_ref_df)
+        GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=invalid_ref_df)
 
 
 def test_zero_stop_times_for_next_service():
-    db_file = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=datetime(2023, 10, 6))
+    db_file = GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data',
+                   ref_dt=datetime(2023, 10, 6))
     next_service_date = date(2023, 10, 7)
 
     # On the 2023-10-06 we already know that there will a new service starting on 2023-10-07
@@ -46,7 +47,7 @@ def test_zero_stop_times_for_next_service():
 
 def test_normal_stop_times_for_current_service():
     ref_dt = datetime(2023, 10, 7)
-    db_file = GTFS('navigazione', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
+    db_file = GTFS('navigazione', 'venezia-nav', '⛴️', None, None, (558, 557), 'tests/data', ref_dt=ref_dt)
 
     # On the 2023-10-06 we already know that there will a new service starting on 2023-10-07
     assert not hasattr(db_file, 'next_service_start_date')

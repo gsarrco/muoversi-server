@@ -42,8 +42,9 @@ def get_latest_gtfs_version(transport_type):
 
 
 class GTFS(Source):
-    def __init__(self, transport_type, emoji, session, typesense, gtfs_versions_range: tuple[int] = None, location='', dev=False, ref_dt: datetime = None):
-        super().__init__(transport_type[:3], emoji, session, typesense)
+    def __init__(self, transport_type, source_name, emoji, session, typesense, gtfs_versions_range: tuple[int] = None,
+                 location='', dev=False, ref_dt: datetime = None):
+        super().__init__(source_name, emoji, session, typesense)
         self.transport_type = transport_type
         self.location = location
         self.service_ids = {}
