@@ -199,7 +199,7 @@ class GTFS(Source):
             for stop in cluster.stops:
                 platform = get_loc_from_stop_and_cluster(stop.name)
                 platform = platform if platform != '' else None
-                id_ = self.name + '_' + stop.id if self.name != 'treni' else stop.id
+                id_ = self.name + '_' + stop.id if self.name != 'venezia-treni' else stop.id
                 stop = Stop(id=id_, platform=platform, lat=stop.lat, lon=stop.lon, station_id=cluster.name, source=self.name)
                 new_stops.append(stop)
 

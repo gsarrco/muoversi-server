@@ -21,7 +21,7 @@ class Trenitalia(Source):
 
     def __init__(self, session, typesense, location='', force_update_stations=False):
         self.location = location
-        super().__init__('treni', '🚆', session, typesense)
+        super().__init__('venezia-treni', '🚆', session, typesense)
 
         if force_update_stations or self.session.query(Station).filter_by(source=self.name, active=True).count() == 0 or \
                 self.session.query(Stop).filter_by(source=self.name, active=True).count() == 0:

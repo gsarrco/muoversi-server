@@ -14,7 +14,7 @@ async def home(request: Request) -> Response:
     text_response = '<html>'
 
     try:
-        sources['treni'].session.execute(text('SELECT 1'))
+        sources['venezia-treni'].session.execute(text('SELECT 1'))
     except Exception:
         return Response(status_code=500)
     else:
@@ -41,7 +41,7 @@ async def search_stations(request: Request) -> Response:
         source = sources[only_source]
         all_sources = False
     else:
-        source = sources['aut']
+        source = sources['venezia-aut']
         all_sources = True
     limit = max(1, min(limit, 10))
     stations, count = source.search_stops(name=query, all_sources=all_sources, limit=limit, hide_ids=hide_ids)

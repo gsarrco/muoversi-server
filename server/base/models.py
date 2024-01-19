@@ -16,7 +16,7 @@ class Station(Base):
     lon: Mapped[Optional[float]]
     ids: Mapped[str] = mapped_column(server_default='')
     times_count: Mapped[float] = mapped_column(server_default='0')
-    source: Mapped[str] = mapped_column(server_default='treni')
+    source: Mapped[str] = mapped_column(server_default='venezia-treni')
     stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
     active: Mapped[bool] = mapped_column(server_default='true')
 
@@ -56,7 +56,7 @@ class StopTime(Base):
     dest_text: Mapped[str]
     number: Mapped[int]
     route_name: Mapped[str]
-    source: Mapped[str] = mapped_column(server_default='treni')
+    source: Mapped[str] = mapped_column(server_default='venezia-treni')
     stop_id: Mapped[str] = mapped_column(ForeignKey('stops.id'))
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
