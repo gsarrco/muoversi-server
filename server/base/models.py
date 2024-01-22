@@ -7,6 +7,20 @@ from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 Base = declarative_base()
 
 
+class City(Base):
+    __tablename__ = 'cities'
+
+    name: Mapped[str] = mapped_column(primary_key=True)
+    sources = relationship('DBSource', back_populates='city')
+
+
+class DBSource(Base):
+    __tablename__ = 'sources'
+    name: Mapped[str] = mapped_column(primary_key=True)
+    city_name: Mapped[str] = mapped_column(ForeignKey('cities.name'))
+    city: Mapped[City] = relationship('City', back_populates='sources')
+
+
 class Station(Base):
     __tablename__ = 'stations'
 
@@ -16,7 +30,7 @@ class Station(Base):
     lon: Mapped[Optional[float]]
     ids: Mapped[str] = mapped_column(server_default='')
     times_count: Mapped[float] = mapped_column(server_default='0')
-    source: Mapped[str] = mapped_column(server_default='venezia-treni')
+    source: Mapped[str] = mapped_column(ForeignKey('sources.name'))
     stops = relationship('Stop', back_populates='station', cascade='all, delete-orphan')
     active: Mapped[bool] = mapped_column(server_default='true')
 
@@ -40,7 +54,7 @@ class Stop(Base):
     lon: Mapped[float]
     station_id: Mapped[str] = mapped_column(ForeignKey('stations.id'))
     station: Mapped[Station] = relationship('Station', back_populates='stops')
-    source: Mapped[Optional[str]]
+    source: Mapped[str] = mapped_column(ForeignKey('sources.name'))
     active: Mapped[bool] = mapped_column(server_default='true')
 
 
@@ -56,7 +70,7 @@ class StopTime(Base):
     dest_text: Mapped[str]
     number: Mapped[int]
     route_name: Mapped[str]
-    source: Mapped[str] = mapped_column(server_default='venezia-treni')
+    source: Mapped[str] = mapped_column(ForeignKey('sources.name'))
     stop_id: Mapped[str] = mapped_column(ForeignKey('stops.id'))
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
