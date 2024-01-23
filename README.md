@@ -6,7 +6,7 @@ Venice (parsed from the Trenitalia api). However, since it can build on any GTFS
 other cities in the future.
 
 Separated from the core code and optional to set up, a Telegram bot uses the web service to provide a more user-friendly
-interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). Also, the mobile app is under development: [muoversi-app](https://github.com/gsarrco/muoversi-app).
+interface. You can check it out here: [@MuoVErsiBot](https://t.me/MuoVErsiBot). **Also, the mobile app for Android and iOS is under active development: [muoversi-app](https://github.com/gsarrco/muoversi-app)**.
 
 ## Features
 
