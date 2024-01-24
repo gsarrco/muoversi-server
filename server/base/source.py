@@ -243,6 +243,9 @@ class Source:
         return stop_times_tuples
 
     def sync_stations_db(self, new_stations: list[Station], new_stops: list[Stop] = None):
+        if new_stops is None:
+            new_stops = []
+
         station_codes = [s.id for s in new_stations]
 
         for station in new_stations:
