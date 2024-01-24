@@ -26,7 +26,8 @@ class Trenitalia(Source):
         if force_update_stations or self.session.query(Station).filter_by(source=self.name, active=True).count() == 0 or \
                 self.session.query(Stop).filter_by(source=self.name, active=True).count() == 0:
             current_dir = os.path.abspath(os.path.dirname(__file__))
-            datadir = os.path.abspath(current_dir + '/data')
+            parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+            datadir = os.path.abspath(parent_dir + '/data')
 
             with open(os.path.join(datadir, 'trenitalia_stations.json')) as f:
                 file_stations = json.load(f)
