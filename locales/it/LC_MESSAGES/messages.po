@@ -7,13 +7,13 @@ msgstr "Inizia la tua ricerca con /%s per partire dalla fermata di partenza, o /
 msgid "cancel"
 msgstr "Conversazione interrotta. Ti ritrovi nella schermata iniziale di MuoVErsi."
 
-msgid "aut"
+msgid "venezia-aut"
 msgstr "autom"
 
-msgid "nav"
+msgid "venezia-nav"
 msgstr "nav"
 
-msgid "treni"
+msgid "venezia-treni"
 msgstr "treni"
 
 msgid "choose_service"
@@ -94,13 +94,13 @@ msgstr "invia la fermata di destinazione per maggiori dettagli"
 msgid "send_new_arr_stop"
 msgstr "puoi anche inviare una nuova fermata di destinazione"
 
-msgid "aut_platform"
+msgid "venezia-aut_platform"
 msgstr "ferm."
 
-msgid "nav_platform"
+msgid "venezia-nav_platform"
 msgstr "appr."
 
-msgid "treni_platform"
+msgid "venezia-treni_platform"
 msgstr "bin."
 
 msgid "not_implemented"

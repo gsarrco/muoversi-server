@@ -7,13 +7,13 @@ msgstr "Begin your search with /%s to start from the departing stop, or /%s from
 msgid "cancel"
 msgstr "The conversation was stopped. You are in the home screen of MuoVErsi."
 
-msgid "aut"
+msgid "venezia-aut"
 msgstr "bus/tram"
 
-msgid "nav"
+msgid "venezia-nav"
 msgstr "waterbus"
 
-msgid "treni"
+msgid "venezia-treni"
 msgstr "trains"
 
 msgid "choose_service"
@@ -94,13 +94,13 @@ msgstr "send the destination stop for more details"
 msgid "send_new_arr_stop"
 msgstr "you can also send a new destination stop"
 
-msgid "aut_platform"
+msgid "venezia-aut_platform"
 msgstr "stop"
 
-msgid "nav_platform"
+msgid "venezia-nav_platform"
 msgstr "dock"
 
-msgid "treni_platform"
+msgid "venezia-treni_platform"
 msgstr "plat."
 
 msgid "not_implemented"
