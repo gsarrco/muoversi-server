@@ -309,7 +309,7 @@ async def show_stop_from_id(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     stop_ref, line = text[1:].split('/') if '/' in text else (text[1:], '')
     if '-' in stop_ref:
-        stop_ref, source_name = stop_ref.split('-')
+        stop_ref, source_name = stop_ref.split('-', 1)
         db_file: Source = thismodule.sources[source_name]
         context.user_data['transport_type'] = source_name
     else:
