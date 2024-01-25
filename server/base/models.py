@@ -19,6 +19,8 @@ class DBSource(Base):
     name: Mapped[str] = mapped_column(primary_key=True)
     city_name: Mapped[str] = mapped_column(ForeignKey('cities.name'))
     city: Mapped[City] = relationship('City', back_populates='sources')
+    color: Mapped[str]
+    icon_code: Mapped[int]
 
 
 class Station(Base):

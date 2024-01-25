@@ -28,14 +28,19 @@ def upgrade() -> None:
     op.create_table('sources',
                     sa.Column('name', sa.String(), nullable=False),
                     sa.Column('city_name', sa.String(), nullable=False),
+                    sa.Column('color', sa.String(), nullable=False),
+                    sa.Column('icon_code', sa.Integer(), nullable=False),
                     sa.ForeignKeyConstraint(['city_name'], ['cities.name'], ),
                     sa.PrimaryKeyConstraint('name')
                     )
 
     # populate sources with venezia-aut, venezia-nav, venezia-treni
-    op.execute("INSERT INTO sources (name, city_name) VALUES ('venezia-aut', 'venezia')")
-    op.execute("INSERT INTO sources (name, city_name) VALUES ('venezia-nav', 'venezia')")
-    op.execute("INSERT INTO sources (name, city_name) VALUES ('venezia-treni', 'venezia')")
+    op.execute("INSERT INTO sources (name, city_name, color, icon_code)"
+               "VALUES ('venezia-aut', 'venezia', '#FF9800', 57813)")
+    op.execute("INSERT INTO sources (name, city_name, color, icon_code)"
+               "VALUES ('venezia-nav', 'venezia', '#2196F3', 57811)")
+    op.execute("INSERT INTO sources (name, city_name, color, icon_code) "
+               "VALUES ('venezia-treni', 'venezia', '#4CAF50', 58997)")
 
     # create foreign keys
     op.create_foreign_key('stations_source_fkey', 'stations', 'sources',
