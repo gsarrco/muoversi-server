@@ -18,7 +18,7 @@ def run(source: list[str]):
 
     # if a list of sources is specified, only those sources will be updated, otherwise all sources will be updated
     if len(source) > 0:
-        sources = {k: v for k, v in all_sources.items() if k in source}
+        sources = {s: all_sources[s] for s in source}
     else:
         sources = all_sources
 
