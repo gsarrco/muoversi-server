@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import text
+from sqlalchemy import text, select
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 from starlette.routing import Route
 
-from server.base.models import StopTime
+from server.base.models import StopTime, City, DBSource
 from server.base.source import Source
 from server.sources import sources
 
@@ -93,11 +93,23 @@ async def get_stop_times(request: Request) -> Response:
         stop_times: list[StopTime] = source.get_stop_times(dep_stops_ids, '', start_dt, offset, limit=limit,
                                                            direction=direction, end_dt=end_dt)
         return JSONResponse([[stop_time.as_dict()] for stop_time in stop_times])
-    
+
+
+def get_cities(request: Request):
+    cities = sources['venezia-aut'].session.scalars(select(City)).all()
+    return JSONResponse([city.name for city in cities])
+
+
+def get_city_sources(request: Request):
+    city_name = request.path_params['city']
+    db_sources = sources['venezia-aut'].session.scalars(select(DBSource).filter_by(city_name=city_name)).all()
+    return JSONResponse([source.as_dict() for source in db_sources])
 
 
 routes = [
     Route("/", home),
     Route("/search/stations", search_stations),
-    Route("/stop_times", get_stop_times)
+    Route("/stop_times", get_stop_times),
+    Route("/cities", get_cities),
+    Route("/cities/{city}", get_city_sources)
 ]
