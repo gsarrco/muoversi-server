@@ -8,6 +8,7 @@ from starlette.routing import Route
 from server.base.models import StopTime, City, DBSource
 from server.base.source import Source
 from server.sources import sources
+from server.typesense import ts_search_stations
 
 
 async def home(request: Request) -> Response:
@@ -36,15 +37,20 @@ async def search_stations(request: Request) -> Response:
     hide_ids = request.query_params.get('hide_ids')
     if hide_ids:
         hide_ids = hide_ids.split(',')
-    only_source = request.query_params.get('only_source')
-    if only_source:
-        source = sources[only_source]
-        all_sources = False
+
+    selected_sources = request.query_params.get('sources')
+    if selected_sources:
+        sources_to_search = selected_sources.split(',')
     else:
-        source = sources['venezia-aut']
-        all_sources = True
+        sources_to_search = sources.keys()
+
+    # deprecated
+    only_source = request.query_params.get('only_source')
+    sources_to_search = [only_source] if only_source else sources_to_search
+
     limit = max(1, min(limit, 10))
-    stations, count = source.search_stations(name=query, all_sources=all_sources, limit=limit, hide_ids=hide_ids)
+    stations, count = ts_search_stations(sources['venezia-aut'].typesense, sources_to_search, name=query, limit=limit,
+                                         hide_ids=hide_ids)
     return JSONResponse([station.as_dict() for station in stations])
 
 
