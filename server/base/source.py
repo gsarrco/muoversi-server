@@ -401,3 +401,6 @@ class Source:
             stop_times.append(stop_time)
 
         return stop_times
+
+    def save_data(self):
+        raise NotImplementedError
