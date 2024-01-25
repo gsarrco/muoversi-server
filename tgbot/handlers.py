@@ -182,9 +182,10 @@ async def search_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
             text = message.text
 
     if lat == '' and lon == '':
-        stops_clusters, count = db_file.search_stops(name=text, all_sources=saved_dep_stop_ids, page=page, limit=limit)
+        stops_clusters, count = db_file.search_stations(name=text, all_sources=saved_dep_stop_ids, page=page,
+                                                        limit=limit)
     else:
-        stops_clusters, count = db_file.search_stops(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page,
+        stops_clusters, count = db_file.search_stations(lat=lat, lon=lon, all_sources=saved_dep_stop_ids, page=page,
                                                      limit=limit)
 
     if not stops_clusters:

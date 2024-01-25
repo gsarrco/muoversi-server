@@ -59,7 +59,7 @@ class Source:
         self.session = session
         self.typesense = typesense
 
-    def search_stops(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False,
+    def search_stations(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False,
                      hide_ids: list[str] = None) -> tuple[list[Station], int]:
         search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 

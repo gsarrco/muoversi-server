@@ -44,7 +44,7 @@ async def search_stations(request: Request) -> Response:
         source = sources['venezia-aut']
         all_sources = True
     limit = max(1, min(limit, 10))
-    stations, count = source.search_stops(name=query, all_sources=all_sources, limit=limit, hide_ids=hide_ids)
+    stations, count = source.search_stations(name=query, all_sources=all_sources, limit=limit, hide_ids=hide_ids)
     return JSONResponse([station.as_dict() for station in stations])
 
 
