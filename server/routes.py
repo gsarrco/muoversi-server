@@ -98,12 +98,18 @@ async def get_stop_times(request: Request) -> Response:
 def get_cities(request: Request):
     cities = sources['venezia-aut'].session.scalars(select(City)).all()
     return JSONResponse([city.name for city in cities])
-    
+
+
+def get_city_sources(request: Request):
+    city_name = request.path_params['city']
+    db_sources = sources['venezia-aut'].session.scalars(select(DBSource).filter_by(city_name=city_name)).all()
+    return JSONResponse([source.as_dict() for source in db_sources])
 
 
 routes = [
     Route("/", home),
     Route("/search/stations", search_stations),
     Route("/stop_times", get_stop_times),
-    Route("/cities", get_cities)
+    Route("/cities", get_cities),
+    Route("/cities/{city}", get_city_sources)
 ]

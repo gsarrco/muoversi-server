@@ -22,6 +22,13 @@ class DBSource(Base):
     color: Mapped[str]
     icon_code: Mapped[int]
 
+    def as_dict(self):
+        return {
+            'name': self.name,
+            'color': self.color,
+            'icon_code': self.icon_code
+        }
+
 
 class Station(Base):
     __tablename__ = 'stations'
