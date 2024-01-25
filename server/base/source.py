@@ -5,6 +5,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased
 
+from server.typesense import ts_search_stations
 from tgbot.formatting import Liner
 from .models import Station, Stop, StopTime
 
@@ -61,39 +62,8 @@ class Source:
 
     def search_stations(self, name=None, lat=None, lon=None, page=1, limit=4, all_sources=False,
                      hide_ids: list[str] = None) -> tuple[list[Station], int]:
-        search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
-
-        limit_hits = None
-        if lat and lon:
-            limit_hits = limit * 2
-            search_config.update({
-                'q': '*',
-                'sort_by': f'location({lat},{lon}):asc',
-                'limit_hits': limit_hits
-            })
-        else:
-            search_config.update({
-                'q': name,
-                'sort_by': 'times_count:desc'
-            })
-        if not all_sources:
-            search_config['filter_by'] = f'source:{self.name}'
-        if hide_ids:
-            search_config['hidden_hits'] = ','.join(hide_ids)
-
-        results = self.typesense.collections['stations'].documents.search(search_config)
-
-        stations = []
-
-        for result in results['hits']:
-            document = result['document']
-            lat, lon = document['location']
-            station = Station(id=document['id'], name=document['name'], lat=lat, lon=lon,
-                              ids=document['ids'], source=document['source'], times_count=document['times_count'])
-            stations.append(station)
-
-        found = limit_hits if limit_hits else results['found']
-        return stations, found
+        sources = [] if all_sources else [self.name]
+        return ts_search_stations(self.typesense, sources, name, lat, lon, page, limit, hide_ids)
 
     def get_stop_times(self, stops_ids, line, start_dt: datetime, offset: int | tuple[int], count=False,
                        limit: int | None = None, direction=1, end_dt: datetime = None) -> list[StopTime] | list[str]:
