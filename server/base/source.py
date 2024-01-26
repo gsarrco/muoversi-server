@@ -280,25 +280,6 @@ class Source:
                 else:
                     results[station.id] = [station, stop.id]
 
-    def sync_stations_typesense(self, stations_with_stop_ids: list[list[Station, str]]):
-        stations_collection = self.typesense.collections['stations']
-
-        stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
-
-        stations_to_sync = [{
-            'id': station.id,
-            'name': station.name,
-            'location': [station.lat, station.lon],
-            'ids': stop_ids,
-            'source': station.source,
-            'times_count': station.times_count
-        } for station, stop_ids in stations_with_stop_ids]
-
-        if not stations_to_sync:
-            return
-
-        stations_collection.documents.import_(stations_to_sync)
-
     def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
             .filter(Station.id == ref, Station.source == self.name)

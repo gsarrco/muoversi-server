@@ -36,3 +36,23 @@ def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=N
 
     found = limit_hits if limit_hits else results['found']
     return stations, found
+
+
+def sync_stations_typesense(typesense, name, stations_with_stop_ids: list[list[Station, str]]):
+    stations_collection = typesense.collections['stations']
+
+    stations_collection.documents.delete({'filter_by': f'source:{name}'})
+
+    stations_to_sync = [{
+        'id': station.id,
+        'name': station.name,
+        'location': [station.lat, station.lon],
+        'ids': stop_ids,
+        'source': station.source,
+        'times_count': station.times_count
+    } for station, stop_ids in stations_with_stop_ids]
+
+    if not stations_to_sync:
+        return
+
+    stations_collection.documents.import_(stations_to_sync)
