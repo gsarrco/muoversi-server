@@ -1,5 +1,8 @@
+from server.base.models import Station
+
+
 def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=None, page=1, limit=4,
-                       hide_ids: list[str] = None):
+                       hide_ids: list[str] = None) -> tuple[list[Station], int]:
     search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
     limit_hits = None
@@ -22,8 +25,6 @@ def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=N
         search_config['hidden_hits'] = ','.join(hide_ids)
 
     results = typesense.collections['stations'].documents.search(search_config)
-
-    from server.base import Station
 
     stations = []
     for result in results['hits']:
