@@ -292,21 +292,6 @@ class Source:
     def search_lines(self, name):
         raise NotImplementedError
 
-    def get_source_stations(self) -> list[list[Station, str]]:
-        stmt = select(Station, Stop.id).select_from(Stop).join(Stop.station).filter(Stop.source == self.name,
-                                                                                    Stop.active)
-        stops_stations = self.session.execute(stmt).all()
-
-        results: dict[str, list[Station, str]] = {}
-        for stop_station in stops_stations:
-            station, stop_id = stop_station
-            if station.id in results:
-                results[station.id][1] += ',' + stop_id
-            else:
-                results[station.id] = [station, stop_id]
-
-        return list(results.values())
-
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
         if stop_time.orig_dep_date > date.today() + timedelta(days=2):
             return
