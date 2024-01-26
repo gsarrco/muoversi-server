@@ -19,6 +19,3 @@ sources: dict[str, Source] = {
     'venezia-nav': GTFS('navigazione', 'venezia-nav', '⛴️', session, typesense, dev=config.get('DEV', False)),
     'venezia-treni': Trenitalia(session, typesense)
 }
-
-for source in sources.values():
-    source.sync_stations_typesense(source.get_source_stations())
