@@ -1,25 +1,3 @@
-import os
-
-import yaml
-from typesense import Client
-
-
-def connect_to_typesense():
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(parent_dir, 'config.yaml')
-    with open(config_path, 'r') as config_file:
-        config = yaml.safe_load(config_file)
-    return Client({
-        'api_key': config['TYPESENSE_API_KEY'],
-        'nodes': [{
-            'host': config.get('TYPESENSE_HOST', 'localhost'),
-            'port': '8108',
-            'protocol': 'http'
-        }],
-        'connection_timeout_seconds': 2
-    })
-
-
 def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=None, page=1, limit=4,
                        hide_ids: list[str] = None):
     search_config = {'per_page': limit, 'query_by': 'name', 'page': page}

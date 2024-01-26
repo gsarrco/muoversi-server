@@ -5,7 +5,7 @@ from config import config
 from server.GTFS import GTFS
 from server.base import Source
 from server.trenitalia import Trenitalia
-from server.typesense import connect_to_typesense
+from server.typesense.connection import connect_to_typesense
 
 engine_url = f"postgresql://{config['PGUSER']}:{config['PGPASSWORD']}@{config['PGHOST']}:{config['PGPORT']}/" \
              f"{config['PGDATABASE']}"
