@@ -7,7 +7,7 @@ Create Date: 2023-07-26 07:12:04.490257
 """
 from typesense.exceptions import ObjectNotFound
 
-from server.typesense import connect_to_typesense
+from server.typesense.connection import connect_to_typesense
 
 # revision identifiers, used by Alembic.
 revision = '2e8b9b6298f0'

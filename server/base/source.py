@@ -5,7 +5,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import aliased
 
-from server.typesense import ts_search_stations
+from server.typesense.helpers import ts_search_stations
 from tgbot.formatting import Liner
 from .models import Station, Stop, StopTime
 

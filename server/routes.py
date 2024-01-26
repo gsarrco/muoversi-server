@@ -8,7 +8,7 @@ from starlette.routing import Route
 from server.base.models import StopTime, City, DBSource
 from server.base.source import Source
 from server.sources import sources
-from server.typesense import ts_search_stations
+from server.typesense.helpers import ts_search_stations
 
 
 async def home(request: Request) -> Response:

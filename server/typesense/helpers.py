@@ -1,27 +1,8 @@
-import os
-
-import yaml
-from typesense import Client
-
-
-def connect_to_typesense():
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(parent_dir, 'config.yaml')
-    with open(config_path, 'r') as config_file:
-        config = yaml.safe_load(config_file)
-    return Client({
-        'api_key': config['TYPESENSE_API_KEY'],
-        'nodes': [{
-            'host': config.get('TYPESENSE_HOST', 'localhost'),
-            'port': '8108',
-            'protocol': 'http'
-        }],
-        'connection_timeout_seconds': 2
-    })
+from server.base.models import Station
 
 
 def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=None, page=1, limit=4,
-                       hide_ids: list[str] = None):
+                       hide_ids: list[str] = None) -> tuple[list[Station], int]:
     search_config = {'per_page': limit, 'query_by': 'name', 'page': page}
 
     limit_hits = None
@@ -44,8 +25,6 @@ def ts_search_stations(typesense, sources: list[str], name=None, lat=None, lon=N
         search_config['hidden_hits'] = ','.join(hide_ids)
 
     results = typesense.collections['stations'].documents.search(search_config)
-
-    from server.base import Station
 
     stations = []
     for result in results['hits']:
