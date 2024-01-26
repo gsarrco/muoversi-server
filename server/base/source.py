@@ -280,8 +280,6 @@ class Source:
                 else:
                     results[station.id] = [station, stop.id]
 
-        self.sync_stations_typesense(list(results.values()))
-
     def sync_stations_typesense(self, stations_with_stop_ids: list[list[Station, str]]):
         stations_collection = self.typesense.collections['stations']
 
