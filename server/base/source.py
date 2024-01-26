@@ -280,25 +280,6 @@ class Source:
                 else:
                     results[station.id] = [station, stop.id]
 
-    def sync_stations_typesense(self, stations_with_stop_ids: list[list[Station, str]]):
-        stations_collection = self.typesense.collections['stations']
-
-        stations_collection.documents.delete({'filter_by': f'source:{self.name}'})
-
-        stations_to_sync = [{
-            'id': station.id,
-            'name': station.name,
-            'location': [station.lat, station.lon],
-            'ids': stop_ids,
-            'source': station.source,
-            'times_count': station.times_count
-        } for station, stop_ids in stations_with_stop_ids]
-
-        if not stations_to_sync:
-            return
-
-        stations_collection.documents.import_(stations_to_sync)
-
     def get_stop_from_ref(self, ref) -> Station | None:
         stmt = select(Station) \
             .filter(Station.id == ref, Station.source == self.name)
@@ -310,21 +291,6 @@ class Source:
 
     def search_lines(self, name):
         raise NotImplementedError
-
-    def get_source_stations(self) -> list[list[Station, str]]:
-        stmt = select(Station, Stop.id).select_from(Stop).join(Stop.station).filter(Stop.source == self.name,
-                                                                                    Stop.active)
-        stops_stations = self.session.execute(stmt).all()
-
-        results: dict[str, list[Station, str]] = {}
-        for stop_station in stops_stations:
-            station, stop_id = stop_station
-            if station.id in results:
-                results[station.id][1] += ',' + stop_id
-            else:
-                results[station.id] = [station, stop_id]
-
-        return list(results.values())
 
     def upload_trip_stop_time_to_postgres(self, stop_time: TripStopTime):
         if stop_time.orig_dep_date > date.today() + timedelta(days=2):
