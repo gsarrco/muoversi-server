@@ -3,6 +3,7 @@ from typing import Optional
 
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
+from sqlalchemy_utc import UtcDateTime
 
 Base = declarative_base()
 
@@ -71,8 +72,8 @@ class StopTime(Base):
     __tablename__ = 'stop_times'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    sched_arr_dt: Mapped[Optional[datetime]]
-    sched_dep_dt: Mapped[Optional[datetime]]
+    sched_arr_dt: Mapped[Optional[datetime]] = mapped_column(UtcDateTime)
+    sched_dep_dt: Mapped[Optional[datetime]] = mapped_column(UtcDateTime)
     orig_dep_date: Mapped[date]
     platform: Mapped[Optional[str]]
     orig_id: Mapped[str]

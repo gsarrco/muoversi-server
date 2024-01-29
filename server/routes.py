@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pytz import timezone
 from sqlalchemy import text, select
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -68,11 +69,17 @@ async def get_stop_times(request: Request) -> Response:
     if not start_dt_str:
         return Response(status_code=400, content='Missing start_dt')
     start_dt = datetime.fromisoformat(start_dt_str)
+    # if not timezone aware, assume it's in Europe/Rome timezone
+    if not start_dt.tzinfo:
+        start_dt = start_dt.replace(tzinfo=timezone('Europe/Rome'))
 
     end_dt_str = request.query_params.get('end_dt')
     end_dt = None
     if end_dt_str:
         end_dt = datetime.fromisoformat(end_dt_str)
+        # if not timezone aware, assume it's in Europe/Rome timezone
+        if not end_dt.tzinfo:
+            end_dt = end_dt.replace(tzinfo=timezone('Europe/Rome'))
 
     str_offset = request.query_params.get('offset_by_ids', '')
 

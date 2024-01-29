@@ -17,3 +17,4 @@ pandas==2.0.3
 geopy==2.3.0
 typesense==0.15.1
 click==8.1.7
+SQLAlchemy-Utc==0.14.0

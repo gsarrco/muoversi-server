@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, time, date, timedelta
 
 from babel.dates import format_date
+from pytz import timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -92,6 +93,10 @@ class StopTimesFilter:
 
         # end_at is same day as start_at at 23:59
         end_dt = datetime.combine(self.day, time(23, 59))
+
+        # make start_dt and end_dt timezone aware
+        start_dt = start_dt.replace(tzinfo=timezone('Europe/Rome'))
+        end_dt = end_dt.replace(tzinfo=timezone('Europe/Rome'))
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)
