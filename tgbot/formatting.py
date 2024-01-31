@@ -36,7 +36,7 @@ class NamedStopTime(Liner):
         line += f'\n⎿ <i>{trip_id}{platform_text} {platform}</i>'
 
         # Modifications for all lines of text
-        if self.stop_time.sched_dep_dt < datetime.now():
+        if self.stop_time.sched_dep_dt < datetime.now(tz=self.stop_time.sched_dep_dt.tzinfo):
             line = f'<del>{line}</del>'
 
         if number:
@@ -89,7 +89,7 @@ class Route(Liner):
         line += f'\n⎿ <i>/{self.dep_stop_time.number} {platform_text} {dep_platform} -> {arr_platform}</i>'
 
         # Modifications for all lines of text
-        if self.dep_stop_time.sched_dep_dt < datetime.now():
+        if self.dep_stop_time.sched_dep_dt < datetime.now(tz=self.dep_stop_time.sched_dep_dt.tzinfo):
             line = f'<del>{line}</del>'
 
         if number:
