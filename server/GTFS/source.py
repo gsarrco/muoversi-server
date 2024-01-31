@@ -292,7 +292,7 @@ class GTFS(Source):
         for result in results:
             location = get_loc_from_stop_and_cluster(result[5])
             dep_time = time(result[6], result[7])
-            dep_dt = datetime.combine(day, dep_time).replace(tzinfo=timezone('Europe/Rome'))
+            dep_dt = datetime.combine(day, dep_time).replace(tzinfo=timezone('Etc/GMT+1'))
             arr_dt = dep_dt
             orig_dep_time = time(result[9], result[10])
             orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)

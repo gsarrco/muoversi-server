@@ -86,10 +86,10 @@ class StopTime(Base):
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
     def tz_sched_arr_dt(self):
-        return self.sched_arr_dt.astimezone(timezone('Europe/Rome'))
+        return self.sched_arr_dt.astimezone(timezone('Etc/GMT+1'))
     
     def tz_sched_dep_dt(self):
-        return self.sched_dep_dt.astimezone(timezone('Europe/Rome'))
+        return self.sched_dep_dt.astimezone(timezone('Etc/GMT+1'))
     
     __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date"),)
 
