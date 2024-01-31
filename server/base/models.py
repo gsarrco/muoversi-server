@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
-
 from pytz import timezone
+
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from sqlalchemy_utc import UtcDateTime
@@ -85,16 +85,19 @@ class StopTime(Base):
     stop_id: Mapped[str] = mapped_column(ForeignKey('stops.id'))
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
+    def tz_sched_arr_dt(self):
+        return self.sched_arr_dt.astimezone(timezone('Europe/Rome'))
+    
+    def tz_sched_dep_dt(self):
+        return self.sched_dep_dt.astimezone(timezone('Europe/Rome'))
+    
     __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date"),)
 
     def as_dict(self):
-        italy_tz = timezone('Europe/Rome')
         return {
             'id': self.id,
-            'sched_arr_dt': self.sched_arr_dt.astimezone(italy_tz).replace(
-                tzinfo=None).isoformat() if self.sched_arr_dt else None,
-            'sched_dep_dt': self.sched_dep_dt.astimezone(italy_tz).replace(
-                tzinfo=None).isoformat() if self.sched_dep_dt else None,
+            'sched_arr_dt': self.tz_sched_arr_dt().replace(tzinfo=None).isoformat() if self.sched_arr_dt else None,
+            'sched_dep_dt': self.tz_sched_dep_dt().replace(tzinfo=None).isoformat() if self.sched_dep_dt else None,
             'orig_dep_date': self.orig_dep_date.isoformat(),
             'platform': self.platform,
             'orig_id': self.orig_id,

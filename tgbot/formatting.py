@@ -20,7 +20,7 @@ class NamedStopTime(Liner):
         if left_time_bold:
             time_format += "<b>"
 
-        time_format += self.stop_time.sched_dep_dt.strftime('%H:%M')
+        time_format += self.stop_time.tz_sched_dep_dt().strftime('%H:%M')
 
         if left_time_bold:
             time_format += "</b>"
@@ -60,13 +60,13 @@ class Route(Liner):
         if left_time_bold:
             time_format += "<b>"
 
-        time_format += self.dep_stop_time.sched_dep_dt.strftime('%H:%M')
+        time_format += self.dep_stop_time.tz_sched_dep_dt().strftime('%H:%M')
 
         if left_time_bold:
             time_format += "</b>"
 
         if self.arr_stop_time:
-            arr_time = self.arr_stop_time.sched_arr_dt.strftime('%H:%M')
+            arr_time = self.arr_stop_time.tz_sched_arr_dt().strftime('%H:%M')
 
             time_format += "->"
 
