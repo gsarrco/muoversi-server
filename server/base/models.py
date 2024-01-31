@@ -89,8 +89,8 @@ class StopTime(Base):
     def as_dict(self):
         return {
             'id': self.id,
-            'sched_arr_dt': self.sched_arr_dt.isoformat() if self.sched_arr_dt else None,
-            'sched_dep_dt': self.sched_dep_dt.isoformat() if self.sched_dep_dt else None,
+            'sched_arr_dt': self.sched_arr_dt.replace(tzinfo=None).isoformat() if self.sched_arr_dt else None,
+            'sched_dep_dt': self.sched_dep_dt.replace(tzinfo=None).isoformat() if self.sched_dep_dt else None,
             'orig_dep_date': self.orig_dep_date.isoformat(),
             'platform': self.platform,
             'orig_id': self.orig_id,
