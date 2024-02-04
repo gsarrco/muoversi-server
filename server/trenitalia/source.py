@@ -172,7 +172,6 @@ class Trenitalia(Source):
                 continue
 
             headsign = departure['destinazione']
-            stop_sequence = len(departure['compInStazionePartenza']) - 1
             delay = departure['ritardo']
 
             type_text = 'Partenza' if type == 'partenze' else 'Arrivo'
@@ -188,7 +187,7 @@ class Trenitalia(Source):
             origin_id = departure['codOrigine']
             destination = departure.get('destinazione')
             route_name = 'RV' if 3000 <= trip_id < 4000 else 'R'
-            stop_time = TripStopTime(stop, origin_id, dep_time, stop_sequence, delay, platform, headsign, trip_id,
+            stop_time = TripStopTime(stop, origin_id, dep_time, None, delay, platform, headsign, trip_id,
                                            route_name,
                                            arr_time=arr_time, orig_dep_date=orig_dep_date, destination=destination)
             stop_times.append(stop_time)
