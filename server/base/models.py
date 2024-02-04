@@ -81,6 +81,7 @@ class StopTime(Base):
     dest_text: Mapped[str]
     number: Mapped[int]
     route_name: Mapped[str]
+    stop_sequence: Mapped[Optional[int]]
     source: Mapped[str] = mapped_column(ForeignKey('sources.name'))
     stop_id: Mapped[str] = mapped_column(ForeignKey('stops.id'))
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
@@ -91,7 +92,7 @@ class StopTime(Base):
     def tz_sched_dep_dt(self):
         return self.sched_dep_dt.astimezone(timezone('Etc/GMT+1'))
     
-    __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date"),)
+    __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date", "stop_sequence"),)
 
     def as_dict(self):
         return {
