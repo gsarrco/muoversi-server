@@ -302,11 +302,13 @@ class Source:
                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
                                        orig_id=stop_time.origin_id, dest_text=stop_time.destination,
                                        number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                                       route_name=stop_time.route_name, source=self.name)
+                                       route_name=stop_time.route_name, source=self.name, stop_sequence=stop_time.stop_sequence)
 
         stmt = stmt.on_conflict_do_update(
-            index_elements=['stop_id', 'number', 'orig_dep_date', 'source'],
-            set_={'platform': stop_time.platform}
+            index_elements=['stop_id', 'number', 'orig_dep_date', 'source', 'stop_sequence'],
+            set_={'sched_arr_dt': stop_time.arr_time, 'sched_dep_dt': stop_time.dep_time,
+                    'platform': stop_time.platform, 'orig_id': stop_time.origin_id,
+                    'dest_text': stop_time.destination, 'route_name': stop_time.route_name}
         )
 
         self.session.execute(stmt)
