@@ -305,7 +305,7 @@ class Source:
                                        route_name=stop_time.route_name, source=self.name, stop_sequence=stop_time.stop_sequence)
 
         stmt = stmt.on_conflict_do_update(
-            index_elements=['stop_id', 'number', 'orig_dep_date', 'source', 'stop_sequence'],
+            constraint='stop_times_unique_idx',
             set_={'sched_arr_dt': stop_time.arr_time, 'sched_dep_dt': stop_time.dep_time,
                     'platform': stop_time.platform, 'orig_id': stop_time.origin_id,
                     'dest_text': stop_time.destination, 'route_name': stop_time.route_name}
