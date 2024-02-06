@@ -12,7 +12,7 @@ SQLAlchemy==2.0.25
 psycopg2-binary==2.9.6
 starlette==0.28.0
 uvicorn==0.22.0
-alembic==1.11.1
+alembic==1.13.1
 pandas==2.0.3
 geopy==2.3.0
 typesense==0.15.1
