@@ -22,7 +22,9 @@ by name and location. This way it is easier to search for bus stations with more
 ### Requirements
 
 - Python 3
-- PostgreSQL for the database
+- PostgreSQL 16.1 for the database
+- Packages contained in `requirements.txt`
+- [node-gtfs](https://github.com/blinktaginc/node-gtfs) installed globally
 - [Typesense](https://typesense.org/) for the stop search engine
 - [Telegram bot token](https://core.telegram.org/bots/features#botfather) if you also want to run the bot
 
