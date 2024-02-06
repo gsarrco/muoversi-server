@@ -18,12 +18,13 @@ depends_on = None
 def upgrade() -> None:
     op.drop_index('stop_times_unique_idx', table_name='stop_times')
     op.add_column('stop_times', sa.Column('stop_sequence', sa.Integer(), nullable=True))
-    op.execute('ALTER TABLE stop_times ADD CONSTRAINT stop_times_unique_idx UNIQUE NULLS NOT DISTINCT '
-               '(stop_id, number, source, orig_dep_date, stop_sequence)')
+    op.create_unique_constraint('stop_times_unique_idx', 'stop_times', 
+                                ['stop_id', 'number', 'source', 'orig_dep_date', 'stop_sequence'], 
+                                postgresql_nulls_not_distinct=True)
 
 
 def downgrade() -> None:
-    op.execute('ALTER TABLE stop_times DROP CONSTRAINT stop_times_unique_idx')
+    op.drop_constraint('stop_times_unique_idx', 'stop_times', type_='unique')
     op.drop_column('stop_times', 'stop_sequence')
     op.create_index('stop_times_unique_idx', 'stop_times',
                     ['stop_id', 'number', 'source', 'orig_dep_date'])
