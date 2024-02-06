@@ -92,7 +92,8 @@ class StopTime(Base):
     def tz_sched_dep_dt(self):
         return self.sched_dep_dt.astimezone(timezone('Etc/GMT+1'))
     
-    __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date", "stop_sequence"),)
+    __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date", "stop_sequence", 
+                                       name="stop_times_unique_idx", postgresql_nulls_not_distinct=True),)
 
     def as_dict(self):
         return {
