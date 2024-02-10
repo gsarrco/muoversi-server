@@ -69,17 +69,17 @@ async def get_stop_times(request: Request) -> Response:
     if not start_dt_str:
         return Response(status_code=400, content='Missing start_dt')
     start_dt = datetime.fromisoformat(start_dt_str)
-    # if not timezone aware, assume it's in Etc/GMT+1 timezone
+    # if not timezone aware, assume it's in Europe/Berlin timezone
     if not start_dt.tzinfo:
-        start_dt = start_dt.replace(tzinfo=timezone('Etc/GMT+1'))
+        start_dt = start_dt.replace(tzinfo=timezone('Europe/Berlin'))
 
     end_dt_str = request.query_params.get('end_dt')
     end_dt = None
     if end_dt_str:
         end_dt = datetime.fromisoformat(end_dt_str)
-        # if not timezone aware, assume it's in Etc/GMT+1 timezone
+        # if not timezone aware, assume it's in Europe/Berlin timezone
         if not end_dt.tzinfo:
-            end_dt = end_dt.replace(tzinfo=timezone('Etc/GMT+1'))
+            end_dt = end_dt.replace(tzinfo=timezone('Europe/Berlin'))
 
     str_offset = request.query_params.get('offset_by_ids', '')
 

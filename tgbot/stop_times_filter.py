@@ -95,8 +95,8 @@ class StopTimesFilter:
         end_dt = datetime.combine(self.day, time(23, 59))
 
         # make start_dt and end_dt timezone aware
-        start_dt = start_dt.replace(tzinfo=timezone('Etc/GMT+1'))
-        end_dt = end_dt.replace(tzinfo=timezone('Etc/GMT+1'))
+        start_dt = start_dt.replace(tzinfo=timezone('Europe/Berlin'))
+        end_dt = end_dt.replace(tzinfo=timezone('Europe/Berlin'))
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)

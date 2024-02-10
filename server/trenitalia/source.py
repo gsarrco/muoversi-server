@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-rome_tz = timezone('Etc/GMT+1')
+rome_tz = timezone('Europe/Berlin')
 
 
 class Trenitalia(Source):
