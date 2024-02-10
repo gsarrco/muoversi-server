@@ -146,7 +146,11 @@ class Source:
         if count:
             stmt = select(d_stop_times.route_name)
         else:
-            stmt = select(d_stop_times, a_stop_times)
+            stmt = select(d_stop_times, a_stop_times) \
+                .distinct(d_stop_times.sched_dep_dt,
+                          d_stop_times.orig_dep_date,
+                          d_stop_times.source,
+                          d_stop_times.number)
 
         day = start_dt.date()
         day_minus_one = day - timedelta(days=1)
@@ -187,9 +191,17 @@ class Source:
                 func.count(d_stop_times.route_name).desc())
         else:
             if direction == 1:
-                stmt = stmt.order_by(d_stop_times.sched_dep_dt.asc())
+                stmt = stmt.order_by(d_stop_times.sched_dep_dt.asc(),
+                                     d_stop_times.orig_dep_date.asc(),
+                                     d_stop_times.source.asc(),
+                                     d_stop_times.number.asc(),
+                                     a_stop_times.sched_arr_dt.asc())
             else:
-                stmt = stmt.order_by(d_stop_times.sched_dep_dt.desc())
+                stmt = stmt.order_by(d_stop_times.sched_dep_dt.desc(),
+                                     d_stop_times.orig_dep_date.desc(),
+                                     d_stop_times.source.desc(),
+                                     d_stop_times.number.desc(),
+                                     a_stop_times.sched_arr_dt.asc())
 
             if isinstance(offset, int):
                 stmt = stmt.offset(offset)
@@ -302,13 +314,14 @@ class Source:
                                        sched_dep_dt=stop_time.dep_time, platform=stop_time.platform,
                                        orig_id=stop_time.origin_id, dest_text=stop_time.destination,
                                        number=stop_time.trip_id, orig_dep_date=stop_time.orig_dep_date,
-                                       route_name=stop_time.route_name, source=self.name, stop_sequence=stop_time.stop_sequence)
+                                       route_name=stop_time.route_name, source=self.name,
+                                       stop_sequence=stop_time.stop_sequence)
 
         stmt = stmt.on_conflict_do_update(
             constraint='stop_times_unique_idx',
             set_={'sched_arr_dt': stop_time.arr_time, 'sched_dep_dt': stop_time.dep_time,
-                    'platform': stop_time.platform, 'orig_id': stop_time.origin_id,
-                    'dest_text': stop_time.destination, 'route_name': stop_time.route_name}
+                  'platform': stop_time.platform, 'orig_id': stop_time.origin_id,
+                  'dest_text': stop_time.destination, 'route_name': stop_time.route_name}
         )
 
         self.session.execute(stmt)
