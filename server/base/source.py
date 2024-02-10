@@ -111,7 +111,7 @@ class Source:
             if direction == 1:
                 stmt = stmt.order_by(StopTime.sched_dep_dt.asc())
             else:
-                stmt = stmt.order_by(StopTime.sched_arr_dt.desc())
+                stmt = stmt.order_by(StopTime.sched_dep_dt.desc())
 
             if isinstance(offset, int):
                 stmt = stmt.offset(offset)
@@ -189,7 +189,7 @@ class Source:
             if direction == 1:
                 stmt = stmt.order_by(d_stop_times.sched_dep_dt.asc())
             else:
-                stmt = stmt.order_by(d_stop_times.sched_arr_dt.desc())
+                stmt = stmt.order_by(d_stop_times.sched_dep_dt.desc())
 
             if isinstance(offset, int):
                 stmt = stmt.offset(offset)
