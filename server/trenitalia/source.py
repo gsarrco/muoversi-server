@@ -40,7 +40,11 @@ class Trenitalia(Source):
             self.sync_stations_db(new_stations)
 
     def save_data(self):
-        stations = self.session.scalars(select(Station).filter_by(source=self.name, active=True)).all()
+        stations = self.session.scalars(
+            select(Station)
+                .filter_by(source=self.name, active=True)
+                .order_by(Station.times_count.desc(), Station.name.asc())
+        ).all()
 
         max_times_count = 0
         times_count = []
