@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pytz import timezone
+from zoneinfo import ZoneInfo
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column, relationship
 from sqlalchemy_utc import UtcDateTime
@@ -87,10 +87,10 @@ class StopTime(Base):
     stop: Mapped[Stop] = relationship('Stop', foreign_keys=stop_id)
     
     def tz_sched_arr_dt(self):
-        return self.sched_arr_dt.astimezone(timezone('Europe/Berlin'))
+        return self.sched_arr_dt.astimezone(ZoneInfo('Europe/Berlin'))
     
     def tz_sched_dep_dt(self):
-        return self.sched_dep_dt.astimezone(timezone('Europe/Berlin'))
+        return self.sched_dep_dt.astimezone(ZoneInfo('Europe/Berlin'))
     
     __table_args__ = (UniqueConstraint("stop_id", "number", "source", "orig_dep_date", "stop_sequence", 
                                        name="stop_times_unique_idx", postgresql_nulls_not_distinct=True),)

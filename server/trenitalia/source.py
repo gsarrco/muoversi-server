@@ -3,7 +3,7 @@ import math
 import os
 
 import requests
-from pytz import timezone
+from zoneinfo import ZoneInfo
 from tqdm import tqdm
 
 from server.base import *
@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-rome_tz = timezone('Europe/Berlin')
+rome_tz = ZoneInfo('Europe/Berlin')
 
 
 class Trenitalia(Source):

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pytz import timezone
+from zoneinfo import ZoneInfo
 from sqlalchemy import text, select
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -71,7 +71,7 @@ async def get_stop_times(request: Request) -> Response:
     start_dt = datetime.fromisoformat(start_dt_str)
     # if not timezone aware, assume it's in Europe/Berlin timezone
     if not start_dt.tzinfo:
-        start_dt = start_dt.replace(tzinfo=timezone('Europe/Berlin'))
+        start_dt = start_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
 
     end_dt_str = request.query_params.get('end_dt')
     end_dt = None
@@ -79,7 +79,7 @@ async def get_stop_times(request: Request) -> Response:
         end_dt = datetime.fromisoformat(end_dt_str)
         # if not timezone aware, assume it's in Europe/Berlin timezone
         if not end_dt.tzinfo:
-            end_dt = end_dt.replace(tzinfo=timezone('Europe/Berlin'))
+            end_dt = end_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
 
     str_offset = request.query_params.get('offset_by_ids', '')
 
