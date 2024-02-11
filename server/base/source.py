@@ -152,9 +152,6 @@ class Source:
                           d_stop_times.source,
                           d_stop_times.number)
 
-        day = start_dt.date()
-        day_minus_one = day - timedelta(days=1)
-
         stmt = stmt \
             .select_from(d_stop_times) \
             .join(a_stop_times, and_(d_stop_times.number == a_stop_times.number,
