@@ -9,6 +9,7 @@ import urllib
 import urllib.request
 from datetime import datetime, timedelta, date, time
 from sqlite3 import Connection
+import arrow
 
 import requests
 from bs4 import BeautifulSoup
@@ -292,7 +293,7 @@ class GTFS(Source):
         for result in results:
             location = get_loc_from_stop_and_cluster(result[5])
             dep_time = time(result[6], result[7])
-            dep_dt = datetime.combine(day, dep_time).replace(tzinfo=ZoneInfo('Europe/Berlin'))
+            dep_dt = arrow.get(datetime.combine(day, dep_time), 'Europe/Berlin').datetime
             arr_dt = dep_dt
             orig_dep_time = time(result[9], result[10])
             orig_dep_date = day if orig_dep_time <= dep_time else day - timedelta(days=1)
