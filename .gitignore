@@ -10,3 +10,4 @@ cert.pem
 private.key
 config.yaml
 .DS_Store
+.python-version
