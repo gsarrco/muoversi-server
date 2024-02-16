@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes
 from server.base import Source, Station
 from server.base.models import StopTime
 from tgbot.formatting import Liner, NamedStopTime, Route, Direction
+import arrow
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -95,8 +96,8 @@ class StopTimesFilter:
         end_dt = datetime.combine(self.day, time(23, 59))
 
         # make start_dt and end_dt timezone aware
-        start_dt = start_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
-        end_dt = end_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
+        start_dt = arrow.get(start_dt, 'Europe/Berlin').datetime
+        end_dt = arrow.get(end_dt, 'Europe/Berlin').datetime
 
         if self.arr_stop_ids:
             arr_stop = Station(name=self.arr_cluster_name, ids=self.arr_stop_ids)

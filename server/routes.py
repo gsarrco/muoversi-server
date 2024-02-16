@@ -10,6 +10,7 @@ from server.base.models import StopTime, City, DBSource
 from server.base.source import Source
 from server.sources import sources
 from server.typesense.helpers import ts_search_stations
+import arrow
 
 
 async def home(request: Request) -> Response:
@@ -71,7 +72,7 @@ async def get_stop_times(request: Request) -> Response:
     start_dt = datetime.fromisoformat(start_dt_str)
     # if not timezone aware, assume it's in Europe/Berlin timezone
     if not start_dt.tzinfo:
-        start_dt = start_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
+        start_dt = arrow.get(start_dt, 'Europe/Berlin').datetime
 
     end_dt_str = request.query_params.get('end_dt')
     end_dt = None
@@ -79,7 +80,7 @@ async def get_stop_times(request: Request) -> Response:
         end_dt = datetime.fromisoformat(end_dt_str)
         # if not timezone aware, assume it's in Europe/Berlin timezone
         if not end_dt.tzinfo:
-            end_dt = end_dt.replace(tzinfo=ZoneInfo('Europe/Berlin'))
+            end_dt = arrow.get(end_dt, 'Europe/Berlin').datetime
 
     str_offset = request.query_params.get('offset_by_ids', '')
 
